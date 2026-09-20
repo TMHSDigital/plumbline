@@ -324,8 +324,7 @@ def _count_unpriced_bases(
 def _basis_sentences(by_basis: Mapping[str, int]) -> list[str]:
     """One sentence per reason, so the reasons are never merged into a count."""
     return [
-        f"{count} because {COST_BASIS_NOTES.get(basis, basis)}."
-        for basis, count in by_basis.items()
+        f"{count} rows: {COST_BASIS_NOTES.get(basis, basis)}." for basis, count in by_basis.items()
     ]
 
 

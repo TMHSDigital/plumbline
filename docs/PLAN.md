@@ -8,8 +8,9 @@ this page and pick up where the work stopped.
 
 - **Phase 6 — adapters: `local_logits` and `generative`.** Landed. The restricted
   softmax over a pinned checkpoint, and the text-generating control arm.
-- **Phase 7 — datasets.** The JevBench public loader (`datasets/public/`), the
-  private JSONL loader, and the dataset hash that ties a result to its rows.
+- **Phase 7 — datasets.** Landed. The JSONL loader that refuses unscoreable
+  rows, the JevBench public fixture and its translation, and the end-to-end
+  smoke run in `examples/smoke_public_dataset.py`.
 - **Phase 8 — CLI.** `pyproject.toml` declares `plumbline = "plumbline.cli:app"`
   against a module that does not exist, so a fresh install ships a broken entry
   point: `plumbline` on the path fails at import. Phase 8 either writes
@@ -38,6 +39,13 @@ Settled during the build. Reopen one only with a reason, not from scratch.
   tokens at all is a different finding from an API that reported none on this run.
 - `local_logits` is fixed at `restricted_softmax` and `generative` at `none`;
   neither is configurable, because the report groups on that field.
+- A row whose gold label is not one of its options is refused by the loader,
+  never scored: it would mark every system wrong and read as a model failure.
+- Every calibration figure carries its row count, and the artifact records
+  `dataset_rows` beside `dataset_hash`, because the floor depends on n.
+- The JevBench public rows are vendored as a fixture under MIT with attribution.
+  They are asked as one-of-n choices through plumbline's own harness, so results
+  from them are never comparable with JevBench's published numbers.
 - `generative` configures no fallback model. This is deliberate and deviates
   from the SDK's default advice for this model family: server-side fallback
   would re-run a declined case on another model inside the same call, so one
