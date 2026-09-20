@@ -25,7 +25,7 @@ into one another.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, get_args
 
@@ -73,6 +73,16 @@ class CaseRefusedError(PlumblineError):
 
 class UnknownAdapterError(PlumblineError):
     """A name was requested from the registry that nothing is registered under."""
+
+
+class NotCalibratableError(PlumblineError):
+    """A calibration metric was asked for on something that is not a probability.
+
+    Raised when a confidence series reaches a calibration function, when an
+    adapter reports no probability at all, or when values are missing. plumbline
+    refuses rather than imputing, because a zero in a calibration table reads as
+    a measurement and a blank reads as an absence.
+    """
 
 
 @dataclass(frozen=True)
@@ -162,3 +172,92 @@ def docs_confidence(distribution: Mapping[str, float]) -> float:
         raise ValueError(f"confidence needs at least 2 options, got {n}")
     peak = max(distribution.values())
     return min(1.0, max(0.0, (n * peak - 1.0) / (n - 1.0)))
+
+
+@dataclass(frozen=True)
+class ProbabilitySeries:
+    """A column of ``prob_selected`` values, tagged with what kind of number it is.
+
+    The separation between probability and confidence is enforced by the type
+    system rather than by a naming convention. A calibration function accepts
+    this type and nothing else, so there is no call site at which a confidence
+    column can be passed to ECE by mistake.
+    """
+
+    values: tuple[float | None, ...]
+    semantics: ProbabilitySemantics
+
+    def __post_init__(self) -> None:
+        if self.semantics == "none" and any(value is not None for value in self.values):
+            raise ValueError("semantics 'none' means every value must be None")
+        for value in self.values:
+            if value is not None and not 0.0 <= value <= 1.0:
+                raise ValueError(f"probability must lie in [0, 1], got {value!r}")
+
+    def __len__(self) -> int:
+        return len(self.values)
+
+    @property
+    def is_reportable(self) -> bool:
+        """Whether a calibration metric may be computed from this column at all."""
+        return self.semantics != "none" and all(value is not None for value in self.values)
+
+    def require_reportable(self) -> tuple[float, ...]:
+        """Return the values, or refuse and say exactly why."""
+        if self.semantics == "none":
+            raise NotCalibratableError(
+                "this adapter reports no probability, so it is excluded from calibration. "
+                "The report renders it as 'not reported', never as zero."
+            )
+        missing = sum(1 for value in self.values if value is None)
+        if missing:
+            raise NotCalibratableError(
+                f"{missing} of {len(self.values)} probabilities are missing. Drop the "
+                "failed cases explicitly rather than letting them be imputed."
+            )
+        return tuple(value for value in self.values if value is not None)
+
+
+@dataclass(frozen=True)
+class ConfidenceSeries:
+    """A column of vendor ``confidence`` values.
+
+    Deliberately not a :class:`ProbabilitySeries`. Confidence is evaluated as a
+    discrimination and gating signal: AUROC, plus accuracy and coverage across a
+    threshold sweep. It never reaches ECE, MCE, Brier, or a reliability diagram.
+    """
+
+    values: tuple[float | None, ...]
+
+    def __post_init__(self) -> None:
+        for value in self.values:
+            if value is not None and not 0.0 <= value <= 1.0:
+                raise ValueError(f"confidence must lie in [0, 1], got {value!r}")
+
+    def __len__(self) -> int:
+        return len(self.values)
+
+    @property
+    def is_reportable(self) -> bool:
+        return all(value is not None for value in self.values)
+
+    def require_reportable(self) -> tuple[float, ...]:
+        missing = sum(1 for value in self.values if value is None)
+        if missing:
+            raise ValueError(f"{missing} of {len(self.values)} confidence values are missing")
+        return tuple(value for value in self.values if value is not None)
+
+
+def probability_series(
+    predictions: Sequence[Prediction], semantics: ProbabilitySemantics
+) -> ProbabilitySeries:
+    """Pull ``prob_selected`` out of a run, tagged with the adapter's semantics."""
+    return ProbabilitySeries(
+        values=tuple(prediction.prob_selected for prediction in predictions),
+        semantics=semantics,
+    )
+
+
+def confidence_series(predictions: Sequence[Prediction]) -> ConfidenceSeries:
+    """Pull ``confidence`` out of a run."""
+    return ConfidenceSeries(values=tuple(prediction.confidence for prediction in predictions))
