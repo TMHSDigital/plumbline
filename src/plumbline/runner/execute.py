@@ -212,8 +212,15 @@ class RunResult:
             ],
         }
 
-    def write(self, directory: Path | str = "results") -> Path:
-        """Write the artifact. ``results/`` is gitignored; user data stays local."""
+    def write(self, directory: Path | str) -> Path:
+        """Write the artifact to ``directory``, which the caller must name.
+
+        There is deliberately no default. The artifact carries the user's
+        per-case records, and a relative default resolves against the working
+        directory, so where it lands depends on where the process happened to
+        start. Safety that depends on cwd is not safety. ``Cache`` requires its
+        directory for the same reason.
+        """
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
         stamp = self.timestamp.replace(":", "").replace("-", "")

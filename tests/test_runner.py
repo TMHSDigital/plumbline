@@ -312,6 +312,15 @@ def test_failures_are_excluded_from_accuracy_rather_than_scored_wrong() -> None:
 # The artifact
 
 
+def test_the_artifact_refuses_to_pick_its_own_directory() -> None:
+    """No default. Where user records land must not depend on the cwd."""
+    cases = make_cases(4, labels=LABELS)
+    result = execute.run(an_adapter(cases), cases, workers=1)
+
+    with pytest.raises(TypeError):
+        result.write()  # type: ignore[call-arg]
+
+
 def test_the_artifact_records_what_actually_answered(tmp_path: Path) -> None:
     cases = make_cases(30, labels=LABELS)
     adapter = an_adapter(cases, model_requested="mock-alias", model_reported="mock-1.13")
