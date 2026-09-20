@@ -1,0 +1,4 @@
+# Vendored third-party data is stored exactly as it was published, so its
+# bytes still match the upstream file it is attributed to.
+datasets/public/*.jsonl -text
+datasets/public/LICENSE-* -text
