@@ -55,11 +55,35 @@ from plumbline.metrics.calibration import (
 )
 from plumbline.types import (
     InsufficientDataError,
+    ProbabilitySemantics,
     ProbabilitySeries,
     apply_temperature,
 )
 
 Method = Literal["multiclass", "binary"]
+Recommendation = Literal["recommended", "partial", "refused"]
+RecommendationReason = Literal[
+    "fit_recovers_calibration",
+    "residual_above_floor",
+    "no_material_improvement",
+    "interval_spans_one",
+    "already_calibrated",
+]
+
+#: Printed whenever an adapter that reports a probability supplies no
+#: distribution alongside it. The numbers are measured, not asserted. See
+#: METHODOLOGY.md, "Adapters that report no distribution".
+NO_DISTRIBUTION_NOTE = (
+    "This adapter reported a probability but no distribution, so the binary "
+    "top-label form was used. That form is itself a misspecified model of a "
+    "multiclass distortion: on the underconfident mock, whose skew is a pure "
+    "temperature, the multiclass fit returns ECE to the floor while the binary "
+    "fit leaves it at roughly five times the floor. An adapter reporting no "
+    "distribution is worse off twice, excluded from multiclass Brier and harder "
+    "to correct even when its miscalibration is simple. A Noul answer carries "
+    "this limitation by construction, since it returns a bare probability with "
+    "no distribution at all."
+)
 
 #: Below this many evaluation rows, recalibration refuses. A temperature fitted
 #: and judged on fewer rows than this reports an improvement that is mostly the
@@ -128,9 +152,17 @@ class MetricSet:
 
 @dataclass(frozen=True)
 class RecalibrationResult:
-    """Everything the report needs to state what the fit did and did not achieve."""
+    """Everything the report needs to state what the fit did and did not achieve.
+
+    The headline is :attr:`recommendation`, not :attr:`temperature`. A fitted
+    temperature with a tight interval clear of 1.0 can still make calibration
+    worse, which is exactly what a per-label bias produces, so a clear interval
+    is not permission to ship a number.
+    """
 
     method: Method
+    semantics: ProbabilitySemantics
+    had_distribution: bool
     temperature: float
     temperature_ci: tuple[float, float]
     justified: bool
@@ -139,6 +171,7 @@ class RecalibrationResult:
     before: MetricSet
     after: MetricSet
     floor: dict[str, FloorBand]
+    floor_before: dict[str, FloorBand]
 
     @property
     def n_fit(self) -> int:
@@ -158,35 +191,125 @@ class RecalibrationResult:
         """Whether scaling brought ECE back inside the calibrated noise band."""
         return self.after.ece <= self.floor["ece"].p95
 
+    @property
+    def already_calibrated(self) -> bool:
+        """Whether there was anything to correct before the fit ran."""
+        return self.before.ece <= self.floor_before["ece"].p95
+
+    @property
+    def improvement(self) -> float:
+        """ECE removed by scaling. Negative when scaling made calibration worse."""
+        return self.before.ece - self.after.ece
+
+    @property
+    def noise_scale(self) -> float:
+        """How large an ECE difference this sample size can produce by chance.
+
+        The gap between the calibrated null's mean and its 95th percentile, about
+        1.6 standard deviations of an ECE measurement here. Comparing the
+        improvement against it is conservative, because before and after are
+        measured on the same rows and their errors are correlated.
+        """
+        return self.floor["ece"].p95 - self.floor["ece"].mean
+
+    @property
+    def improvement_is_material(self) -> bool:
+        return self.improvement > self.noise_scale
+
+    @property
+    def reason(self) -> RecommendationReason:
+        if self.already_calibrated:
+            return "already_calibrated"
+        if not self.improvement_is_material:
+            return "no_material_improvement"
+        if not self.justified:
+            return "interval_spans_one"
+        if not self.fit_is_complete:
+            return "residual_above_floor"
+        return "fit_recovers_calibration"
+
+    @property
+    def recommendation(self) -> Recommendation:
+        """The gate. Three outcomes, decided here rather than left to the reader.
+
+        ``recommended``
+            The interval clears 1.0, scaling materially improved ECE, and the
+            result landed inside the floor. Use this temperature.
+        ``partial``
+            Scaling helped materially but did not finish. The temperature is
+            reported together with the residual, because temperature was the
+            wrong shape of correction for part of this miscalibration.
+        ``refused``
+            Either there was nothing to fix, or scaling did not materially help.
+            No temperature is emitted, because a number that ships is a number
+            that gets hardcoded.
+        """
+        reason = self.reason
+        if reason == "fit_recovers_calibration":
+            return "recommended"
+        if reason == "residual_above_floor":
+            return "partial"
+        return "refused"
+
+    @property
+    def temperature_to_use(self) -> float | None:
+        """The temperature to put into production code, or None when refused."""
+        return None if self.recommendation == "refused" else self.temperature
+
+    def _verdict(self) -> str:
+        reason = self.reason
+        if reason == "already_calibrated":
+            return (
+                f"Refused: this adapter's ECE of {self.before.ece:.4f} is already inside "
+                f"its calibrated-model floor (95th percentile "
+                f"{self.floor_before['ece'].p95:.4f}), so there is nothing to correct. "
+                "No temperature is recommended."
+            )
+        if reason == "no_material_improvement":
+            return (
+                "Refused: temperature scaling does not fit this model's miscalibration. "
+                f"ECE went from {self.before.ece:.4f} to {self.after.ece:.4f}, a change "
+                f"of {self.improvement:+.4f} against a noise scale of "
+                f"{self.noise_scale:.4f}. No temperature is emitted, because this one is "
+                "at least as likely to hurt as to help. The signature is consistent with "
+                "a per-label bias, where some labels are systematically overconfident and "
+                "others are not. One global parameter cannot reach that, since flattening "
+                "enough for the skewed labels over-flattens the honest ones. Per-label or "
+                "vector scaling would be the next thing to try, and plumbline fits "
+                "neither."
+            )
+        if reason == "interval_spans_one":
+            return (
+                "Refused: the fitted interval spans 1.0, so this sample size does not "
+                "establish that any correction is needed. Do not hardcode this "
+                "temperature. Collect more rows."
+            )
+        if reason == "residual_above_floor":
+            return (
+                f"Partial: scaling removed {self.improvement:.4f} of ECE, but "
+                f"{self.after.ece:.4f} remains, which is {self.residual_ratio:.1f} times "
+                "the floor. Temperature was the wrong shape of correction for part of "
+                "this miscalibration. Use the temperature, and know that some "
+                "miscalibration survives it."
+            )
+        return (
+            "Recommended: the interval clears 1.0 and post-scaling ECE is inside the "
+            "floor, so a single temperature accounts for the miscalibration present."
+        )
+
     def summary(self) -> str:
         lines = [
             f"Temperature scaling, {self.method} form, fitted on {self.n_fit} rows and "
             f"evaluated on {self.n_eval} held-out rows (seed {self.seed}).",
             f"Fitted T = {self.temperature:.3f}, 95 percent interval "
             f"[{self.temperature_ci[0]:.3f}, {self.temperature_ci[1]:.3f}].",
-        ]
-        if not self.justified:
-            lines.append(
-                "That interval spans 1.0, so no recalibration is justified at this "
-                "sample size. Do not hardcode this temperature. Collect more rows."
-            )
-        lines.append(
             f"ECE {self.before.ece:.4f} before, {self.after.ece:.4f} after, against a "
             f"calibrated-model floor of {self.floor['ece'].mean:.4f} "
-            f"(95th percentile {self.floor['ece'].p95:.4f})."
-        )
-        if self.fit_is_complete:
-            lines.append(
-                "Post-scaling ECE is inside the floor, so a single temperature accounts "
-                "for the miscalibration that was present."
-            )
-        else:
-            lines.append(
-                f"Post-scaling ECE is still {self.residual_ratio:.1f} times the floor. A "
-                "single temperature does not account for all of this miscalibration; "
-                "some of it is structure that one parameter cannot reach, such as a "
-                "per-label bias or a distortion that differs across the range."
-            )
+            f"(95th percentile {self.floor['ece'].p95:.4f}).",
+            self._verdict(),
+        ]
+        if not self.had_distribution and self.semantics != "none":
+            lines.append(NO_DISTRIBUTION_NOTE)
         return " ".join(lines)
 
 
@@ -450,6 +573,8 @@ def recalibrate(
 
     return RecalibrationResult(
         method=method,
+        semantics=series.semantics,
+        had_distribution=use_multiclass,
         temperature=temperature,
         temperature_ci=(low, high),
         justified=not (low <= 1.0 <= high),
@@ -480,5 +605,13 @@ def recalibrate(
             min_bin_count=min_bin_count,
             n_boot=n_boot_floor,
             seed=seed + 2,
+        ),
+        floor_before=calibration_floor(
+            before_series,
+            n_bins=n_bins,
+            binning=binning,
+            min_bin_count=min_bin_count,
+            n_boot=n_boot_floor,
+            seed=seed + 3,
         ),
     )

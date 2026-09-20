@@ -182,8 +182,9 @@ def test_a_calibrated_model_yields_an_interval_spanning_one(n_cases: int) -> Non
     low, high = result.temperature_ci
     assert low <= 1.0 <= high
     assert not result.justified
-    assert "no recalibration is justified" in result.summary()
-    assert "Do not hardcode this temperature" in result.summary()
+    assert result.recommendation == "refused"
+    assert result.temperature_to_use is None
+    assert "nothing to correct" in result.summary()
 
 
 def test_a_genuinely_skewed_model_yields_an_interval_clear_of_one() -> None:
@@ -212,7 +213,9 @@ def test_a_piecewise_distortion_improves_a_lot_but_never_reaches_the_floor() -> 
         assert result.after.ece < 0.5 * result.before.ece
         assert not result.fit_is_complete
         assert result.residual_ratio > 1.2
-        assert "does not account for all of this miscalibration" in result.summary()
+        assert result.recommendation == "partial"
+        assert result.temperature_to_use == result.temperature
+        assert "wrong shape of correction" in result.summary()
 
 
 def test_a_per_label_bias_is_not_reliably_improved_at_all() -> None:
@@ -307,3 +310,128 @@ def test_recalibration_refuses_an_adapter_reporting_no_probability() -> None:
 def test_a_non_positive_temperature_is_rejected(temperature: float) -> None:
     with pytest.raises(ValueError, match="temperature must be positive"):
         apply_temperature({"a": 0.6, "b": 0.4}, temperature)
+
+
+# The recommendation gate, which is what protects a user from the fitted number
+
+
+def test_a_pure_temperature_skew_is_recommended() -> None:
+    result = recalibrate(run_for(4000, 0.5))
+    assert result.recommendation == "recommended"
+    assert result.reason == "fit_recovers_calibration"
+    assert result.temperature_to_use == pytest.approx(result.temperature)
+    assert "Recommended:" in result.summary()
+
+
+def test_an_already_calibrated_model_is_refused_with_nothing_to_correct() -> None:
+    """Not a failure of the fit. There was no miscalibration to remove."""
+    result = recalibrate(run_for(4000, 1.0))
+    assert result.recommendation == "refused"
+    assert result.reason == "already_calibrated"
+    assert result.already_calibrated
+    assert result.temperature_to_use is None
+
+
+def test_a_piecewise_distortion_is_partial_and_still_emits_a_temperature() -> None:
+    result = recalibrate(redistort(run_for(4000, 1.0, seed=1), piecewise_skew()))
+    assert result.recommendation == "partial"
+    assert result.reason == "residual_above_floor"
+    assert result.temperature_to_use is not None
+    assert "Partial:" in result.summary()
+    assert "some miscalibration survives it" in result.summary()
+
+
+def test_a_per_label_bias_is_refused_on_the_seeds_where_scaling_degrades() -> None:
+    """The path that protects users, tested across the seed range that produced it.
+
+    On these fixtures the fitted interval is tight and clear of 1.0, so a reader
+    following the interval alone would ship a temperature that makes calibration
+    worse. The gate refuses instead, and names the cause.
+    """
+    refusals = 0
+    for mock_seed in (1, 2, 3):
+        run = redistort(run_for(4000, 1.0, seed=mock_seed), per_label_skew(("billing",)))
+        for split_seed in (0, 5):
+            result = recalibrate(run, seed=split_seed)
+            if result.improvement <= result.noise_scale:
+                refusals += 1
+                assert result.recommendation == "refused"
+                assert result.reason == "no_material_improvement"
+                assert result.temperature_to_use is None
+                assert "does not fit this model's miscalibration" in result.summary()
+                assert "per-label bias" in result.summary()
+                # The interval alone would have said go ahead.
+                assert result.justified
+
+    assert refusals >= 4, f"expected the degrading seeds to refuse, got {refusals}"
+
+
+def test_the_refusal_names_a_next_step_rather_than_stopping() -> None:
+    run = redistort(run_for(4000, 1.0, seed=2), per_label_skew(("billing",)))
+    summary = recalibrate(run, seed=0).summary()
+    assert "vector scaling" in summary
+    assert "plumbline fits neither" in summary
+
+
+def test_an_interval_spanning_one_is_refused_even_when_ece_improves() -> None:
+    """A defensive path the fixtures do not reach, so it is exercised directly.
+
+    Material improvement almost always drags the interval clear of 1.0, so this
+    combination is rare. It is still a refusal: without an interval that excludes
+    1.0 there is no evidence a correction is warranted.
+    """
+    result = _result_with(justified=False, before_ece=0.20, after_ece=0.02)
+    assert result.reason == "interval_spans_one"
+    assert result.recommendation == "refused"
+    assert result.temperature_to_use is None
+
+
+def test_the_reasons_are_checked_in_priority_order() -> None:
+    """Nothing to correct outranks everything else, including a bad fit."""
+    result = _result_with(justified=True, before_ece=0.005, after_ece=0.40)
+    assert result.reason == "already_calibrated"
+
+
+def _result_with(
+    *, justified: bool, before_ece: float, after_ece: float
+) -> recalibration.RecalibrationResult:
+    """Build a result directly, to reach branches the fixtures do not produce."""
+    from plumbline.metrics.calibration import FloorBand
+
+    def band(p95: float) -> dict[str, FloorBand]:
+        return {
+            "ece": FloorBand(metric="ece", mean=p95 * 0.6, p95=p95, n=2000, n_bins=10, n_boot=300)
+        }
+
+    def metrics(value: float) -> recalibration.MetricSet:
+        return recalibration.MetricSet(ece=value, mce=None, brier=0.2, multiclass_brier=None)
+
+    return recalibration.RecalibrationResult(
+        method="multiclass",
+        semantics="calibrated_claim",
+        had_distribution=True,
+        temperature=1.4,
+        temperature_ci=(0.9, 1.9) if not justified else (1.2, 1.6),
+        justified=justified,
+        split=Split(fit_indices=(0, 1), eval_indices=(2, 3)),
+        seed=0,
+        before=metrics(before_ece),
+        after=metrics(after_ece),
+        floor=band(0.02),
+        floor_before=band(0.02),
+    )
+
+
+# The consequence of reporting no distribution
+
+
+def test_the_binary_path_carries_the_no_distribution_warning() -> None:
+    """Stated in one line wherever it applies, not left in a methodology file."""
+    summary = recalibrate(run_for(4000, 2.0), multiclass=False).summary()
+    assert "worse off twice" in summary
+    assert "excluded from multiclass Brier" in summary
+    assert "Noul answer carries this limitation" in summary
+
+
+def test_the_multiclass_path_does_not_carry_the_warning() -> None:
+    assert "worse off twice" not in recalibrate(run_for(4000, 2.0)).summary()
