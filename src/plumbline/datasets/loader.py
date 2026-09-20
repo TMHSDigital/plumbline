@@ -24,9 +24,14 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
-from plumbline.types import Case, DatasetError
+from plumbline.types import (
+    QUESTION_TYPES,
+    Case,
+    DatasetError,
+    QuestionType,
+)
 
 #: Separates the question from the state in a composed case text.
 _TEXT_JOIN = "\n\n"
@@ -61,6 +66,26 @@ class LoadReport:
     def row_count(self) -> int:
         """Rows that became cases. The number the report prints beside ECE."""
         return len(self.cases)
+
+    @property
+    def scoreable(self) -> tuple[Case, ...]:
+        """The cases v0.1 is willing to turn into numbers.
+
+        An ordinal score row is loaded and kept in ``cases`` -- nothing is lost
+        quietly -- and left out of here, because flattening its levels into
+        unordered options discards the ordering that makes it a score. A run
+        takes this set; the count that was held back is in the notes.
+        """
+        return tuple(case for case in self.cases if case.is_scoreable)
+
+    @property
+    def unsupported_by_type(self) -> dict[str, int]:
+        """How many loaded rows are of a type v0.1 will not score, by type."""
+        counts: dict[str, int] = {}
+        for case in self.cases:
+            if not case.is_scoreable:
+                counts[case.question_type] = counts.get(case.question_type, 0) + 1
+        return dict(sorted(counts.items()))
 
     @property
     def is_complete(self) -> bool:
@@ -194,6 +219,14 @@ def load_jevbench(path: Path | str) -> LoadReport:
             "one for one, so their option descriptions were dropped rather than guessed."
         )
 
+    unsupported = sum(1 for case in cases if not case.is_scoreable)
+    if unsupported:
+        notes.append(
+            f"{unsupported} rows ask for an ordinal score. plumbline v0.1 has no ordinal "
+            "support -- flattening levels into unordered options discards the ordering -- "
+            "so they are loaded, marked, and excluded from scored results."
+        )
+
     return LoadReport(
         source=str(path),
         cases=tuple(cases),
@@ -271,6 +304,14 @@ def _case_from_record(record: Mapping[str, Any]) -> Case:
     if descriptions is not None and not isinstance(descriptions, Mapping):
         raise DatasetError("field 'label_descriptions' must be an object")
 
+    question_type = record.get("question_type", "choice")
+    if question_type not in QUESTION_TYPES:
+        raise DatasetError(
+            f"question_type {question_type!r} is not one of {list(QUESTION_TYPES)!r}. An "
+            "unrecognized type is refused rather than assumed to be a choice: asking a "
+            "question the wrong way round is not something to guess at."
+        )
+
     return Case(
         id=case_id,
         text=text,
@@ -279,6 +320,7 @@ def _case_from_record(record: Mapping[str, Any]) -> Case:
         label_descriptions=(
             {str(key): str(value) for key, value in descriptions.items()} if descriptions else None
         ),
+        question_type=cast("QuestionType", question_type),
     )
 
 
@@ -311,6 +353,7 @@ def _jevbench_record(
             "labels": labels,
             "gold_label": expected,
             "label_descriptions": descriptions,
+            "question_type": question.get("type", "choice"),
         },
         normalized,
         isinstance(criteria, Mapping) and bool(criteria) and descriptions is None,

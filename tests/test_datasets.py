@@ -261,3 +261,64 @@ def test_a_jevbench_row_whose_gold_is_not_an_option_is_refused_too(tmp_path: Pat
 
     assert report.cases == ()
     assert "maybe" in report.refusals[0].reason
+
+
+# What kind of question each row asks
+
+
+def test_a_yes_no_row_is_carried_through_as_a_noul() -> None:
+    """38 of these rows exist, and asking them as choices is a different question."""
+    report = loader.load_jevbench(PUBLIC_FIXTURE)
+    noul_cases = [case for case in report.cases if case.question_type == "noul"]
+
+    assert len(noul_cases) == 38
+    assert all(set(case.labels) == {"yes", "no"} for case in noul_cases)
+
+
+def test_choice_rows_stay_choices() -> None:
+    report = loader.load_jevbench(PUBLIC_FIXTURE)
+
+    assert len([case for case in report.cases if case.question_type == "choice"]) == 67
+
+
+def test_score_rows_are_loaded_and_marked_rather_than_dropped() -> None:
+    """Nothing is lost silently: the rows are there, and they are labeled."""
+    report = loader.load_jevbench(PUBLIC_FIXTURE)
+    score_cases = [case for case in report.cases if case.question_type == "score"]
+
+    assert len(score_cases) == 6
+    assert report.row_count == 111
+    assert all(not case.is_scoreable for case in score_cases)
+
+
+def test_score_rows_are_kept_out_of_the_scoreable_set_and_the_notes_say_why() -> None:
+    """Flattening ordinal levels into unordered options throws the ordering away."""
+    report = loader.load_jevbench(PUBLIC_FIXTURE)
+
+    assert len(report.scoreable) == 105
+    assert all(case.question_type != "score" for case in report.scoreable)
+    assert report.unsupported_by_type == {"score": 6}
+    note = " ".join(report.notes)
+    assert "6" in note and "ordinal" in note and "excluded" in note
+
+
+def test_our_own_jsonl_can_declare_the_question_type(tmp_path: Path) -> None:
+    path = write_jsonl(
+        tmp_path / "d.jsonl",
+        [a_row(labels=["no", "yes"], gold_label="yes", question_type="noul")],
+    )
+
+    report = loader.load_jsonl(path)
+
+    assert report.cases[0].question_type == "noul"
+
+
+def test_an_unknown_question_type_is_refused_rather_than_assumed_to_be_a_choice(
+    tmp_path: Path,
+) -> None:
+    path = write_jsonl(tmp_path / "d.jsonl", [a_row(question_type="ranking")])
+
+    report = loader.load_jsonl(path)
+
+    assert report.cases == ()
+    assert "question_type" in report.refusals[0].reason

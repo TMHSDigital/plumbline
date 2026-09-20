@@ -16,7 +16,7 @@ from plumbline.metrics.cost import Pricing
 from plumbline.runner import execute
 from plumbline.runner.cache import Cache, cache_key
 from plumbline.runner.execute import CostGuard, CostGuardError, RetryPolicy
-from plumbline.types import CaseRefusedError, Prediction
+from plumbline.types import Case, CaseRefusedError, Prediction
 from tests.helpers import gold_by_text, make_cases
 
 LABELS = ("billing", "returns", "shipping", "other")
@@ -54,11 +54,11 @@ class FlakyAdapter(Adapter):
         self.failures_before_success = failures_before_success
         self.calls: dict[str, int] = {}
 
-    def classify(self, text: str, labels: list[str]) -> Prediction:
+    def classify(self, text: str, labels: list[str], **asked: object) -> Prediction:
         self.calls[text] = self.calls.get(text, 0) + 1
         if self.calls[text] <= self.failures_before_success:
             raise TimeoutError("upstream timed out")
-        return self.inner.classify(text, labels)
+        return self.inner.classify(text, labels, **asked)  # type: ignore[arg-type]
 
 
 class RefusingAdapter(Adapter):
@@ -71,7 +71,7 @@ class RefusingAdapter(Adapter):
         self.probability_semantics = "restricted_softmax"
         self.calls = 0
 
-    def classify(self, text: str, labels: list[str]) -> Prediction:
+    def classify(self, text: str, labels: list[str], **asked: object) -> Prediction:
         self.calls += 1
         raise CaseRefusedError("option 'shipping' does not map to a single token")
 
@@ -308,10 +308,10 @@ def test_failures_are_excluded_from_accuracy_rather_than_scored_wrong() -> None:
     inner = an_adapter(cases)
 
     class HalfBroken(FlakyAdapter):
-        def classify(self, text: str, labels: list[str]) -> Prediction:
+        def classify(self, text: str, labels: list[str], **asked: object) -> Prediction:
             if text.endswith(("0", "1", "2", "3", "4")):
                 raise RuntimeError("upstream is unwell")
-            return self.inner.classify(text, labels)
+            return self.inner.classify(text, labels, **asked)  # type: ignore[arg-type]
 
     adapter = HalfBroken(inner, failures_before_success=0)
     result = execute.run(
@@ -368,10 +368,10 @@ def test_an_adapter_supplied_prompt_hash_is_preferred() -> None:
     inner = an_adapter(cases)
 
     class Hashing(FlakyAdapter):
-        def classify(self, text: str, labels: list[str]) -> Prediction:
+        def classify(self, text: str, labels: list[str], **asked: object) -> Prediction:
             from dataclasses import replace
 
-            prediction = self.inner.classify(text, labels)
+            prediction = self.inner.classify(text, labels, **asked)  # type: ignore[arg-type]
             return replace(prediction, raw={**prediction.raw, "prompt_hash": "deadbeef"})
 
     result = execute.run(Hashing(inner, 0), cases, workers=1)
@@ -439,10 +439,14 @@ class SilentUsageAdapter(Adapter):
         self.revision = None
         self.probability_semantics = inner.probability_semantics
 
-    def classify(self, text: str, labels: list[str]) -> Prediction:
+    def classify(self, text: str, labels: list[str], **asked: object) -> Prediction:
         from dataclasses import replace
 
-        return replace(self.inner.classify(text, labels), input_tokens=None, output_tokens=None)
+        return replace(
+            self.inner.classify(text, labels, **asked),  # type: ignore[arg-type]
+            input_tokens=None,
+            output_tokens=None,
+        )
 
 
 def test_the_artifact_records_which_pricing_entry_it_used_and_when_it_was_read(
@@ -558,3 +562,49 @@ def test_the_artifact_records_how_many_rows_the_run_covered(tmp_path: Path) -> N
     assert result.dataset_rows == 12
     assert stored["dataset_rows"] == 12
     assert stored["dataset_hash"]
+
+
+# What the row asks, and how the adapter asked it
+
+
+def a_noul_case(case_id: str = "yn-1") -> Case:
+    return Case(
+        id=case_id,
+        text="should this dispute be decided in the cardholder's favour?",
+        labels=("no", "yes"),
+        gold_label="yes",
+        question_type="noul",
+    )
+
+
+def test_the_artifact_records_what_a_row_asks_and_how_it_was_asked(tmp_path: Path) -> None:
+    """The mock asks everything as a choice, including yes/no rows. Say so."""
+    cases = [a_noul_case()]
+    result = execute.run(an_adapter(cases), cases, workers=1)
+
+    stored = json.loads(result.write(tmp_path / "results").read_text(encoding="utf-8"))
+    record = stored["records"][0]
+
+    assert result.records[0].question_type == "noul"
+    assert result.records[0].asked_as == "choice"
+    assert record["question_type"] == "noul"
+    assert record["asked_as"] == "choice"
+
+
+def test_a_choice_row_records_both_as_choice() -> None:
+    cases = make_cases(2, labels=LABELS)
+    result = execute.run(an_adapter(cases), cases, workers=1)
+
+    assert {record.question_type for record in result.records} == {"choice"}
+    assert {record.asked_as for record in result.records} == {"choice"}
+
+
+def test_the_cache_does_not_confuse_a_yes_no_ask_with_a_two_option_choice() -> None:
+    """Same text, same options, different question. Different answer, different key."""
+    cases = [a_noul_case()]
+    adapter = an_adapter(cases)
+
+    as_choice = cache_key(adapter, cases[0].text, list(cases[0].labels))
+    as_noul = cache_key(adapter, cases[0].text, list(cases[0].labels), question_type="noul")
+
+    assert as_choice != as_noul

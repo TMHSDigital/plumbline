@@ -75,7 +75,13 @@ def gold_by_text(cases: Iterable[Case]) -> dict[str, str]:
 
 def run(adapter: Adapter, cases: Iterable[Case]) -> list[tuple[Case, Prediction]]:
     """Classify every case, keeping the case alongside its prediction."""
-    return [(case, adapter.classify(case.text, list(case.labels))) for case in cases]
+    return [
+        (
+            case,
+            adapter.classify(case.text, list(case.labels), question_type=case.question_type),
+        )
+        for case in cases
+    ]
 
 
 def accuracy_of(results: Sequence[tuple[Case, Prediction]]) -> float:

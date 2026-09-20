@@ -12,7 +12,7 @@ from datetime import date
 from typing import Any
 
 import pytest
-from typesafe_sdk import ChoiceAnswer, SystemOneResponse, Usage
+from typesafe_sdk import Choice, ChoiceAnswer, Noul, NoulAnswer, SystemOneResponse, Usage
 
 from plumbline.adapters import registry
 from plumbline.adapters.typesafe_wire import (
@@ -21,6 +21,7 @@ from plumbline.adapters.typesafe_wire import (
     WireContractError,
 )
 from plumbline.metrics.cost import Pricing, cost_of, summarize
+from plumbline.types import CaseRefusedError
 
 LABELS = ["billing", "technical", "sales"]
 
@@ -291,3 +292,98 @@ def test_a_supplied_client_is_not_closed_by_the_adapter() -> None:
 
 def test_the_adapter_is_registered_under_its_transport_name() -> None:
     assert "typesafe_wire" in registry.available()
+
+
+# Noul: a bare probability, no distribution, no confidence
+
+
+def a_noul_response(
+    *,
+    noul: float = 0.8,
+    input_tokens: int | None = 120,
+    output_tokens: int | None = 12,
+    model: str = "jev-1.2",
+) -> SystemOneResponse:
+    return SystemOneResponse(
+        model=model,
+        usage=Usage(input_tokens=input_tokens, output_tokens=output_tokens),
+        answers={QUESTION_NAME: NoulAnswer(noul=noul)},
+    )
+
+
+YES_NO = ["no", "yes"]
+
+
+def test_a_yes_no_case_is_asked_as_a_noul_not_as_a_two_option_choice() -> None:
+    """Asking 'is this true?' as a choice between two strings is a different question."""
+    client = FakeClient(a_noul_response())
+    adapter = TypeSafeWireAdapter(client=client)  # type: ignore[arg-type]
+
+    adapter.classify("a dispute", YES_NO, question_type="noul")
+
+    question = client.calls[0]["questions"][QUESTION_NAME]
+    assert isinstance(question, Noul)
+
+
+@pytest.mark.parametrize(
+    ("noul", "label", "probability"),
+    [(0.8, "yes", 0.8), (0.2, "no", 0.8), (0.5, "yes", 0.5)],
+)
+def test_the_probability_is_the_probability_of_the_answer_that_was_given(
+    noul: float, label: str, probability: float
+) -> None:
+    """noul is P(yes). The answer 'no' is reported with 1 - noul, not with noul."""
+    prediction = an_adapter(a_noul_response(noul=noul)).classify(
+        "a dispute", YES_NO, question_type="noul"
+    )
+
+    assert prediction.label == label
+    assert prediction.prob_selected == pytest.approx(probability)
+
+
+def test_a_noul_answer_carries_no_distribution_by_construction() -> None:
+    prediction = an_adapter(a_noul_response()).classify("a dispute", YES_NO, question_type="noul")
+
+    assert prediction.distribution is None
+
+
+def test_a_noul_answer_carries_no_confidence_by_construction() -> None:
+    """There is no distribution to summarize, so there is no vendor statistic."""
+    prediction = an_adapter(a_noul_response()).classify("a dispute", YES_NO, question_type="noul")
+
+    assert prediction.confidence is None
+
+
+def test_a_noul_row_records_that_it_was_asked_as_a_noul() -> None:
+    prediction = an_adapter(a_noul_response()).classify("a dispute", YES_NO, question_type="noul")
+
+    assert prediction.raw["asked_as"] == "noul"
+    assert prediction.raw["noul"] == pytest.approx(0.8)
+
+
+def test_options_that_are_not_a_yes_no_pair_are_refused_rather_than_guessed() -> None:
+    """Which of 'approve' and 'escalate' is the yes is not the adapter's to decide."""
+    with pytest.raises(CaseRefusedError, match="yes/no"):
+        an_adapter(a_noul_response()).classify(
+            "a dispute", ["approve", "escalate"], question_type="noul"
+        )
+
+
+def test_a_noul_question_that_comes_back_as_a_choice_is_a_contract_error() -> None:
+    with pytest.raises(WireContractError, match="noul"):
+        an_adapter(a_response()).classify("a dispute", YES_NO, question_type="noul")
+
+
+def test_a_choice_case_is_still_asked_as_a_choice() -> None:
+    client = FakeClient(a_response())
+    adapter = TypeSafeWireAdapter(client=client)  # type: ignore[arg-type]
+
+    prediction = adapter.classify("a ticket", LABELS)
+
+    assert isinstance(client.calls[0]["questions"][QUESTION_NAME], Choice)
+    assert prediction.raw["asked_as"] == "choice"
+
+
+def test_an_unsupported_question_type_is_refused_rather_than_asked_as_a_choice() -> None:
+    with pytest.raises(CaseRefusedError, match="score"):
+        an_adapter(a_response()).classify("a roster", ["0", "1", "2"], question_type="score")

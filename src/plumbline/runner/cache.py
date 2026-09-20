@@ -24,13 +24,23 @@ from pathlib import Path
 from typing import Any
 
 from plumbline.adapters.base import Adapter
-from plumbline.types import Prediction
+from plumbline.types import Prediction, QuestionType
 
 CACHE_FORMAT_VERSION = 1
 
 
-def cache_key(adapter: Adapter, text: str, labels: Sequence[str]) -> str:
-    """A stable fingerprint of everything that determines the answer."""
+def cache_key(
+    adapter: Adapter,
+    text: str,
+    labels: Sequence[str],
+    question_type: QuestionType = "choice",
+) -> str:
+    """A stable fingerprint of everything that determines the answer.
+
+    The question type is part of the key. The same text and the same two options
+    asked as a yes/no and asked as a choice are different requests with
+    different answers, and a shared key would serve one as the other.
+    """
     payload = {
         "version": CACHE_FORMAT_VERSION,
         "adapter": adapter.name,
@@ -38,6 +48,7 @@ def cache_key(adapter: Adapter, text: str, labels: Sequence[str]) -> str:
         "revision": adapter.revision,
         "text": text,
         "labels": sorted(labels),
+        "question_type": question_type,
         "call_params": _canonical(dict(adapter.call_params)),
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)

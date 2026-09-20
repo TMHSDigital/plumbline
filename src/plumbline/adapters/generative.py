@@ -34,7 +34,7 @@ import anthropic
 from anthropic.types import MessageParam, OutputConfigParam
 
 from plumbline.adapters.base import Adapter
-from plumbline.types import CaseRefusedError, Prediction
+from plumbline.types import CaseRefusedError, Prediction, QuestionType
 
 #: Default model. Recorded alongside whatever the API says actually answered.
 DEFAULT_MODEL = "claude-opus-5"
@@ -161,7 +161,19 @@ class GenerativeAdapter(Adapter):
             "base_url": self.base_url,
         }
 
-    def classify(self, text: str, labels: list[str]) -> Prediction:
+    def classify(
+        self,
+        text: str,
+        labels: list[str],
+        *,
+        question_type: QuestionType = "choice",
+    ) -> Prediction:
+        """Ask for one option in text, whatever kind of question the row is.
+
+        A generator has no probability to report under any question type, so a
+        yes/no row is asked the same way as any other: pick one of these words.
+        Recorded as ``asked_as: choice``, because that is what it is.
+        """
         if len(labels) < 2:
             raise ValueError(f"need at least 2 labels, got {len(labels)}")
 
@@ -205,6 +217,8 @@ class GenerativeAdapter(Adapter):
             model_reported=response.model,
             raw={
                 "model": response.model,
+                "asked_as": "choice",
+                "question_type": question_type,
                 "answer_text": written,
                 "stop_reason": response.stop_reason,
                 "effort": self.effort,

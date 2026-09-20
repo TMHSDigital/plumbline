@@ -23,16 +23,36 @@ import time
 from collections.abc import Mapping
 from typing import Any
 
-from typesafe_sdk import Choice, ChoiceAnswer, SystemOneResponse, TypeSafeClient
+from typesafe_sdk import (
+    Choice,
+    ChoiceAnswer,
+    Noul,
+    NoulAnswer,
+    SystemOneResponse,
+    TypeSafeClient,
+)
 
 from plumbline.adapters.base import Adapter, check_probability_semantics
-from plumbline.types import PlumblineError, Prediction, ProbabilitySemantics
+from plumbline.types import (
+    CaseRefusedError,
+    PlumblineError,
+    Prediction,
+    ProbabilitySemantics,
+    QuestionType,
+    yes_no_labels,
+)
 
 #: The question name sent to the API. One question per call, so the name is
 #: internal, but it is recorded so a stored answer can be traced to its request.
 QUESTION_NAME = "classification"
 
 DEFAULT_INSTRUCTIONS = "Which label best describes this text?"
+
+#: Sent with a yes/no case. The question itself is in the document, because
+#: that is where a dataset's own wording lives; this only says how to answer.
+DEFAULT_NOUL_INSTRUCTIONS = (
+    "Answer the question stated in the document. Report the probability that the answer is yes."
+)
 
 #: The key the case text is filed under in the request state.
 STATE_KEY = "document"
@@ -73,6 +93,8 @@ class TypeSafeWireAdapter(Adapter):
             without a network or a key.
     """
 
+    supported_question_types = ("choice", "noul")
+
     reports_tokens = True
     """This transport can report token counts, so a blank cost is about the run.
 
@@ -86,6 +108,7 @@ class TypeSafeWireAdapter(Adapter):
         *,
         model_requested: str = "jev-1",
         instructions: str = DEFAULT_INSTRUCTIONS,
+        noul_instructions: str = DEFAULT_NOUL_INSTRUCTIONS,
         api_key: str | None = None,
         base_url: str | None = None,
         timeout: float | None = None,
@@ -97,6 +120,7 @@ class TypeSafeWireAdapter(Adapter):
         self.revision = None  # Hosted models are not pinned by checkpoint.
         self.probability_semantics = check_probability_semantics(probability_semantics)
         self.instructions = instructions
+        self.noul_instructions = noul_instructions
         self.base_url = base_url
         self.timeout = timeout
         self._owns_client = client is None
@@ -116,28 +140,125 @@ class TypeSafeWireAdapter(Adapter):
         """
         return {
             "instructions": self.instructions,
+            "noul_instructions": self.noul_instructions,
             "base_url": self.base_url,
             "question_name": QUESTION_NAME,
         }
 
-    def classify(self, text: str, labels: list[str]) -> Prediction:
-        """Ask one Choice question and record what came back."""
+    def classify(
+        self,
+        text: str,
+        labels: list[str],
+        *,
+        question_type: QuestionType = "choice",
+    ) -> Prediction:
+        """Ask one question of the kind the dataset says this row is."""
         if not labels:
             raise ValueError("labels must not be empty")
+
+        if question_type == "noul":
+            return self._classify_noul(text, labels)
+        if question_type != "choice":
+            raise CaseRefusedError(
+                f"typesafe_wire does not ask {question_type!r} questions. A score question "
+                "asks for an ordinal level, and asking it as a choice between unordered "
+                "options throws the ordering away, so the case is refused rather than "
+                "answered as something else."
+            )
 
         question = Choice(
             instructions=self.instructions,
             criteria=dict.fromkeys(labels),
         )
 
+        response, latency_ms = self._ask(text, question)
+        return self._to_prediction(response, labels, latency_ms)
+
+    def _classify_noul(self, text: str, labels: list[str]) -> Prediction:
+        """Ask a yes/no question as a Noul: one probability, nothing derived.
+
+        This is the cleanest calibration target the API offers. There is no
+        distribution to renormalize and no confidence statistic computed from
+        one, so ``prob_selected`` is exactly what the vendor reported, mapped
+        onto whichever answer was given.
+        """
+        pair = yes_no_labels(labels)
+        if pair is None:
+            raise CaseRefusedError(
+                f"this row is a yes/no question but its options {sorted(labels)!r} are not a "
+                "yes/no pair. Which option is the yes is a fact about the dataset, and "
+                "guessing it would invert every probability on the row, so the case is "
+                "refused."
+            )
+        affirmative, negative = pair
+
+        response, latency_ms = self._ask(text, Noul(instructions=self.noul_instructions))
+        answer = self._noul_for(response)
+
+        probability_of_yes = float(answer.noul)
+        if not 0.0 <= probability_of_yes <= 1.0:
+            raise WireContractError(
+                f"the API reported a noul of {probability_of_yes!r}, which is not a "
+                "probability. Nothing is clamped: a number outside [0, 1] is a contract "
+                "failure, not a value to repair."
+            )
+
+        # noul is P(yes). The probability of the answer actually given is noul
+        # for yes and 1 - noul for no; reporting noul for a "no" answer would
+        # put the wrong number in the calibration column.
+        said_yes = probability_of_yes >= 0.5
+        label = affirmative if said_yes else negative
+        prob_selected = probability_of_yes if said_yes else 1.0 - probability_of_yes
+
+        usage = response.usage
+        return Prediction(
+            label=label,
+            prob_selected=prob_selected,
+            # A Noul has no distribution and therefore no statistic computed
+            # from one. Both stay None rather than being synthesized from the
+            # single number, which would invent a shape the vendor never sent.
+            distribution=None,
+            confidence=None,
+            latency_ms=latency_ms,
+            cost_usd=None,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            model_reported=response.model,
+            raw={
+                "model": response.model,
+                "question_name": QUESTION_NAME,
+                "asked_as": "noul",
+                "noul": probability_of_yes,
+                "affirmative_label": affirmative,
+                "negative_label": negative,
+                "usage": {
+                    "input_tokens": usage.input_tokens,
+                    "output_tokens": usage.output_tokens,
+                },
+            },
+        )
+
+    def _ask(
+        self, text: str, question: Choice | Noul
+    ) -> tuple[SystemOneResponse, float]:
+        """One request, one question, with the latency it took."""
         started = time.perf_counter()
         response = self._client.system_one(
             state={STATE_KEY: text},
             questions={QUESTION_NAME: question},
         )
-        latency_ms = (time.perf_counter() - started) * 1000.0
+        return response, (time.perf_counter() - started) * 1000.0
 
-        return self._to_prediction(response, labels, latency_ms)
+    def _noul_for(self, response: SystemOneResponse) -> NoulAnswer:
+        """The one Noul answer, or a contract error naming what arrived."""
+        try:
+            return response.nouls[QUESTION_NAME]
+        except KeyError:
+            raise WireContractError(
+                f"no noul answer named {QUESTION_NAME!r} in the response. A yes/no question "
+                "was asked and something else came back, which is not a prediction to "
+                f"score. Answers present: {sorted(response.answers)!r}"
+            ) from None
 
     def _to_prediction(
         self, response: SystemOneResponse, labels: list[str], latency_ms: float
@@ -219,6 +340,7 @@ class TypeSafeWireAdapter(Adapter):
         return {
             "model": response.model,
             "question_name": QUESTION_NAME,
+            "asked_as": "choice",
             "choice": choice,
             "probabilities": distribution,
             "usage": {

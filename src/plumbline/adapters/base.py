@@ -21,7 +21,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 
-from plumbline.types import PROBABILITY_SEMANTICS, Prediction, ProbabilitySemantics
+from plumbline.types import (
+    PROBABILITY_SEMANTICS,
+    Prediction,
+    ProbabilitySemantics,
+    QuestionType,
+)
 
 
 def check_probability_semantics(value: str) -> ProbabilitySemantics:
@@ -51,6 +56,16 @@ class Adapter(ABC):
     revision: str | None  # pinned checkpoint, for local models
     probability_semantics: ProbabilitySemantics
 
+    supported_question_types: tuple[QuestionType, ...] = ("choice",)
+    """Question types this adapter asks natively.
+
+    An adapter that is handed a type outside this set either refuses the case or
+    asks it in the nearest way it can, and says which in ``raw["asked_as"]``. The
+    runner records both what the row is and how it was asked, so a yes/no row
+    answered as a two-option choice is never compared with one answered as a
+    noul without that difference on the page.
+    """
+
     reports_tokens: bool = True
     """Whether this transport can ever report token counts.
 
@@ -72,4 +87,11 @@ class Adapter(ABC):
         return {}
 
     @abstractmethod
-    def classify(self, text: str, labels: list[str]) -> Prediction: ...
+    def classify(
+        self,
+        text: str,
+        labels: list[str],
+        *,
+        question_type: QuestionType = "choice",
+    ) -> Prediction:
+        """Answer one case. ``question_type`` is what the dataset says it asks."""

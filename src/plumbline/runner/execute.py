@@ -49,6 +49,7 @@ from plumbline.types import (
     PlumblineError,
     Prediction,
     ProbabilitySeries,
+    QuestionType,
 )
 
 DEFAULT_WORKERS = 8
@@ -108,6 +109,14 @@ class CaseRecord:
     attempts: int
     error: str | None = None
     refused: bool = False
+    question_type: QuestionType = "choice"
+    asked_as: str = "choice"
+    """How the adapter actually asked it, which is not always what the row is.
+
+    A yes/no row answered as a two-option choice and one answered as a noul are
+    different measurements. Both are recorded so the report can keep them apart
+    rather than averaging across a difference nobody can see.
+    """
     cost_basis: CostBasis = "no_prediction"
     pricing_key: str | None = None
 
@@ -221,6 +230,8 @@ class RunResult:
                     "attempts": record.attempts,
                     "error": record.error,
                     "refused": record.refused,
+                    "question_type": record.question_type,
+                    "asked_as": record.asked_as,
                     "cost_usd": record.cost_usd,
                     "cost_basis": record.cost_basis,
                     "pricing_key": record.pricing_key,
@@ -425,7 +436,9 @@ def _one_case(
     table: PricingTable,
 ) -> CaseRecord:
     labels = list(case.labels)
-    key = cache_key(adapter, case.text, labels) if cache is not None else None
+    key = (
+        cache_key(adapter, case.text, labels, case.question_type) if cache is not None else None
+    )
 
     if cache is not None and key is not None:
         hit = cache.get(key)
@@ -445,7 +458,7 @@ def _one_case(
         if delay:
             retry.sleep(delay)
         try:
-            prediction = adapter.classify(case.text, labels)
+            prediction = adapter.classify(case.text, labels, question_type=case.question_type)
         except CaseRefusedError as refusal:
             # A refusal is a decision, not a transient fault. Retrying it would
             # only produce the same refusal more slowly.
@@ -460,6 +473,8 @@ def _one_case(
                 attempts=attempt,
                 error=str(refusal),
                 refused=True,
+                question_type=case.question_type,
+                asked_as="refused",
             )
         except Exception as error:  # an adapter may raise anything; record it as a failure
             last_error = error
@@ -486,6 +501,8 @@ def _one_case(
         from_cache=False,
         attempts=retry.max_attempts,
         error=f"{type(last_error).__name__}: {last_error}",
+        question_type=case.question_type,
+        asked_as="failed",
     )
 
 
@@ -513,6 +530,8 @@ def _record(
         cost_usd=cost,
         from_cache=from_cache,
         attempts=attempts,
+        question_type=case.question_type,
+        asked_as=str(prediction.raw.get("asked_as", "choice")),
         cost_basis=basis,
         pricing_key=key,
     )

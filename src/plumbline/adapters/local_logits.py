@@ -36,7 +36,7 @@ from collections.abc import Mapping, Sequence
 from typing import Protocol
 
 from plumbline.adapters.base import Adapter
-from plumbline.types import CaseRefusedError, PlumblineError, Prediction
+from plumbline.types import CaseRefusedError, PlumblineError, Prediction, QuestionType
 
 DEFAULT_INSTRUCTIONS = "Which label best describes this text?"
 
@@ -170,7 +170,21 @@ class LocalLogitsAdapter(Adapter):
             "option_prefix": self.option_prefix,
         }
 
-    def classify(self, text: str, labels: list[str]) -> Prediction:
+    def classify(
+        self,
+        text: str,
+        labels: list[str],
+        *,
+        question_type: QuestionType = "choice",
+    ) -> Prediction:
+        """Read the option tokens, whatever kind of question the row is.
+
+        A yes/no row is asked here as a two-option choice: there is no bare
+        probability to read off a local checkpoint, only a softmax over the
+        tokens "yes" and "no". That is a different question from the one a noul
+        asks, so it is recorded as ``asked_as: choice`` and the report keeps the
+        two apart rather than comparing them as though they matched.
+        """
         if len(labels) < 2:
             raise ValueError(f"need at least 2 labels, got {len(labels)}")
 
@@ -209,6 +223,8 @@ class LocalLogitsAdapter(Adapter):
             output_tokens=None,
             model_reported=f"{self.model_requested}@{readout.resolved_revision}",
             raw={
+                "asked_as": "choice",
+                "question_type": question_type,
                 "revision_requested": self.pinned_revision,
                 "revision_resolved": readout.resolved_revision,
                 "revision_pinned_by_commit": bool(_COMMIT_SHA.match(self.pinned_revision)),

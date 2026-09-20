@@ -53,6 +53,55 @@ ProbabilitySemantics = Literal["calibrated_claim", "restricted_softmax", "none"]
 
 PROBABILITY_SEMANTICS: tuple[ProbabilitySemantics, ...] = get_args(ProbabilitySemantics)
 
+QuestionType = Literal["choice", "noul", "score"]
+"""What kind of question a case actually asks.
+
+``choice``
+    Pick one of n declared options. The default, and what most of a
+    classification dataset is.
+
+``noul``
+    A yes/no question. The answer is one probability, that the answer is yes,
+    with no distribution and no confidence behind it. Asking it as a two-option
+    choice is a different question: it invites a distribution over two strings
+    rather than a single probability of a statement being true, and the cleanest
+    calibration target in the API is the bare probability.
+
+``score``
+    An ordinal level, such as 0 to 3. plumbline v0.1 has no ordinal support:
+    flattening levels into unordered options throws away the ordering, and
+    reporting rank-blind metrics on them would be worse than reporting nothing.
+    Such cases are loaded, marked, and excluded from scored results.
+"""
+
+QUESTION_TYPES: tuple[QuestionType, ...] = get_args(QuestionType)
+
+#: Question types plumbline can score in v0.1. A case outside this set is loaded
+#: and carried so that nothing is silently lost, and excluded from every metric.
+SUPPORTED_QUESTION_TYPES: tuple[QuestionType, ...] = ("choice", "noul")
+
+#: Option names read as "yes" and as "no". A yes/no question has to be pinned to
+#: its two outcomes before a bare P(yes) can be attached to either of them.
+AFFIRMATIVE_LABELS: tuple[str, ...] = ("yes", "true")
+NEGATIVE_LABELS: tuple[str, ...] = ("no", "false")
+
+
+def yes_no_labels(labels: Sequence[str]) -> tuple[str, str] | None:
+    """The (affirmative, negative) pair in ``labels``, or None if it is not one.
+
+    Returning None rather than guessing is the point. Which of "approve" and
+    "escalate" is the yes is a question about someone's dataset, not something
+    an adapter may decide on their behalf, and a wrong guess inverts every
+    probability it touches.
+    """
+    if len(labels) != 2:
+        return None
+    affirmative = [label for label in labels if label.strip().casefold() in AFFIRMATIVE_LABELS]
+    negative = [label for label in labels if label.strip().casefold() in NEGATIVE_LABELS]
+    if len(affirmative) != 1 or len(negative) != 1:
+        return None
+    return affirmative[0], negative[0]
+
 #: Tolerance applied when checking that a reported distribution sums to one. The
 #: TypeSafe docs say Choice probabilities "sum to approximately 1", so an exact
 #: check would reject valid responses.
@@ -117,6 +166,18 @@ class Case:
     labels: tuple[str, ...]
     gold_label: str
     label_descriptions: Mapping[str, str] | None = None
+    question_type: QuestionType = "choice"
+    """What the row actually asks, so an adapter can ask it that way.
+
+    Carried from the dataset rather than inferred from the options: two options
+    named yes and no may be a genuine yes/no question or may be a choice between
+    two strings, and only the dataset knows which.
+    """
+
+    @property
+    def is_scoreable(self) -> bool:
+        """Whether v0.1 can turn this case into a number it is willing to report."""
+        return self.question_type in SUPPORTED_QUESTION_TYPES
 
     def __post_init__(self) -> None:
         if len(self.labels) < 2:
@@ -126,6 +187,11 @@ class Case:
         if self.gold_label not in self.labels:
             raise ValueError(
                 f"case {self.id!r}: gold_label {self.gold_label!r} is not one of {self.labels!r}"
+            )
+        if self.question_type not in QUESTION_TYPES:
+            raise ValueError(
+                f"case {self.id!r}: question_type must be one of {QUESTION_TYPES!r}, "
+                f"got {self.question_type!r}"
             )
 
 

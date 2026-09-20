@@ -61,7 +61,9 @@ def smoke(
 ) -> Smoked:
     """Load, run, measure, write, and render one summary."""
     load = load_jevbench(dataset)
-    cases = list(load.cases)
+    # Scoreable only: the ordinal score rows are loaded and marked, and v0.1
+    # will not turn them into numbers, so they are never sent either.
+    cases = list(load.scoreable)
 
     adapter = MockAdapter(
         {case.text: case.gold_label for case in cases},

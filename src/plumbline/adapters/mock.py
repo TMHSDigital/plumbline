@@ -41,6 +41,7 @@ from plumbline.adapters.base import Adapter, check_probability_semantics
 from plumbline.types import (
     Prediction,
     ProbabilitySemantics,
+    QuestionType,
     apply_temperature,
     docs_confidence,
 )
@@ -152,7 +153,19 @@ class MockAdapter(Adapter):
             return "calibrated"
         return "overconfident" if self.calibration_temperature < 1.0 else "underconfident"
 
-    def classify(self, text: str, labels: list[str]) -> Prediction:
+    def classify(
+        self,
+        text: str,
+        labels: list[str],
+        *,
+        question_type: QuestionType = "choice",
+    ) -> Prediction:
+        """Answer as a choice, whatever the row is, and record that it did.
+
+        The mock has one behaviour and no transport behind it, so a yes/no row
+        is answered as a two-option choice here. The runner records ``asked_as``
+        from ``raw`` so the difference reaches the report.
+        """
         if len(labels) < 2:
             raise ValueError(f"need at least 2 labels, got {len(labels)}")
         if len(set(labels)) != len(labels):
@@ -184,6 +197,8 @@ class MockAdapter(Adapter):
         input_tokens, output_tokens = self._draw_tokens(rng, text)
 
         raw = {
+            "asked_as": "choice",
+            "question_type": question_type,
             "gold_label": gold,
             "calibrated_distribution": calibrated,
             "calibration_temperature": self.calibration_temperature,
