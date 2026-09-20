@@ -51,6 +51,16 @@ class Adapter(ABC):
     revision: str | None  # pinned checkpoint, for local models
     probability_semantics: ProbabilitySemantics
 
+    reports_tokens: bool = True
+    """Whether this transport can ever report token counts.
+
+    False says the adapter cannot report cost at all, which is what a local
+    checkpoint is: its real cost is hardware and wall-clock, and no token count
+    exists to price. That is a different fact from an API which normally reports
+    counts and returned none on this call, and the runner keeps the two apart in
+    the artifact so a blank cost column can be read rather than guessed at.
+    """
+
     @property
     def call_params(self) -> Mapping[str, object]:
         """Call parameters that change the answer, for the Phase 4 cache key.

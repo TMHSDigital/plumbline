@@ -62,6 +62,42 @@ The report states this in one line wherever it applies, on any adapter whose
 `probability_semantics` is not `"none"` that supplied no distribution. A Noul
 answer meets that condition by construction.
 
+## What a blank cost column means
+
+Cost is derived from reported tokens against a pricing table held in config, and
+a case that cannot be priced is reported as not priced rather than as zero. Free
+and unknown are different claims, and a zero in a cost column reads as free.
+
+"Not priced" has more than one cause, and each row records which one applied.
+
+| basis | what it says |
+|---|---|
+| `adapter_reports_no_tokens` | This adapter cannot report cost at all. A local checkpoint is the clear case: its cost is hardware and wall-clock, and there is no token count to price. Every row is blank and that says nothing about the run. |
+| `tokens_not_reported` | This adapter does report tokens and the API returned none on this call. A fact about the run, worth counting. |
+| `model_not_priced` | Tokens arrived, but the model that answered has no usable entry in the pricing table. |
+| `cache_hit` | No call went out, so there is nothing to charge. |
+
+The report keeps these apart. A tool that showed one blank column for all four
+would let "this vendor stopped reporting usage halfway through the run" hide
+behind "local models do not report tokens".
+
+## Prices are dated, and so is every result
+
+A price is a current-state claim, not a property of a model. Jev's output tokens
+are the clearest case: the only published statement is a field description in the
+wire schema saying they are "currently stated at https://docs.typesafe.ai/models", which was true on the day
+it was read and says nothing about the day a report is printed.
+
+So every pricing entry carries the source it was read from and the date it was
+read, and every run artifact records which entry priced it along with that date.
+An entry older than 90 days is still used, and the report says plainly that it may
+be out of date instead of presenting its numbers as current. A result from last
+year is never silently re-scored against this year's prices.
+
+Where a vendor publishes no price at all, the entry carries None rather than a
+guess, and cost is reported as not available. plumbline ships a Jev entry with
+output at 0.0 and no input price for exactly this reason.
+
 ## Probabilities versus confidence
 
 Pending. Lands with Phase 9.

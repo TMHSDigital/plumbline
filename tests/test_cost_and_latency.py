@@ -7,11 +7,21 @@ decides whether a model can sit in a hot path.
 
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 import pytest
 
+from plumbline import config
 from plumbline.metrics import cost, latency
 
-PRICING = cost.Pricing(input_usd_per_million=1.0, output_usd_per_million=5.0)
+READ_ON = date(2026, 1, 1)
+
+PRICING = cost.Pricing(
+    input_usd_per_million=1.0,
+    output_usd_per_million=5.0,
+    source="test fixture",
+    as_of=READ_ON,
+)
 
 
 # Cost
@@ -34,7 +44,7 @@ def test_an_unpriced_model_makes_cost_none() -> None:
 
 def test_pricing_prefers_the_model_the_api_said_it_used() -> None:
     """Billing follows what actually answered, not what the config asked for."""
-    table = {"jev-1.13": PRICING, "jev-latest": cost.Pricing(2.0, 9.0)}
+    table = {"jev-1.13": PRICING, "jev-latest": a_price(2.0, 9.0)}
     pricing, key = cost.pricing_for(table, "jev-1.13", "jev-latest")
     assert key == "jev-1.13"
     assert pricing is PRICING
@@ -90,7 +100,101 @@ def test_per_correct_cost_is_none_when_nothing_was_correct() -> None:
 
 def test_negative_prices_are_rejected() -> None:
     with pytest.raises(ValueError, match="non-negative"):
-        cost.Pricing(input_usd_per_million=-1.0, output_usd_per_million=1.0)
+        a_price(-1.0, 1.0)
+
+
+# Pricing provenance
+
+
+def a_price(
+    input_usd: float | None,
+    output_usd: float | None,
+    *,
+    source: str = "test fixture",
+    as_of: date = READ_ON,
+) -> cost.Pricing:
+    return cost.Pricing(
+        input_usd_per_million=input_usd,
+        output_usd_per_million=output_usd,
+        source=source,
+        as_of=as_of,
+    )
+
+
+def test_a_pricing_entry_cannot_be_built_without_saying_where_it_came_from() -> None:
+    """A price with no source and no read date is a rumour, not a measurement."""
+    with pytest.raises(TypeError):
+        cost.Pricing(input_usd_per_million=1.0, output_usd_per_million=5.0)  # type: ignore[call-arg]
+
+
+def test_a_pricing_entry_with_an_empty_source_is_rejected() -> None:
+    with pytest.raises(ValueError, match="source"):
+        cost.Pricing(
+            input_usd_per_million=1.0,
+            output_usd_per_million=5.0,
+            source="  ",
+            as_of=READ_ON,
+        )
+
+
+def test_an_unpublished_price_yields_no_cost_rather_than_a_guess() -> None:
+    """Free is a claim. Unpublished is an absence. They are not the same number."""
+    entry = a_price(None, 0.0)
+    assert cost.cost_of(1_000_000, 200_000, entry) is None
+
+
+def test_an_entry_knows_how_old_it_is() -> None:
+    assert a_price(1.0, 0.0).age_days(date(2026, 1, 31)) == 30
+
+
+def test_a_recent_entry_is_not_stale_and_says_when_it_was_read() -> None:
+    entry = a_price(1.0, 0.0)
+    assert not entry.is_stale(date(2026, 1, 31))
+    assert "2026-01-01" in entry.statement(date(2026, 1, 31))
+
+
+def test_an_entry_older_than_the_threshold_is_stale_and_the_statement_says_so() -> None:
+    """A current-state claim that nobody has re-read is not a current price."""
+    entry = a_price(1.0, 0.0)
+    later = date(2026, 1, 1) + timedelta(days=cost.DEFAULT_PRICING_MAX_AGE_DAYS + 1)
+    assert entry.is_stale(later)
+    statement = entry.statement(later)
+    assert "may be out of date" in statement
+    assert "2026-01-01" in statement
+
+
+def test_provenance_is_json_shaped_so_the_artifact_can_carry_it() -> None:
+    provenance = a_price(None, 0.0).provenance(date(2026, 1, 31))
+    assert provenance["as_of"] == "2026-01-01"
+    assert provenance["source"] == "test fixture"
+    assert provenance["age_days"] == 30
+    assert provenance["stale"] is False
+    assert provenance["input_usd_per_million"] is None
+    assert provenance["output_usd_per_million"] == 0.0
+
+
+# The shipped pricing table
+
+
+def test_jev_output_tokens_are_priced_at_zero_against_a_named_source() -> None:
+    """The wire schema calls this out as a current-state claim, so it is dated."""
+    entry = config.DEFAULT_PRICING_TABLE["jev-1"]
+    assert entry.output_usd_per_million is None
+    assert "docs.typesafe.ai/models" in entry.source.lower()
+    assert entry.as_of == config.PRICING_READ_ON
+
+
+def test_the_shipped_jev_entry_publishes_no_input_price() -> None:
+    """Nobody publishes one, so plumbline reports no cost instead of inventing it."""
+    entry = config.DEFAULT_PRICING_TABLE["jev-1"]
+    assert entry.input_usd_per_million is None
+    assert cost.cost_of(120, 12, entry) is None
+
+
+def test_every_shipped_entry_carries_provenance() -> None:
+    for name, entry in config.DEFAULT_PRICING_TABLE.items():
+        assert entry.source.strip(), name
+        assert entry.as_of <= config.PRICING_READ_ON, name
 
 
 def test_mismatched_column_lengths_are_rejected() -> None:
@@ -164,3 +268,33 @@ def test_an_empty_input_raises_rather_than_reporting_zero() -> None:
 def test_negative_latency_is_rejected() -> None:
     with pytest.raises(ValueError, match="non-negative"):
         latency.summarize([1.0, -1.0])
+
+
+# Why a cost is blank
+
+
+def test_a_summary_keeps_the_two_reasons_for_a_blank_cost_apart() -> None:
+    """An adapter that never reports tokens is a different finding from an API
+    that reported none on this run, and a bare count of blanks loses that."""
+    summary = cost.summarize(
+        [0.10, None, None],
+        [True, True, False],
+        bases=["priced", "adapter_reports_no_tokens", "tokens_not_reported"],
+    )
+    assert summary.unpriced_by_basis == {
+        "adapter_reports_no_tokens": 1,
+        "tokens_not_reported": 1,
+    }
+    assert "reports no token counts at all" in summary.note
+    assert "returned none on this call" in summary.note
+
+
+def test_a_summary_without_the_reasons_still_counts_the_blanks() -> None:
+    summary = cost.summarize([0.10, None], [True, False])
+    assert summary.unpriced_cases == 1
+    assert summary.unpriced_by_basis == {}
+
+
+def test_the_reasons_must_match_the_costs_they_explain() -> None:
+    with pytest.raises(ValueError, match="must match"):
+        cost.summarize([0.10, None], [True, False], bases=["priced"])

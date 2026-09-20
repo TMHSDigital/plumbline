@@ -73,6 +73,14 @@ class TypeSafeWireAdapter(Adapter):
             without a network or a key.
     """
 
+    reports_tokens = True
+    """This transport can report token counts, so a blank cost is about the run.
+
+    When a row from this adapter has no cost, the runner records it as
+    ``tokens_not_reported`` rather than ``adapter_reports_no_tokens``: the API
+    could have said, and on that call it did not.
+    """
+
     def __init__(
         self,
         *,
@@ -144,6 +152,18 @@ class TypeSafeWireAdapter(Adapter):
             )
 
         # Both counts stay exactly as reported. See the module docstring.
+        #
+        # TODO(first live call): the wire schema
+        # (typesafe_sdk/_schemas/models.py) marks input_tokens and output_tokens
+        # required, while the SDK response type
+        # (typesafe_sdk/_core/response_types.py) widens both to `int | None` and
+        # defaults them to None. Only a live call settles which is true in
+        # practice. Whoever makes the first one: record whether usage came back
+        # populated, on which model, and on what date, in docs/PLAN.md under
+        # open questions. If the API does populate them, the None path here
+        # stays anyway -- it costs nothing and it is the difference between a
+        # blank cost and a false zero -- but the report can stop hedging about
+        # how often it is taken.
         usage = response.usage
 
         return Prediction(

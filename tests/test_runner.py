@@ -6,6 +6,7 @@ Tested against the mock only. Nothing here goes near a network.
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -19,7 +20,18 @@ from plumbline.types import CaseRefusedError, Prediction
 from tests.helpers import gold_by_text, make_cases
 
 LABELS = ("billing", "returns", "shipping", "other")
-PRICING = {"mock-1": Pricing(input_usd_per_million=1.0, output_usd_per_million=5.0)}
+#: A fixture priced as of today, so "not stale" stays true as the clock moves.
+#: Staleness itself is tested against an explicitly old entry below.
+READ_ON = date.today()
+
+PRICING = {
+    "mock-1": Pricing(
+        input_usd_per_million=1.0,
+        output_usd_per_million=5.0,
+        source="test fixture",
+        as_of=READ_ON,
+    )
+}
 
 
 def an_adapter(cases, **overrides):
@@ -405,3 +417,132 @@ def test_ordinary_config_survives_redaction() -> None:
         "workers": 8,
         "model": "jev-1.13",
     }
+
+
+# Pricing provenance and the reasons a cost column is blank
+
+
+class SilentUsageAdapter(Adapter):
+    """Reports that it can count tokens, then returns a response with none.
+
+    This is the second reason a cost column is blank, and it is a fact about the
+    run rather than about the adapter. The Jev wire schema marks both counts
+    required while the SDK types them optional, so it is reachable in practice.
+    """
+
+    reports_tokens = True
+
+    def __init__(self, inner: Adapter) -> None:
+        self.inner = inner
+        self.name = "silent-usage"
+        self.model_requested = inner.model_requested
+        self.revision = None
+        self.probability_semantics = inner.probability_semantics
+
+    def classify(self, text: str, labels: list[str]) -> Prediction:
+        from dataclasses import replace
+
+        return replace(self.inner.classify(text, labels), input_tokens=None, output_tokens=None)
+
+
+def test_the_artifact_records_which_pricing_entry_it_used_and_when_it_was_read(
+    tmp_path: Path,
+) -> None:
+    cases = make_cases(6, labels=LABELS)
+    result = execute.run(an_adapter(cases), cases, pricing_table=PRICING, workers=1)
+    stored = json.loads(result.write(tmp_path / "results").read_text(encoding="utf-8"))
+
+    assert stored["pricing_key"] == "mock-1"
+    assert stored["pricing"]["as_of"] == READ_ON.isoformat()
+    assert stored["pricing"]["source"] == "test fixture"
+    assert stored["pricing"]["stale"] is False
+
+
+def test_an_old_pricing_entry_is_flagged_rather_than_presented_as_current(
+    tmp_path: Path,
+) -> None:
+    """A price read years ago is not today's price, and the artifact says so."""
+    cases = make_cases(4, labels=LABELS)
+    table = {
+        "mock-1": Pricing(
+            input_usd_per_million=1.0,
+            output_usd_per_million=5.0,
+            source="an old price list",
+            as_of=date(2019, 1, 1),
+        )
+    }
+    result = execute.run(an_adapter(cases), cases, pricing_table=table, workers=1)
+    stored = json.loads(result.write(tmp_path / "results").read_text(encoding="utf-8"))
+
+    assert stored["pricing"]["stale"] is True
+    assert "may be out of date" in stored["pricing"]["statement"]
+
+
+def test_a_run_without_a_pricing_table_records_no_pricing_entry() -> None:
+    cases = make_cases(4, labels=LABELS)
+    result = execute.run(an_adapter(cases), cases, workers=1)
+
+    assert result.pricing_key is None
+    assert result.pricing is None
+
+
+def test_a_priced_row_says_it_was_priced() -> None:
+    cases = make_cases(4, labels=LABELS)
+    result = execute.run(an_adapter(cases), cases, pricing_table=PRICING, workers=1)
+
+    assert {record.cost_basis for record in result.records} == {"priced"}
+    assert all(record.pricing_key == "mock-1" for record in result.records)
+
+
+def test_an_adapter_that_cannot_report_tokens_says_that_and_not_that_they_are_missing() -> None:
+    """A local model's blank column is a property of the adapter, not of the run."""
+    cases = make_cases(4, labels=LABELS)
+    result = execute.run(
+        an_adapter(cases, report_tokens=False), cases, pricing_table=PRICING, workers=1
+    )
+
+    assert {record.cost_basis for record in result.records} == {"adapter_reports_no_tokens"}
+    assert all(record.cost_usd is None for record in result.records)
+
+
+def test_an_api_that_returned_no_tokens_is_distinguished_from_one_that_never_does() -> None:
+    cases = make_cases(4, labels=LABELS)
+    adapter = SilentUsageAdapter(an_adapter(cases))
+    result = execute.run(adapter, cases, pricing_table=PRICING, workers=1)
+
+    assert {record.cost_basis for record in result.records} == {"tokens_not_reported"}
+
+
+def test_tokens_with_no_pricing_row_are_reported_as_unpriced_rather_than_free() -> None:
+    cases = make_cases(4, labels=LABELS)
+    result = execute.run(an_adapter(cases), cases, pricing_table={}, workers=1)
+
+    assert {record.cost_basis for record in result.records} == {"model_not_priced"}
+
+
+def test_a_cache_hit_is_not_charged_and_says_why(tmp_path: Path) -> None:
+    cases = make_cases(4, labels=LABELS)
+    cache = Cache(tmp_path / "cache")
+    execute.run(an_adapter(cases), cases, cache=cache, pricing_table=PRICING, workers=1)
+    result = execute.run(an_adapter(cases), cases, cache=cache, pricing_table=PRICING, workers=1)
+
+    assert {record.cost_basis for record in result.records} == {"cache_hit"}
+    assert all(record.cost_usd is None for record in result.records)
+
+
+def test_a_failed_case_has_no_cost_basis_to_report() -> None:
+    cases = make_cases(3, labels=LABELS)
+    adapter = FlakyAdapter(an_adapter(cases), failures_before_success=99)
+    result = execute.run(adapter, cases, retry=RetryPolicy(max_attempts=1), workers=1)
+
+    assert {record.cost_basis for record in result.records} == {"no_prediction"}
+
+
+def test_the_artifact_carries_the_reason_each_cost_is_blank(tmp_path: Path) -> None:
+    cases = make_cases(4, labels=LABELS)
+    result = execute.run(
+        an_adapter(cases, report_tokens=False), cases, pricing_table=PRICING, workers=1
+    )
+    stored = json.loads(result.write(tmp_path / "results").read_text(encoding="utf-8"))
+
+    assert {record["cost_basis"] for record in stored["records"]} == {"adapter_reports_no_tokens"}

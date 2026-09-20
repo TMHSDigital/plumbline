@@ -8,6 +8,7 @@ and it has to end in "not reported" rather than in zero.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 import pytest
@@ -23,7 +24,12 @@ from plumbline.metrics.cost import Pricing, cost_of, summarize
 
 LABELS = ["billing", "technical", "sales"]
 
-PRICING = Pricing(input_usd_per_million=1.0, output_usd_per_million=5.0)
+PRICING = Pricing(
+    input_usd_per_million=1.0,
+    output_usd_per_million=5.0,
+    source="test fixture",
+    as_of=date(2026, 1, 1),
+)
 
 
 def a_response(

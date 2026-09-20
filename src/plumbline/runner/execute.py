@@ -33,7 +33,14 @@ from pathlib import Path
 from typing import Any
 
 from plumbline.adapters.base import Adapter
-from plumbline.metrics.cost import Pricing, PricingTable, cost_of, estimate_case_cost, pricing_for
+from plumbline.metrics.cost import (
+    CostBasis,
+    Pricing,
+    PricingTable,
+    cost_of,
+    estimate_case_cost,
+    pricing_for,
+)
 from plumbline.runner.cache import Cache, cache_key, prompt_fingerprint, to_jsonable
 from plumbline.types import (
     Case,
@@ -101,6 +108,8 @@ class CaseRecord:
     attempts: int
     error: str | None = None
     refused: bool = False
+    cost_basis: CostBasis = "no_prediction"
+    pricing_key: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -128,6 +137,12 @@ class RunResult:
     config: dict[str, Any]
     records: list[CaseRecord]
     cache_stats: dict[str, int] = field(default_factory=dict)
+    pricing: dict[str, Any] | None = None
+    """Provenance of the pricing entry that was applied, or None when none was.
+
+    Carries the source and the date that entry was read, so a result opened in a
+    year is not silently re-scored against the prices of the day it is opened.
+    """
 
     @property
     def successes(self) -> list[CaseRecord]:
@@ -191,6 +206,7 @@ class RunResult:
             "timestamp": self.timestamp,
             "dataset_hash": self.dataset_hash,
             "pricing_key": self.pricing_key,
+            "pricing": self.pricing,
             "config": self.config,
             "cache_stats": self.cache_stats,
             "records": [
@@ -204,6 +220,8 @@ class RunResult:
                     "error": record.error,
                     "refused": record.refused,
                     "cost_usd": record.cost_usd,
+                    "cost_basis": record.cost_basis,
+                    "pricing_key": record.pricing_key,
                     "prediction": (
                         to_jsonable(record.prediction) if record.prediction is not None else None
                     ),
@@ -331,13 +349,14 @@ def run(
     retry = retry or RetryPolicy()
     guard = guard or CostGuard()
     table: PricingTable = pricing_table or {}
+    today = datetime.now(UTC).date()
     pricing, pricing_key = pricing_for(table, None, adapter.model_requested)
     estimate = check_guard(cases, guard, pricing)
 
     records: list[CaseRecord | None] = [None] * len(cases)
 
     def handle(index: int) -> None:
-        records[index] = _one_case(cases[index], adapter, cache, retry, table, pricing_key)
+        records[index] = _one_case(cases[index], adapter, cache, retry, table)
 
     if workers == 1:
         for index in range(len(cases)):
@@ -356,6 +375,15 @@ def run(
         None,
     )
 
+    # Which entry actually priced the rows, which can differ from the one the
+    # guard used: the guard runs before anything answers and can only look up
+    # the requested model, while billing follows what the API said it used.
+    applied_key = next(
+        (record.pricing_key for record in finished if record.pricing_key is not None),
+        pricing_key,
+    )
+    applied = table.get(applied_key) if applied_key is not None else None
+
     config: dict[str, Any] = {
         "workers": workers,
         "max_attempts": retry.max_attempts,
@@ -364,13 +392,7 @@ def run(
         "max_cases": guard.max_cases,
         "estimated_cost_usd": estimate,
         "cache_enabled": cache is not None and cache.enabled,
-        "pricing_table": {
-            name: {
-                "input_usd_per_million": price.input_usd_per_million,
-                "output_usd_per_million": price.output_usd_per_million,
-            }
-            for name, price in table.items()
-        },
+        "pricing_table": {name: price.provenance(today) for name, price in table.items()},
         **dict(extra_config or {}),
     }
 
@@ -382,7 +404,8 @@ def run(
         revision=adapter.revision,
         timestamp=datetime.now(UTC).isoformat(timespec="seconds"),
         dataset_hash=dataset_hash(cases),
-        pricing_key=pricing_key,
+        pricing_key=applied_key,
+        pricing=applied.provenance(today) if applied is not None else None,
         config=redact(config),
         records=finished,
         cache_stats=cache.stats if cache is not None else {},
@@ -395,7 +418,6 @@ def _one_case(
     cache: Cache | None,
     retry: RetryPolicy,
     table: PricingTable,
-    pricing_key: str | None,
 ) -> CaseRecord:
     labels = list(case.labels)
     key = cache_key(adapter, case.text, labels) if cache is not None else None
@@ -403,7 +425,14 @@ def _one_case(
     if cache is not None and key is not None:
         hit = cache.get(key)
         if hit is not None:
-            return _record(case, hit, from_cache=True, attempts=0, table=table)
+            return _record(
+                case,
+                hit,
+                from_cache=True,
+                attempts=0,
+                table=table,
+                reports_tokens=adapter.reports_tokens,
+            )
 
     last_error: Exception | None = None
     for attempt in range(1, retry.max_attempts + 1):
@@ -433,7 +462,14 @@ def _one_case(
 
         if cache is not None and key is not None:
             cache.put(key, prediction)
-        return _record(case, prediction, from_cache=False, attempts=attempt, table=table)
+        return _record(
+            case,
+            prediction,
+            from_cache=False,
+            attempts=attempt,
+            table=table,
+            reports_tokens=adapter.reports_tokens,
+        )
 
     return CaseRecord(
         case_id=case.id,
@@ -455,16 +491,11 @@ def _record(
     from_cache: bool,
     attempts: int,
     table: PricingTable,
+    reports_tokens: bool,
 ) -> CaseRecord:
-    if from_cache:
-        # A hit measures disk, not the model. Charging for it would make a
-        # re-run look cheaper than the run it repeats.
-        cost = None
-    elif prediction.cost_usd is not None:
-        cost = prediction.cost_usd
-    else:
-        pricing, _ = pricing_for(table, prediction.model_reported, "")
-        cost = cost_of(prediction.input_tokens, prediction.output_tokens, pricing)
+    cost, basis, key = _cost_of_record(
+        prediction, from_cache=from_cache, table=table, reports_tokens=reports_tokens
+    )
 
     return CaseRecord(
         case_id=case.id,
@@ -477,4 +508,39 @@ def _record(
         cost_usd=cost,
         from_cache=from_cache,
         attempts=attempts,
+        cost_basis=basis,
+        pricing_key=key,
     )
+
+
+def _cost_of_record(
+    prediction: Prediction,
+    *,
+    from_cache: bool,
+    table: PricingTable,
+    reports_tokens: bool,
+) -> tuple[float | None, CostBasis, str | None]:
+    """The cost of one row, and the reason it is what it is.
+
+    Every path that yields no cost names itself. A reader looking at a blank
+    cost column can then tell a local model, which never reports tokens, from an
+    API that reported none on this call, from a model that answered but is not
+    in the pricing table. Those are three different things to go and fix.
+    """
+    if from_cache:
+        # A hit measures disk, not the model. Charging for it would make a
+        # re-run look cheaper than the run it repeats.
+        return None, "cache_hit", None
+    if prediction.cost_usd is not None:
+        # An adapter that was handed a cost by the vendor. Nothing to derive.
+        return prediction.cost_usd, "priced", None
+
+    pricing, key = pricing_for(table, prediction.model_reported, "")
+    cost = cost_of(prediction.input_tokens, prediction.output_tokens, pricing)
+    if cost is not None:
+        return cost, "priced", key
+    if not reports_tokens:
+        return None, "adapter_reports_no_tokens", key
+    if prediction.input_tokens is None or prediction.output_tokens is None:
+        return None, "tokens_not_reported", key
+    return None, "model_not_priced", key

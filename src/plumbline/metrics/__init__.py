@@ -21,12 +21,16 @@ from plumbline.metrics.cascade import (
     optimal_threshold,
 )
 from plumbline.metrics.cost import (
+    COST_BASIS_NOTES,
+    DEFAULT_PRICING_MAX_AGE_DAYS,
+    CostBasis,
     CostSummary,
     Pricing,
     PricingTable,
     cost_of,
     estimate_case_cost,
     pricing_for,
+    summarize,
 )
 from plumbline.metrics.discrimination import (
     DEFAULT_THRESHOLDS,
@@ -47,10 +51,13 @@ from plumbline.metrics.recalibration import (
 )
 
 __all__ = [
+    "COST_BASIS_NOTES",
+    "DEFAULT_PRICING_MAX_AGE_DAYS",
     "DEFAULT_THRESHOLDS",
     "Bin",
     "Binning",
     "CascadeRow",
+    "CostBasis",
     "CostSummary",
     "FloorBand",
     "LatencySummary",
@@ -79,6 +86,7 @@ __all__ = [
     "pricing_for",
     "recalibrate",
     "reliability",
+    "summarize",
     "synthetic_floor",
     "threshold_sweep",
     "verdict",

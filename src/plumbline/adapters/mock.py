@@ -81,7 +81,10 @@ class MockAdapter(Adapter):
             predicted probabilities more widely across the range, which is what
             populates the reliability bins.
         report_tokens: When False, token counts are None, which is the path that
-            makes downstream cost None rather than zero.
+            makes downstream cost None rather than zero. It sets the adapter's
+            ``reports_tokens`` capability too, so the mock stands in for a local
+            checkpoint that cannot report cost at all rather than for an API
+            that returned no counts on one call.
         model_reported: What the fake API claims it used. Defaults to
             ``model_requested``. Setting it to something else exercises the case
             plumbline records for real adapters, where a model alias resolves
@@ -126,6 +129,7 @@ class MockAdapter(Adapter):
         self.seed = seed
         self.concentration = concentration
         self.report_tokens = report_tokens
+        self.reports_tokens = report_tokens
         self.model_reported = model_reported if model_reported is not None else model_requested
         self.latency_p50_ms = latency_p50_ms
         self.latency_sigma = latency_sigma
