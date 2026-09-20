@@ -9,9 +9,14 @@ from __future__ import annotations
 
 import random
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from plumbline.adapters.base import Adapter
 from plumbline.types import Case, Prediction
+
+if TYPE_CHECKING:
+    from plumbline.types import ConfidenceSeries, ProbabilitySeries
 
 
 def make_cases(
@@ -105,3 +110,41 @@ def max_bin_gap(pairs: Sequence[tuple[float, bool]], n_bins: int = 5) -> float:
         abs(mean_probability - frequency)
         for _, mean_probability, frequency in equal_count_bins(pairs, n_bins)
     )
+
+
+def measure(adapter: Adapter, cases: Sequence[Case]) -> Measured:
+    """Run an adapter and package what the metrics functions need."""
+    from plumbline.types import confidence_series
+    from plumbline.types import probability_series as _probability_series
+
+    results = run(adapter, cases)
+    predictions = [prediction for _, prediction in results]
+    outcomes = [prediction.label == case.gold_label for case, prediction in results]
+    return Measured(
+        cases=list(cases),
+        predictions=predictions,
+        outcomes=outcomes,
+        probabilities=_probability_series(predictions, adapter.probability_semantics),
+        confidences=confidence_series(predictions),
+    )
+
+
+@dataclass(frozen=True)
+class Measured:
+    cases: list[Case]
+    predictions: list[Prediction]
+    outcomes: list[bool]
+    probabilities: ProbabilitySeries
+    confidences: ConfidenceSeries
+
+    @property
+    def accuracy(self) -> float:
+        return sum(self.outcomes) / len(self.outcomes)
+
+    @property
+    def distributions(self) -> list[dict[str, float] | None]:
+        return [prediction.distribution for prediction in self.predictions]
+
+    @property
+    def gold_labels(self) -> list[str]:
+        return [case.gold_label for case in self.cases]
