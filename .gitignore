@@ -16,6 +16,8 @@ dist/
 
 # Tooling caches
 .pytest_cache/
+# pytest scratch roots, if a runner ever resolves the temp root into the repo.
+pytest-of-*/
 .mypy_cache/
 .ruff_cache/
 .coverage
@@ -26,4 +28,3 @@ htmlcov/
 .vscode/
 .DS_Store
 Thumbs.db
-CLAUDE.md
