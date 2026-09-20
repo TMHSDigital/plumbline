@@ -546,3 +546,15 @@ def test_the_artifact_carries_the_reason_each_cost_is_blank(tmp_path: Path) -> N
     stored = json.loads(result.write(tmp_path / "results").read_text(encoding="utf-8"))
 
     assert {record["cost_basis"] for record in stored["records"]} == {"adapter_reports_no_tokens"}
+
+
+def test_the_artifact_records_how_many_rows_the_run_covered(tmp_path: Path) -> None:
+    """The dataset hash identifies the rows; the count is what ECE is read against."""
+    cases = make_cases(12, labels=LABELS)
+    result = execute.run(an_adapter(cases), cases, workers=1)
+
+    stored = json.loads(result.write(tmp_path / "results").read_text(encoding="utf-8"))
+
+    assert result.dataset_rows == 12
+    assert stored["dataset_rows"] == 12
+    assert stored["dataset_hash"]

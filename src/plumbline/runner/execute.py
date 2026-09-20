@@ -133,6 +133,7 @@ class RunResult:
     revision: str | None
     timestamp: str
     dataset_hash: str
+    dataset_rows: int
     pricing_key: str | None
     config: dict[str, Any]
     records: list[CaseRecord]
@@ -205,6 +206,7 @@ class RunResult:
             "revision": self.revision,
             "timestamp": self.timestamp,
             "dataset_hash": self.dataset_hash,
+            "dataset_rows": self.dataset_rows,
             "pricing_key": self.pricing_key,
             "pricing": self.pricing,
             "config": self.config,
@@ -404,6 +406,9 @@ def run(
         revision=adapter.revision,
         timestamp=datetime.now(UTC).isoformat(timespec="seconds"),
         dataset_hash=dataset_hash(cases),
+        # The hash says which rows; the count is what every calibration figure
+        # has to be read against, so both travel with the result.
+        dataset_rows=len(cases),
         pricing_key=applied_key,
         pricing=applied.provenance(today) if applied is not None else None,
         config=redact(config),

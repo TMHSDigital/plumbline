@@ -297,3 +297,39 @@ def test_a_mismatched_row_count_is_rejected() -> None:
 def test_semantics_none_with_a_value_present_is_a_contradiction() -> None:
     with pytest.raises(ValueError, match="every value must be None"):
         ProbabilitySeries(values=(0.5,), semantics="none")
+
+
+# The figure a report prints
+
+
+def test_an_ece_figure_carries_the_row_count_it_was_computed_on() -> None:
+    """ECE without n is unreadable: the floor it has to beat depends on n."""
+    run = measured(400, OVERCONFIDENT)
+
+    figure = calibration.ece_figure(run.probabilities, run.outcomes, n_boot=400)
+
+    assert figure.n == 400
+    assert figure.value == pytest.approx(calibration.ece(run.probabilities, run.outcomes))
+
+
+def test_the_figure_states_the_row_count_beside_the_number() -> None:
+    run = measured(300, CALIBRATED)
+
+    statement = calibration.ece_figure(run.probabilities, run.outcomes, n_boot=400).statement()
+
+    assert "ECE" in statement
+    assert "300 rows" in statement
+
+
+def test_the_figure_knows_whether_it_clears_the_floor() -> None:
+    overconfident = calibration.ece_figure(
+        *_columns(measured(500, OVERCONFIDENT)), n_boot=400, seed=3
+    )
+    calibrated = calibration.ece_figure(*_columns(measured(500, CALIBRATED)), n_boot=400, seed=3)
+
+    assert overconfident.is_distinguishable
+    assert not calibrated.is_distinguishable
+
+
+def _columns(run):
+    return run.probabilities, run.outcomes

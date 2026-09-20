@@ -98,6 +98,33 @@ Where a vendor publishes no price at all, the entry carries None rather than a
 guess, and cost is reported as not available. plumbline ships a Jev entry with
 output at 0.0 and no input price for exactly this reason.
 
+## A row that cannot be scored is refused, not scored
+
+A dataset row whose gold label is not one of its own options marks every system
+wrong on that row, by construction. It arrives in a report looking like a model
+failure and it is a typo in a file. The loader refuses such a row: it never
+reaches the runner, the refusal carries the line number and the id, and the load
+report states how many rows were read, loaded and refused. A caller that needs
+the whole dataset can demand it and find out before the run rather than after.
+
+Nothing is repaired. The one narrow exception is representation rather than
+content: a gold label written as the JSON number `1` against the string option
+`"1"` is the same option, so it is matched, and the number of rows that needed
+that is reported rather than absorbed.
+
+## Every calibration figure carries its row count
+
+ECE has no fixed meaning without the sample size beside it. The calibrated-null
+floor that ECE has to clear is a function of the row count, the bin count and the
+shape of the predicted probabilities, so 0.03 over 5,000 rows and 0.03 over 80
+rows are different findings and the second one is usually no finding at all.
+
+So the row count travels with the figure: `CalibrationFigure` holds the value,
+the count, the bin count and the floor together, and its one-line statement
+prints all four. The run artifact records `dataset_rows` next to `dataset_hash`,
+so a stored result carries the sample size that its numbers were computed on.
+The hash says which rows; the count says how many, and a reader needs both.
+
 ## Probabilities versus confidence
 
 Pending. Lands with Phase 9.

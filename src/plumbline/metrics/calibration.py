@@ -397,6 +397,62 @@ def _bootstrap_floor(
     return bands
 
 
+@dataclass(frozen=True)
+class CalibrationFigure:
+    """A calibration number, the sample it came from, and its floor, together.
+
+    ECE on its own is unreadable. The floor it has to clear depends on the row
+    count, so 0.03 over 5,000 rows and 0.03 over 80 rows are different findings
+    and a report that prints only the number invites the wrong one. This type
+    exists so that a figure cannot be rendered without the count beside it.
+    """
+
+    metric: str
+    value: float
+    n: int
+    n_bins: int
+    binning: Binning
+    floor: FloorBand
+
+    @property
+    def is_distinguishable(self) -> bool:
+        return is_distinguishable(self.value, self.floor)
+
+    def statement(self) -> str:
+        """The line a report prints: the number, the rows, and the floor."""
+        return (
+            f"{self.metric.upper()} {self.value:.4f} over {self.n} rows "
+            f"({self.n_bins} {self.binning.replace('_', ' ')} bins), against a "
+            f"calibrated-model floor of {self.floor.mean:.4f} "
+            f"(95th percentile {self.floor.p95:.4f}): {_judgment(self.value, self.floor)}"
+        )
+
+
+def ece_figure(
+    series: ProbabilitySeries,
+    correct: Sequence[bool],
+    n_bins: int = DEFAULT_N_BINS,
+    binning: Binning = DEFAULT_BINNING,
+    n_boot: int = DEFAULT_N_BOOT,
+    seed: int = 0,
+) -> CalibrationFigure:
+    """ECE with the row count and the calibrated-null floor attached.
+
+    The way a report should ask for ECE. :func:`ece` returns the bare number for
+    arithmetic that needs one; anything a reader sees goes through here.
+    """
+    value = ece(series, correct, n_bins, binning)
+    floor = calibration_floor(series, n_bins, binning, n_boot=n_boot, seed=seed)["ece"]
+    return CalibrationFigure(
+        metric="ece",
+        value=value,
+        n=floor.n,
+        n_bins=n_bins,
+        binning=binning,
+        floor=floor,
+    )
+
+
 def is_distinguishable(measured: float, floor: FloorBand) -> bool:
     """Whether a measured value exceeds what calibrated noise alone would produce."""
     return measured > floor.p95
@@ -414,9 +470,14 @@ def verdict(measured: float, floor: FloorBand) -> str:
         f"{floor.mean:.4f} (95th percentile {floor.p95:.4f}) at n={floor.n}, "
         f"{floor.n_bins} bins"
     )
+    return f"{common}: {_judgment(measured, floor)}"
+
+
+def _judgment(measured: float, floor: FloorBand) -> str:
+    """The trailing clause of a verdict, so one wording serves every caller."""
     if is_distinguishable(measured, floor):
-        return f"{common}: miscalibration is distinguishable from sampling noise."
+        return "miscalibration is distinguishable from sampling noise."
     return (
-        f"{common}: not distinguishable from a perfectly calibrated model at this "
-        "sample size. Collect more rows before reading anything into it."
+        "not distinguishable from a perfectly calibrated model at this sample size. "
+        "Collect more rows before reading anything into it."
     )
