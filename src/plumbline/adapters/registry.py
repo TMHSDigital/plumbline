@@ -44,8 +44,10 @@ def available() -> tuple[str, ...]:
 
 def _register_builtins() -> None:
     from plumbline.adapters.mock import MockAdapter
+    from plumbline.adapters.typesafe_wire import TypeSafeWireAdapter
 
     register("mock", MockAdapter)
+    register("typesafe_wire", TypeSafeWireAdapter)
 
 
 _register_builtins()
