@@ -1,0 +1,211 @@
+"""The markdown report: what it groups, what it refuses to put side by side.
+
+Two rules the rest of this file exists to protect.
+
+Nothing prints as a bare number. Every figure carries the row count it was
+computed on and the null it is read against, because a calibration number
+without its sample size cannot be acted on and an accuracy without its chance
+baseline cannot either.
+
+A restricted softmax is never placed next to a calibrated claim without the
+label between them. The whole point of the tool is that those two numbers are
+not the same kind of number, and a table that lists them together invites
+exactly the comparison it should prevent.
+"""
+
+from __future__ import annotations
+
+from datetime import date
+from pathlib import Path
+
+import pytest
+from typesafe_sdk import NoulAnswer, SystemOneResponse, Usage
+
+from plumbline.adapters.mock import MockAdapter
+from plumbline.adapters.typesafe_wire import QUESTION_NAME, TypeSafeWireAdapter
+from plumbline.datasets import loader
+from plumbline.report import markdown
+from plumbline.runner import execute
+from plumbline.types import Case
+from tests.helpers import gold_by_text, make_cases
+
+LABELS = ("billing", "returns", "shipping", "other")
+PUBLIC_FIXTURE = Path(__file__).resolve().parent.parent / "datasets/public/jevbench-hard.jsonl"
+OPTIONS = markdown.ReportOptions(n_boot=200, today=date(2026, 9, 20))
+
+
+def a_run(
+    *,
+    semantics: str = "calibrated_claim",
+    name: str = "mock",
+    n_cases: int = 120,
+    cases: list[Case] | None = None,
+    **config: object,
+) -> execute.RunResult:
+    cases = cases if cases is not None else make_cases(n_cases, labels=LABELS)
+    adapter = MockAdapter(
+        gold_by_text(cases),
+        name=name,
+        seed=5,
+        accuracy=0.8,
+        probability_semantics=semantics,  # type: ignore[arg-type]
+        **config,  # type: ignore[arg-type]
+    )
+    return execute.run(adapter, cases, workers=1)
+
+
+class FakeNoulClient:
+    """The wire adapter's transport, answering every case with a bare P(yes)."""
+
+    def __init__(self, noul: float = 0.7) -> None:
+        self.response = SystemOneResponse(
+            model="jev-1.2",
+            usage=Usage(input_tokens=100, output_tokens=2),
+            answers={QUESTION_NAME: NoulAnswer(noul=noul)},
+        )
+
+    def system_one(self, state: object, questions: object, **kwargs: object) -> SystemOneResponse:
+        return self.response
+
+
+def yes_no_cases(n_cases: int = 40) -> list[Case]:
+    return [
+        Case(
+            id=f"yn-{index}",
+            text=f"is this one true? {index}",
+            labels=("no", "yes"),
+            gold_label="yes" if index % 2 else "no",
+            question_type="noul",
+        )
+        for index in range(n_cases)
+    ]
+
+
+def render(*results: execute.RunResult, **kwargs: object) -> str:
+    return markdown.render(list(results), options=OPTIONS, **kwargs)  # type: ignore[arg-type]
+
+
+# Grouping
+
+
+def test_each_arm_is_filed_under_the_kind_of_number_it_reports() -> None:
+    text = render(
+        a_run(semantics="calibrated_claim", name="wire"),
+        a_run(semantics="restricted_softmax", name="local"),
+        a_run(semantics="none", name="generative"),
+    )
+
+    assert "## Calibrated claims" in text
+    assert "## Restricted softmax" in text
+    assert "## No probability reported" in text
+
+
+def test_a_restricted_softmax_arm_is_never_adjacent_to_a_calibrated_one() -> None:
+    """The group label always sits between them, whatever order they arrive in."""
+    text = render(
+        a_run(semantics="restricted_softmax", name="local"),
+        a_run(semantics="calibrated_claim", name="wire"),
+    )
+
+    first = text.index("### local")
+    second = text.index("### wire")
+    between = text[min(first, second) : max(first, second)]
+
+    assert "## " in between
+
+
+def test_the_report_says_that_the_groups_are_not_comparable() -> None:
+    text = render(a_run(semantics="calibrated_claim"), a_run(semantics="restricted_softmax"))
+
+    assert "not comparable" in text.lower()
+
+
+# No bare numbers
+
+
+@pytest.mark.parametrize("figure", ["ACCURACY", "ECE"])
+def test_every_headline_figure_states_the_rows_it_was_computed_on(figure: str) -> None:
+    text = render(a_run())
+
+    lines = [line for line in text.splitlines() if figure in line.upper()]
+    assert lines
+    assert all("rows" in line for line in lines)
+
+
+def test_accuracy_is_read_against_chance_on_this_mix_of_options() -> None:
+    text = render(a_run())
+
+    line = next(line for line in text.splitlines() if "ccuracy" in line)
+    assert "chance" in line
+    assert "0.25" in line  # four options on every case
+
+
+def test_calibration_is_read_against_its_floor() -> None:
+    text = render(a_run())
+
+    line = next(line for line in text.splitlines() if "ECE" in line)
+    assert "floor" in line
+    assert "distinguishable" in line
+
+
+def test_the_maximum_error_is_a_diagnostic_and_not_a_headline() -> None:
+    """MCE cannot see gross overconfidence at a few hundred rows. Demote it."""
+    text = render(a_run())
+
+    assert "Diagnostics" in text
+    assert text.index("ECE") < text.index("Diagnostics")
+    assert text.index("Diagnostics") < text.index("MCE")
+
+
+# Absences, said out loud
+
+
+def test_an_arm_with_no_probability_is_not_reported_rather_than_scored() -> None:
+    text = render(a_run(semantics="none", name="generative"))
+
+    section = text[text.index("### generative") :]
+    assert "not reported" in section
+    assert "ECE" not in section
+
+
+def test_confidence_absent_by_construction_is_named_as_such() -> None:
+    """A noul has no distribution to summarize, so the blank is a fact, not a gap."""
+    cases = yes_no_cases()
+    adapter = TypeSafeWireAdapter(client=FakeNoulClient())  # type: ignore[arg-type]
+    text = render(execute.run(adapter, cases, workers=1))
+
+    line = next(line for line in text.splitlines() if "onfidence" in line)
+    assert "not reported" in line
+
+
+def test_a_row_asked_as_something_other_than_what_it_is_says_so() -> None:
+    text = render(a_run(cases=yes_no_cases(30), name="local"))
+
+    assert "asked as" in text.lower()
+    assert "30" in text
+
+
+def test_rows_of_an_unsupported_type_are_excluded_and_counted() -> None:
+    report = loader.load_jevbench(PUBLIC_FIXTURE)
+    text = render(a_run(cases=list(report.scoreable)[:20]), load=report)
+
+    assert "ordinal" in text
+    assert "111 rows read" in text
+
+
+# Cost, latency, provenance
+
+
+def test_cost_says_which_kind_of_blank_it_is() -> None:
+    text = render(a_run(report_tokens=False))
+
+    section = text[text.index("Cost") :]
+    assert "reports no token counts at all" in section
+
+
+def test_the_report_carries_the_dataset_hash_and_the_row_count() -> None:
+    result = a_run(n_cases=30)
+    text = render(result)
+
+    assert result.dataset_hash[:8] in text
+    assert "30" in text
