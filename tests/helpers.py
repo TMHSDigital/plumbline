@@ -8,8 +8,8 @@ would be checking two unverified things against each other.
 from __future__ import annotations
 
 import random
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Sequence
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from plumbline.adapters.base import Adapter
@@ -148,3 +148,66 @@ class Measured:
     @property
     def gold_labels(self) -> list[str]:
         return [case.gold_label for case in self.cases]
+
+
+def redistort(run: Measured, temperature_for: Callable[[Prediction], float]) -> Measured:
+    """Re-skew a finished run, per case, without moving any predicted label.
+
+    ``apply_temperature`` is monotone in log p, so the argmax is unchanged and the
+    outcomes carry over untouched. That lets a distortion be layered on a known
+    run and compared against it directly.
+
+    Used to build miscalibration that temperature scaling cannot fully invert,
+    which is what real data looks like. A single global T is correctly specified
+    only when the whole corpus shares one distortion.
+    """
+    from plumbline.types import apply_temperature, confidence_series, docs_confidence
+    from plumbline.types import probability_series as _probability_series
+
+    rebuilt: list[Prediction] = []
+    for prediction in run.predictions:
+        assert prediction.distribution is not None
+        distribution = apply_temperature(prediction.distribution, temperature_for(prediction))
+        rebuilt.append(
+            replace(
+                prediction,
+                distribution=distribution,
+                prob_selected=distribution[prediction.label],
+                confidence=docs_confidence(distribution),
+            )
+        )
+
+    return Measured(
+        cases=run.cases,
+        predictions=rebuilt,
+        outcomes=run.outcomes,
+        probabilities=_probability_series(rebuilt, run.probabilities.semantics),
+        confidences=confidence_series(rebuilt),
+    )
+
+
+def per_label_skew(overconfident_labels: Sequence[str], temperature: float = 0.45):
+    """One or more labels systematically overconfident, the rest untouched.
+
+    A global temperature cannot fix this: flattening enough for the skewed labels
+    over-flattens the honest ones.
+    """
+
+    def temperature_for(prediction: Prediction) -> float:
+        return temperature if prediction.label in overconfident_labels else 1.0
+
+    return temperature_for
+
+
+def piecewise_skew(low: float = 0.55, high: float = 1.7, cut: float = 0.6):
+    """A distortion that differs above and below mid-range.
+
+    Confident answers are inflated and unconfident ones are deflated, so a single
+    T fitted across both is pulled toward the middle and fits neither.
+    """
+
+    def temperature_for(prediction: Prediction) -> float:
+        assert prediction.prob_selected is not None
+        return low if prediction.prob_selected >= cut else high
+
+    return temperature_for
