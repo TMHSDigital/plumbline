@@ -137,6 +137,11 @@ def to_jsonable(prediction: Prediction) -> dict[str, Any]:
     return dataclasses.asdict(prediction)
 
 
+def to_prediction(stored: dict[str, Any]) -> Prediction:
+    """Rebuild a prediction from its stored form, for the cache and the artifact."""
+    return _to_prediction(stored)
+
+
 def _to_prediction(stored: dict[str, Any]) -> Prediction:
     return Prediction(
         label=stored["label"],

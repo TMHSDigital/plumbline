@@ -41,7 +41,13 @@ from plumbline.metrics.cost import (
     estimate_case_cost,
     pricing_for,
 )
-from plumbline.runner.cache import Cache, cache_key, prompt_fingerprint, to_jsonable
+from plumbline.runner.cache import (
+    Cache,
+    cache_key,
+    prompt_fingerprint,
+    to_jsonable,
+    to_prediction,
+)
 from plumbline.types import (
     Case,
     CaseRefusedError,
@@ -243,6 +249,31 @@ class RunResult:
             ],
         }
 
+    @classmethod
+    def read(cls, path: Path | str) -> RunResult:
+        """Rebuild a finished run from the artifact it wrote.
+
+        A report months after the fact should not require paying for the run
+        again, and a result re-read this way carries the pricing entry and date
+        it was scored against rather than today's.
+        """
+        stored = json.loads(Path(path).read_text(encoding="utf-8"))
+        return cls(
+            adapter_name=stored["adapter_name"],
+            probability_semantics=stored["probability_semantics"],
+            model_requested=stored["model_requested"],
+            model_reported=stored.get("model_reported"),
+            revision=stored.get("revision"),
+            timestamp=stored["timestamp"],
+            dataset_hash=stored["dataset_hash"],
+            dataset_rows=stored.get("dataset_rows", len(stored["records"])),
+            pricing_key=stored.get("pricing_key"),
+            config=stored.get("config", {}),
+            records=[_record_from_jsonable(row) for row in stored["records"]],
+            cache_stats=stored.get("cache_stats", {}),
+            pricing=stored.get("pricing"),
+        )
+
     def write(self, directory: Path | str) -> Path:
         """Write the artifact to ``directory``, which the caller must name.
 
@@ -255,12 +286,42 @@ class RunResult:
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
         stamp = self.timestamp.replace(":", "").replace("-", "")
-        path = directory / f"{stamp}-{self.adapter_name}-{self.dataset_hash[:8]}.json"
+        base = f"{stamp}-{self.adapter_name}-{self.dataset_hash[:8]}"
+        # The stamp is only accurate to the second, so two runs of the same
+        # adapter over the same dataset can land on one name. An artifact holds
+        # the user's per-case records; a second run quietly replacing the first
+        # would destroy a result nobody asked to delete.
+        path = directory / f"{base}.json"
+        suffix = 2
+        while path.exists():
+            path = directory / f"{base}-{suffix}.json"
+            suffix += 1
         path.write_text(
             json.dumps(self.to_jsonable(), indent=2, sort_keys=True, default=str),
             encoding="utf-8",
         )
         return path
+
+
+def _record_from_jsonable(row: dict[str, Any]) -> CaseRecord:
+    """One stored row back into a record, with nothing invented for a gap."""
+    prediction = row.get("prediction")
+    return CaseRecord(
+        case_id=row["case_id"],
+        labels=tuple(row["labels"]),
+        gold_label=row["gold_label"],
+        prompt_hash=row["prompt_hash"],
+        prediction=to_prediction(prediction) if prediction is not None else None,
+        cost_usd=row.get("cost_usd"),
+        from_cache=bool(row.get("from_cache", False)),
+        attempts=int(row.get("attempts", 0)),
+        error=row.get("error"),
+        refused=bool(row.get("refused", False)),
+        question_type=row.get("question_type", "choice"),
+        asked_as=row.get("asked_as", "choice"),
+        cost_basis=row.get("cost_basis", "no_prediction"),
+        pricing_key=row.get("pricing_key"),
+    )
 
 
 def dataset_hash(cases: Sequence[Case]) -> str:
@@ -436,9 +497,7 @@ def _one_case(
     table: PricingTable,
 ) -> CaseRecord:
     labels = list(case.labels)
-    key = (
-        cache_key(adapter, case.text, labels, case.question_type) if cache is not None else None
-    )
+    key = cache_key(adapter, case.text, labels, case.question_type) if cache is not None else None
 
     if cache is not None and key is not None:
         hit = cache.get(key)

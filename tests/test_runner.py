@@ -608,3 +608,42 @@ def test_the_cache_does_not_confuse_a_yes_no_ask_with_a_two_option_choice() -> N
     as_noul = cache_key(adapter, cases[0].text, list(cases[0].labels), question_type="noul")
 
     assert as_choice != as_noul
+
+
+def test_an_artifact_reads_back_into_the_result_that_wrote_it(tmp_path: Path) -> None:
+    """A report months later should not need the run to be repeated."""
+    cases = make_cases(8, labels=LABELS)
+    original = execute.run(an_adapter(cases), cases, pricing_table=PRICING, workers=1)
+    path = original.write(tmp_path / "results")
+
+    restored = execute.RunResult.read(path)
+
+    assert restored.adapter_name == original.adapter_name
+    assert restored.probability_semantics == original.probability_semantics
+    assert restored.dataset_hash == original.dataset_hash
+    assert restored.dataset_rows == original.dataset_rows
+    assert restored.pricing == original.pricing
+    assert [record.case_id for record in restored.records] == [
+        record.case_id for record in original.records
+    ]
+    assert restored.accuracy == original.accuracy
+    assert restored.probabilities().values == original.probabilities().values
+    assert [record.cost_basis for record in restored.records] == [
+        record.cost_basis for record in original.records
+    ]
+
+
+def test_a_second_run_never_overwrites_the_first_artifact(tmp_path: Path) -> None:
+    """Same adapter, same dataset, same second. Two runs, two files, no loss."""
+    cases = make_cases(4, labels=LABELS)
+    directory = tmp_path / "results"
+
+    first = execute.run(an_adapter(cases), cases, workers=1).write(directory)
+    second = execute.run(
+        an_adapter(cases, probability_semantics="restricted_softmax"), cases, workers=1
+    ).write(directory)
+
+    assert first != second
+    assert len(list(directory.glob("*.json"))) == 2
+    assert execute.RunResult.read(first).probability_semantics == "calibrated_claim"
+    assert execute.RunResult.read(second).probability_semantics == "restricted_softmax"
