@@ -333,3 +333,53 @@ def test_the_figure_knows_whether_it_clears_the_floor() -> None:
 
 def _columns(run):
     return run.probabilities, run.outcomes
+
+
+def test_a_brier_figure_carries_its_calibrated_null() -> None:
+    """Brier without a null cannot say whether the model is worse than calibrated."""
+    run = measured(400, OVERCONFIDENT)
+
+    figure = calibration.brier_figure(run.probabilities, run.outcomes, n_boot=400)
+
+    assert figure.value == pytest.approx(calibration.brier(run.probabilities, run.outcomes))
+    assert figure.n == 400
+    assert "400 rows" in figure.statement()
+    assert figure.is_distinguishable
+
+
+def test_a_calibrated_brier_sits_inside_its_null_band() -> None:
+    run = measured(400, CALIBRATED)
+
+    figure = calibration.brier_figure(run.probabilities, run.outcomes, n_boot=400)
+
+    assert not figure.is_distinguishable
+
+
+def test_an_mce_figure_carries_the_same_shape_as_ece() -> None:
+    run = measured(500, OVERCONFIDENT)
+
+    figure = calibration.mce_figure(run.probabilities, run.outcomes, n_boot=400)
+
+    assert figure.metric == "mce"
+    assert "500 rows" in figure.statement()
+
+
+def test_an_mce_figure_refuses_rather_than_reporting_an_undefined_maximum() -> None:
+    """Too few rows for any bin to qualify is not an MCE of zero."""
+    run = measured(20, CALIBRATED)
+
+    with pytest.raises(ValueError, match="no bin"):
+        calibration.mce_figure(run.probabilities, run.outcomes, n_boot=200)
+
+
+def test_a_multiclass_brier_figure_is_read_against_its_own_null() -> None:
+    run = measured(300, CALIBRATED)
+    distributions = [d for d in run.distributions if d is not None]
+
+    figure = calibration.multiclass_brier_figure(distributions, run.gold_labels, n_boot=400)
+
+    assert figure.value == pytest.approx(
+        calibration.multiclass_brier(distributions, run.gold_labels)
+    )
+    assert "300 rows" in figure.statement()
+    assert not figure.is_distinguishable

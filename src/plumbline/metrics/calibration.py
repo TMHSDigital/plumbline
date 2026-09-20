@@ -304,7 +304,8 @@ def calibration_floor(
     on how the predictions are spread across the range, not only on how many
     there are, which is why this is preferred over :func:`synthetic_floor`.
 
-    Returns a band for ``"ece"`` and, when any bin qualifies, for ``"mce"``.
+    Returns a band for ``"ece"`` and ``"brier"``, and, when any bin qualifies,
+    for ``"mce"``.
     """
     probabilities = np.asarray(_guard(series), dtype=np.float64)
     return _bootstrap_floor(probabilities, n_bins, binning, min_bin_count, n_boot, seed)
@@ -372,6 +373,7 @@ def _bootstrap_floor(
     gaps[:, ~occupied] = 0.0
 
     ece_draws = (gaps * counts).sum(axis=1) / n
+    brier_draws = ((outcomes - probabilities) ** 2).mean(axis=1)
     bands = {
         "ece": FloorBand(
             metric="ece",
@@ -380,7 +382,17 @@ def _bootstrap_floor(
             n=n,
             n_bins=n_bins,
             n_boot=n_boot,
-        )
+        ),
+        # The same resampled outcomes, scored as Brier. A calibrated model of
+        # this sharpness does not score zero, and this is what it does score.
+        "brier": FloorBand(
+            metric="brier",
+            mean=float(brier_draws.mean()),
+            p95=float(np.percentile(brier_draws, 95)),
+            n=n,
+            n_bins=n_bins,
+            n_boot=n_boot,
+        ),
     }
 
     qualifying = counts >= min_bin_count
@@ -397,6 +409,15 @@ def _bootstrap_floor(
     return bands
 
 
+#: How each metric is spelled in a report line.
+METRIC_NAMES = {
+    "ece": "ECE",
+    "mce": "MCE",
+    "brier": "Brier",
+    "multiclass brier": "Multiclass Brier",
+}
+
+
 @dataclass(frozen=True)
 class CalibrationFigure:
     """A calibration number, the sample it came from, and its floor, together.
@@ -410,9 +431,9 @@ class CalibrationFigure:
     metric: str
     value: float
     n: int
-    n_bins: int
-    binning: Binning
     floor: FloorBand
+    n_bins: int | None = None
+    binning: Binning | None = None
 
     @property
     def is_distinguishable(self) -> bool:
@@ -420,9 +441,14 @@ class CalibrationFigure:
 
     def statement(self) -> str:
         """The line a report prints: the number, the rows, and the floor."""
+        bins = (
+            f" ({self.n_bins} {self.binning.replace('_', ' ')} bins)"
+            if self.n_bins is not None and self.binning is not None
+            else ""
+        )
+        name = METRIC_NAMES.get(self.metric, self.metric.upper())
         return (
-            f"{self.metric.upper()} {self.value:.4f} over {self.n} rows "
-            f"({self.n_bins} {self.binning.replace('_', ' ')} bins), against a "
+            f"{name} {self.value:.4f} over {self.n} rows{bins}, against a "
             f"calibrated-model floor of {self.floor.mean:.4f} "
             f"(95th percentile {self.floor.p95:.4f}): {_judgment(self.value, self.floor)}"
         )
@@ -450,6 +476,103 @@ def ece_figure(
         n_bins=n_bins,
         binning=binning,
         floor=floor,
+    )
+
+
+def mce_figure(
+    series: ProbabilitySeries,
+    correct: Sequence[bool],
+    n_bins: int = DEFAULT_N_BINS,
+    binning: Binning = DEFAULT_BINNING,
+    min_bin_count: int = DEFAULT_MIN_BIN_COUNT,
+    n_boot: int = DEFAULT_N_BOOT,
+    seed: int = 0,
+) -> CalibrationFigure:
+    """MCE with its floor, for the diagnostics block.
+
+    Never printed beside ECE. A maximum over bins is decided by one bin, it
+    cannot detect gross overconfidence spread evenly across the range, and at a
+    few hundred rows its floor is wide enough to swallow most real differences.
+    It raises rather than returning a number when no bin qualifies.
+    """
+    value = mce(series, correct, n_bins, binning, min_bin_count)
+    bands = calibration_floor(series, n_bins, binning, min_bin_count, n_boot=n_boot, seed=seed)
+    return CalibrationFigure(
+        metric="mce",
+        value=value,
+        n=bands["ece"].n,
+        n_bins=n_bins,
+        binning=binning,
+        floor=bands["mce"],
+    )
+
+
+def brier_figure(
+    series: ProbabilitySeries,
+    correct: Sequence[bool],
+    n_bins: int = DEFAULT_N_BINS,
+    binning: Binning = DEFAULT_BINNING,
+    n_boot: int = DEFAULT_N_BOOT,
+    seed: int = 0,
+) -> CalibrationFigure:
+    """Binary Brier against what a calibrated model of the same sharpness scores.
+
+    The floor here is not zero and is not a constant: a model that reports 0.6
+    on every case cannot score below 0.24 however well calibrated it is. The
+    band is the distribution of Brier when the outcomes are redrawn from the
+    reported probabilities, so exceeding it means worse than calibrated rather
+    than merely imperfect.
+    """
+    value = brier(series, correct)
+    floor = calibration_floor(series, n_bins, binning, n_boot=n_boot, seed=seed)["brier"]
+    return CalibrationFigure(metric="brier", value=value, n=floor.n, floor=floor)
+
+
+def multiclass_brier_figure(
+    distributions: Sequence[Mapping[str, float]],
+    gold_labels: Sequence[str],
+    n_boot: int = DEFAULT_N_BOOT,
+    seed: int = 0,
+) -> CalibrationFigure:
+    """Multiclass Brier with the null a calibrated model of this shape produces."""
+    value = multiclass_brier(distributions, gold_labels)
+    floor = multiclass_brier_floor(distributions, n_boot=n_boot, seed=seed)
+    return CalibrationFigure(metric="multiclass brier", value=value, n=floor.n, floor=floor)
+
+
+def multiclass_brier_floor(
+    distributions: Sequence[Mapping[str, float]],
+    n_boot: int = DEFAULT_N_BOOT,
+    seed: int = 0,
+) -> FloorBand:
+    """The null distribution of multiclass Brier for these reported distributions.
+
+    Same parametric bootstrap as the calibration floor, one level up: the gold
+    label of each case is redrawn from that case's own reported distribution, so
+    every resample is perfectly calibrated by construction and the spread is what
+    this many rows of this shape produce on their own.
+    """
+    if not distributions:
+        raise NotCalibratableError("no distributions, so there is no null to build")
+    if n_boot < 1:
+        raise ValueError(f"n_boot must be at least 1, got {n_boot}")
+
+    rng = np.random.default_rng(seed)
+    totals = np.zeros(n_boot, dtype=np.float64)
+    for distribution in distributions:
+        values = np.asarray(list(distribution.values()), dtype=np.float64)
+        # sum_k (p_k - y_k)^2 collapses to sum_k p_k^2 + 1 - 2 p_gold.
+        drawn = values[np.searchsorted(np.cumsum(values), rng.random(n_boot))]
+        totals += float((values**2).sum()) + 1.0 - 2.0 * drawn
+
+    draws = totals / len(distributions)
+    return FloorBand(
+        metric="multiclass brier",
+        mean=float(draws.mean()),
+        p95=float(np.percentile(draws, 95)),
+        n=len(distributions),
+        n_bins=0,  # Not a binned metric; the field is carried for one shape of band.
+        n_boot=n_boot,
     )
 
 
