@@ -38,7 +38,12 @@ import random
 from collections.abc import Mapping
 
 from plumbline.adapters.base import Adapter, check_probability_semantics
-from plumbline.types import Prediction, ProbabilitySemantics, docs_confidence
+from plumbline.types import (
+    Prediction,
+    ProbabilitySemantics,
+    apply_temperature,
+    docs_confidence,
+)
 
 #: Smoothing added to every label before the temperature transform, so that no
 #: probability is exactly zero and every log is finite.
@@ -168,7 +173,7 @@ class MockAdapter(Adapter):
 
         rng = self._case_rng(text, labels)
         calibrated = self._draw_calibrated_distribution(rng, labels, gold, n, chance)
-        reported = _apply_temperature(calibrated, self.calibration_temperature)
+        reported = apply_temperature(calibrated, self.calibration_temperature)
         predicted = max(reported, key=lambda label: reported[label])
 
         latency_ms = self._draw_latency(rng)
@@ -308,21 +313,6 @@ def _smooth(distribution: dict[str, float]) -> dict[str, float]:
     nudged = {label: value + _EPSILON for label, value in distribution.items()}
     total = sum(nudged.values())
     return {label: value / total for label, value in nudged.items()}
-
-
-def _apply_temperature(distribution: Mapping[str, float], temperature: float) -> dict[str, float]:
-    """Softmax the log probabilities divided by ``temperature``.
-
-    The transform is monotone, so the argmax is unchanged and the mock's accuracy
-    does not depend on its calibration skew.
-    """
-    if math.isclose(temperature, 1.0):
-        return dict(distribution)
-    scaled = {label: math.log(value) / temperature for label, value in distribution.items()}
-    peak = max(scaled.values())
-    exponentiated = {label: math.exp(value - peak) for label, value in scaled.items()}
-    total = sum(exponentiated.values())
-    return {label: value / total for label, value in exponentiated.items()}
 
 
 def _sample_index(rng: random.Random, weights: list[float]) -> int:

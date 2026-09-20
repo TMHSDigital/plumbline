@@ -25,6 +25,7 @@ into one another.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, get_args
@@ -73,6 +74,15 @@ class CaseRefusedError(PlumblineError):
 
 class UnknownAdapterError(PlumblineError):
     """A name was requested from the registry that nothing is registered under."""
+
+
+class InsufficientDataError(PlumblineError):
+    """There are too few rows to answer the question that was asked.
+
+    Recalibration raises this rather than fitting a temperature to a handful of
+    rows. A temperature fitted on noise is worse than no recalibration, because
+    it arrives looking like a measurement.
+    """
 
 
 class NotCalibratableError(PlumblineError):
@@ -261,3 +271,33 @@ def probability_series(
 def confidence_series(predictions: Sequence[Prediction]) -> ConfidenceSeries:
     """Pull ``confidence`` out of a run."""
     return ConfidenceSeries(values=tuple(prediction.confidence for prediction in predictions))
+
+
+#: Probabilities below this are clamped before taking a log, so a zero entry in a
+#: distribution does not produce a negative infinity.
+_PROBABILITY_FLOOR = 1e-16
+
+
+def apply_temperature(distribution: Mapping[str, float], temperature: float) -> dict[str, float]:
+    """Rescale a distribution by temperature: ``softmax(log p / T)``.
+
+    ``T`` below 1 sharpens, above 1 flattens, and exactly 1 is the identity. The
+    map is monotone in ``log p``, so the argmax never moves and a predicted label
+    never changes under recalibration.
+
+    One implementation, used both by the mock that injects a known skew and by
+    the recalibrator that fits one out, so the two can never drift apart.
+    """
+    if temperature <= 0.0:
+        raise ValueError(f"temperature must be positive, got {temperature!r}")
+    if temperature == 1.0:
+        return dict(distribution)
+
+    scaled = {
+        label: math.log(max(value, _PROBABILITY_FLOOR)) / temperature
+        for label, value in distribution.items()
+    }
+    peak = max(scaled.values())
+    weights = {label: math.exp(value - peak) for label, value in scaled.items()}
+    total = sum(weights.values())
+    return {label: value / total for label, value in weights.items()}
