@@ -11,14 +11,24 @@ this page and pick up where the work stopped.
 - **Phase 7 — datasets.** Landed. The JSONL loader that refuses unscoreable
   rows, the JevBench public fixture and its translation, and the end-to-end
   smoke run in `examples/smoke_public_dataset.py`.
-- **Phase 8 — CLI.** `pyproject.toml` declares `plumbline = "plumbline.cli:app"`
-  against a module that does not exist, so a fresh install ships a broken entry
-  point: `plumbline` on the path fails at import. Phase 8 either writes
-  `src/plumbline/cli.py` or removes the `[project.scripts]` entry. Until then,
-  the library imports fine and only the console script is broken.
-- **Phase 9 — the report.** Grouping by `probability_semantics`, the refusal to
-  compare across groups, the cost and staleness lines, and the METHODOLOGY
-  sections currently marked pending.
+- **Phase 8 — report and CLI.** Landed. The markdown report groups arms by
+  `probability_semantics`, states every figure's row count and null, and demotes
+  MCE to diagnostics. `src/plumbline/cli.py` exists, so the `plumbline` console
+  script pyproject declares now works: `run`, `report`, `adapters`, `version`.
+- **Phase 9 — what the report still does not show.** Recalibration (fit a
+  temperature on a held-out split and report what it did not fix) and the
+  cascade (threshold sweep, cost at the chosen threshold) are implemented in
+  `metrics/` and have no section yet. The METHODOLOGY sections still marked
+  pending land with them.
+
+## v0.2
+
+- Ordinal score questions. The six score rows in the public fixture are loaded,
+  marked and excluded; scoring them needs rank-aware metrics, because every
+  metric here treats wrong-by-one and wrong-by-three identically.
+- Adapters do not receive `label_descriptions`, so a dataset's per-option
+  criteria never reach the wire. A Choice takes them directly and a Noul takes
+  true/false descriptions.
 
 ## Decisions
 
@@ -46,6 +56,12 @@ Settled during the build. Reopen one only with a reason, not from scratch.
 - The JevBench public rows are vendored as a fixture under MIT with attribution.
   They are asked as one-of-n choices through plumbline's own harness, so results
   from them are never comparable with JevBench's published numbers.
+- A yes/no row is asked as a Noul where the transport has one, and every record
+  carries both what the row asks and how it was asked. A noul figure is never
+  compared with a two-option-choice figure without that line between them.
+- Ordinal score rows are loaded, marked and excluded from every figure in v0.1.
+- Artifacts never overwrite each other: the timestamp is only accurate to the
+  second, so a repeated name gets a suffix rather than replacing user records.
 - `generative` configures no fallback model. This is deliberate and deviates
   from the SDK's default advice for this model family: server-side fallback
   would re-run a declined case on another model inside the same call, so one

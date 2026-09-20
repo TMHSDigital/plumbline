@@ -102,6 +102,7 @@ def yes_no_labels(labels: Sequence[str]) -> tuple[str, str] | None:
         return None
     return affirmative[0], negative[0]
 
+
 #: Tolerance applied when checking that a reported distribution sums to one. The
 #: TypeSafe docs say Choice probabilities "sum to approximately 1", so an exact
 #: check would reject valid responses.

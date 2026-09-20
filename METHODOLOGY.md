@@ -98,6 +98,47 @@ Where a vendor publishes no price at all, the entry carries None rather than a
 guess, and cost is reported as not available. plumbline ships a Jev entry with
 output at 0.0 and no input price for exactly this reason.
 
+## A yes/no row is asked as a yes/no question
+
+A Noul returns one number: the probability that the answer is yes. There is no
+distribution behind it and therefore no confidence statistic computed from one.
+That makes it the cleanest calibration target in the API -- nothing is
+renormalized, nothing is derived, and `prob_selected` is exactly what the vendor
+reported.
+
+Asking the same row as a two-option choice is a different question. It asks for
+a distribution over the two strings "yes" and "no" rather than for the
+probability that a statement is true, and the number that comes back is a
+softmax entry rather than a stated probability. plumbline therefore carries each
+row's question type from the dataset and lets the adapter dispatch on it:
+`typesafe_wire` asks a yes/no row as a Noul, and reports `noul` for a yes answer
+and `1 - noul` for a no answer, because the calibration column holds the
+probability of the answer that was actually given.
+
+Which option is the yes is a fact about the dataset. An adapter handed two
+options it cannot read as a yes/no pair refuses the case rather than picking
+one, because picking wrong inverts every probability on that row.
+
+`local_logits` and `generative` have no equivalent primitive, so they ask these
+rows as two-option choices, which is all either can do. Every record carries both
+what the row asks and how the adapter asked it, and the report states the
+difference wherever it occurs. A noul measurement and a two-option-choice
+measurement are never compared without that line between them.
+
+Confidence on a noul is not reported, and the report says so in those words. A
+blank cell would suggest the vendor failed to send something; the statistic does
+not exist for an answer with no distribution.
+
+## Ordinal score questions are not scored in v0.1
+
+Some datasets ask for a level rather than a label: 0, 1, 2, or 3 daily-rest
+violations. The levels are ordered, and every metric here is rank-blind -- being
+wrong by one level and wrong by three score identically. Flattening the levels
+into unordered options would discard exactly the structure that makes the
+question a score, so plumbline loads those rows, marks them, and leaves them out
+of every figure. The load report and the run report both say how many were held
+back. Ordinal support is a v0.2 question, not a formatting one.
+
 ## A row that cannot be scored is refused, not scored
 
 A dataset row whose gold label is not one of its own options marks every system
@@ -111,6 +152,18 @@ Nothing is repaired. The one narrow exception is representation rather than
 content: a gold label written as the JSON number `1` against the string option
 `"1"` is the same option, so it is matched, and the number of rows that needed
 that is reported rather than absorbed.
+
+## Every figure carries its row count and its null
+
+Extended from calibration to everything the report prints. ECE, MCE, Brier and
+multiclass Brier are read against a calibrated-null floor from the parametric
+bootstrap; accuracy is read against chance on this dataset's own mix of option
+widths, which is not 1/n for any single n once the widths differ; AUROC is read
+against a permutation null that keeps the observed ties and class balance.
+
+Nothing prints as a bare number. A figure whose null cannot be built -- MCE when
+no bin holds enough rows, AUROC when every case is correct -- is reported as not
+reported, with the reason, rather than as a number standing on its own.
 
 ## Every calibration figure carries its row count
 

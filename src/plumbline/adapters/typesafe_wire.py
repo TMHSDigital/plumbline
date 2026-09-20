@@ -238,9 +238,7 @@ class TypeSafeWireAdapter(Adapter):
             },
         )
 
-    def _ask(
-        self, text: str, question: Choice | Noul
-    ) -> tuple[SystemOneResponse, float]:
+    def _ask(self, text: str, question: Choice | Noul) -> tuple[SystemOneResponse, float]:
         """One request, one question, with the latency it took."""
         started = time.perf_counter()
         response = self._client.system_one(

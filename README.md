@@ -24,6 +24,18 @@ number JevBench publishes. Your own data goes in `datasets/private/`, which is
 gitignored, and that is the only path on which the recalibration numbers mean
 anything.
 
+## The command line
+
+```
+plumbline run datasets/public/jevbench-hard.jsonl --format jevbench --results results
+plumbline report results/<artifact>.json --out report.md
+plumbline adapters
+```
+
+`run` loads a dataset, runs one adapter over it, writes the artifact, and renders
+the report. `report` renders a document from runs that already happened, so a
+finished run is never repeated to get a write-up out of it.
+
 ## Development
 
 - [docs/PLAN.md](docs/PLAN.md) — remaining phases, decisions already made, and
