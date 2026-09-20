@@ -20,12 +20,21 @@ from plumbline.metrics.cascade import (
     cascade_sweep,
     optimal_threshold,
 )
+from plumbline.metrics.cost import (
+    CostSummary,
+    Pricing,
+    PricingTable,
+    cost_of,
+    estimate_case_cost,
+    pricing_for,
+)
 from plumbline.metrics.discrimination import (
     DEFAULT_THRESHOLDS,
     SweepRow,
     auroc,
     threshold_sweep,
 )
+from plumbline.metrics.latency import LatencySummary
 from plumbline.metrics.recalibration import (
     MetricSet,
     RecalibrationResult,
@@ -42,8 +51,12 @@ __all__ = [
     "Bin",
     "Binning",
     "CascadeRow",
+    "CostSummary",
     "FloorBand",
+    "LatencySummary",
     "MetricSet",
+    "Pricing",
+    "PricingTable",
     "RecalibrationResult",
     "Split",
     "SweepRow",
@@ -53,7 +66,9 @@ __all__ = [
     "calibration_floor",
     "candidate_thresholds",
     "cascade_sweep",
+    "cost_of",
     "ece",
+    "estimate_case_cost",
     "fit_temperature_binary",
     "fit_temperature_multiclass",
     "is_distinguishable",
@@ -61,6 +76,7 @@ __all__ = [
     "mce",
     "multiclass_brier",
     "optimal_threshold",
+    "pricing_for",
     "recalibrate",
     "reliability",
     "synthetic_floor",
