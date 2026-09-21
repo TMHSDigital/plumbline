@@ -93,10 +93,9 @@ behind "local models do not report tokens".
 
 ## Prices are dated, and so is every result
 
-A price is a current-state claim, not a property of a model. Jev's output tokens
-are the clearest case: the only published statement is a field description in the
-wire schema saying they are "currently stated at https://docs.typesafe.ai/models", which was true on the day
-it was read and says nothing about the day a report is printed.
+A price is a current-state claim, not a property of a model. A vendor can change
+one between the day a run happens and the day its report is read, and a tariff
+page carries no promise that it will not.
 
 So every pricing entry carries the source it was read from and the date it was
 read, and every run artifact records which entry priced it along with that date.
@@ -105,8 +104,23 @@ be out of date instead of presenting its numbers as current. A result from last
 year is never silently re-scored against this year's prices.
 
 Where a vendor publishes no price at all, the entry carries None rather than a
-guess, and cost is reported as not available. plumbline ships a Jev entry with
-output at 0.0 and no input price for exactly this reason.
+guess, and cost is reported as not available. None is not zero: None is the
+absence of a claim, and zero is the claim that those tokens are free.
+
+There is a second reason an entry can ship unpriced, and it is not about what the
+vendor publishes. Some vendors' terms make their pricing information
+confidential, and a figure written into a file that plumbline publishes is a
+disclosure by plumbline no matter how public the page it was copied from. For
+those vendors the shipped entry names the page to read and prices nothing, and a
+cost column exists only when the operator reads the tariff and supplies it with
+`--pricing` (see `docs/pricing.example.json`). Reading a published page and
+writing the number down is the operator's act, in their own working copy. The
+TypeSafe entries ship this way.
+
+The consequence is visible in the report rather than hidden: with no supplied
+table, a run against such a vendor reports cost as `model_not_priced`, and
+`--max-cost-usd` refuses the run outright rather than bounding it, because a
+guard cannot bound a run it cannot cost.
 
 ## A yes/no row is asked as a yes/no question
 
@@ -235,6 +249,63 @@ result showing up in a real file. On the full fixture they differ, and the
 variable option widths are the whole reason. When a report shows the two
 diverging, that is the first thing to check, and it is not evidence that the
 vendor statistic is adding judgment.
+
+## Read the vendor's selected label. Never recompute it.
+
+An answer carries both a selected label and a distribution over the labels. It
+is tempting to treat the distribution as the source of truth and recover the
+selection with an argmax, because it is one line and it looks equivalent.
+
+It is not equivalent, and the two disagree silently.
+
+On a live run of 40 choice rows against hosted Jev on 2026-09-21, one row
+returned two options tied for the maximum at identical probability. The vendor
+selected one of them. An argmax over the distribution picked the other, because
+which one an argmax returns is decided by dictionary order rather than by
+anything about the answer. On that row the gold label was the option the vendor
+did not select, so the two implementations disagreed about whether the system
+was right, and neither would have logged anything unusual.
+
+This is guidance for anyone writing an adapter, not a note about one vendor. The
+rule is that the selected label is whatever the vendor said it was. A
+distribution is evidence about the selection; it is not the selection. plumbline
+reads `answer.choice` and looks up `probabilities[answer.choice]` for the
+calibratable column, which is correct even on a tie, and `adapters/base.py`
+expects the same of any adapter added later.
+
+The related check is worth stating too: the adapter verifies that the selected
+label is one of the labels that were asked about, and raises rather than scoring
+the row if it is not. A service answering a different question than the one
+posed is not a prediction to score.
+
+## Probabilities arrive quantized, which bounds the resolution of any figure here
+
+Hosted Jev returns probabilities on a two-decimal grid. All 165 probability
+values across the 40-row live run landed exactly on a multiple of 0.01, as did
+all 40 confidence values. Nothing here treats that as a defect. A vendor is
+entitled to round what it puts on the wire, and two decimals is a reasonable
+place to round for a decision API whose output is meant to be thresholded.
+
+It does, however, bound what can be measured *through* that API, and that bound
+belongs on the measurement rather than on the vendor:
+
+- **Binning.** The default ECE scheme is ten equal-width bins, which are wider
+  than the 0.01 grid, so the quantization does not bias the binning. A scheme
+  with more than 100 bins would be measuring the grid rather than the model.
+- **Thresholds.** A cascade threshold cannot be tuned more finely than 0.01.
+  A sweep that reports a cut to four decimals is reporting three digits of
+  noise.
+- **Ties.** At 0.01 resolution over three to six options, exact ties for the
+  maximum are ordinary rather than freak events. One in 40 rows on the run
+  above. This is the mechanism behind the previous section.
+- **Recalibration.** A fitted temperature is applied to quantized inputs, so the
+  corrected probabilities are smooth but the information they carry is not finer
+  than what arrived.
+
+None of this makes the vendor's numbers worse than an unrounded column would be
+for the purpose they exist for. It means a report should not claim resolution
+its inputs do not have, and it is a fact about the measurement that a reader of
+these figures needs in order to know what a small difference is worth.
 
 ## The three probability_semantics classes
 
