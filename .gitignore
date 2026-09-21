@@ -1,5 +1,9 @@
 # User data and run artifacts. Never commit these.
-datasets/private/
+# Everything inside is the user's own labeled data. The negation keeps the
+# directory itself in the repo so a fresh clone matches what the README
+# describes; the glob still ignores every file and subdirectory under it.
+datasets/private/*
+!datasets/private/.gitkeep
 results/
 cache/
 models/
