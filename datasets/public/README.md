@@ -26,9 +26,13 @@ prompts differ, and the scoring differs:
   from the row's `question.instructions` above its `state` and sends that through
   whichever adapter is under test, with that adapter's own prompt shape.
 - JevBench's rows come in three question types — `choice`, `noul`, and `score`.
-  plumbline asks all 111 as a one-of-n choice over the row's declared options.
-  Asking a yes/no question as a two-option choice is a different question than
-  asking for the probability of a statement.
+  plumbline asks each row as the type it declares, where the transport has one:
+  a `noul` row is asked as a Noul by `typesafe_wire`, and as a two-option choice
+  by a transport with no Noul. Those are different questions, so every record
+  carries both what the row asks and how it was asked, and the report keeps them
+  apart rather than averaging across the difference. The six `score` rows are
+  loaded, marked, and excluded from every figure: v0.1 has no ordinal support,
+  and flattening ordered levels into unordered options discards the ordering.
 - JevBench's score combines intelligence, calibration, speed, and cost into one
   number. plumbline computes its own metrics, against its own calibrated-null
   floor, and deliberately publishes no combined score.
