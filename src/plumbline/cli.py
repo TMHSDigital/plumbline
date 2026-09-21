@@ -63,6 +63,13 @@ def run(
     ] = None,
     seed: Annotated[int, typer.Option(help="Mock seed.")] = 7,
     accuracy: Annotated[float, typer.Option(help="Mock target accuracy.")] = 0.8,
+    escalation_cost: Annotated[
+        float | None,
+        typer.Option("--escalation-cost", help="What one escalation costs, in USD."),
+    ] = None,
+    error_cost: Annotated[
+        float | None, typer.Option("--error-cost", help="What one wrong answer costs, in USD.")
+    ] = None,
     n_boot: Annotated[int, typer.Option("--boot", help="Bootstrap draws per null.")] = 2000,
 ) -> None:
     """Run one adapter over one dataset, and write what it found."""
@@ -101,7 +108,15 @@ def run(
     artifact = result.write(results)
     typer.echo(f"artifact: {artifact}")
 
-    document = markdown.render([result], load=load, options=markdown.ReportOptions(n_boot=n_boot))
+    document = markdown.render(
+        [result],
+        load=load,
+        options=markdown.ReportOptions(
+            n_boot=n_boot,
+            cost_escalation_usd=escalation_cost,
+            cost_error_usd=error_cost,
+        ),
+    )
     if report is not None:
         report.parent.mkdir(parents=True, exist_ok=True)
         report.write_text(document, encoding="utf-8")
@@ -115,11 +130,25 @@ def run(
 def report(
     artifacts: Annotated[list[Path], typer.Argument(help="Artifact JSON files.")],
     out: Annotated[Path | None, typer.Option("--out", help="Write here instead of stdout.")] = None,
+    escalation_cost: Annotated[
+        float | None,
+        typer.Option("--escalation-cost", help="What one escalation costs, in USD."),
+    ] = None,
+    error_cost: Annotated[
+        float | None, typer.Option("--error-cost", help="What one wrong answer costs, in USD.")
+    ] = None,
     n_boot: Annotated[int, typer.Option("--boot", help="Bootstrap draws per null.")] = 2000,
 ) -> None:
     """Render one document from runs that already happened."""
     results = [_guard(partial(execute.RunResult.read, path)) for path in artifacts]
-    document = markdown.render(results, options=markdown.ReportOptions(n_boot=n_boot))
+    document = markdown.render(
+        results,
+        options=markdown.ReportOptions(
+            n_boot=n_boot,
+            cost_escalation_usd=escalation_cost,
+            cost_error_usd=error_cost,
+        ),
+    )
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(document, encoding="utf-8")

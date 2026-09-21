@@ -200,3 +200,48 @@ def test_every_command_documents_itself(command: str) -> None:
 
     assert result.exit_code == 0
     assert result.stdout.strip()
+
+
+def test_the_cascade_sentence_appears_when_the_two_costs_are_supplied(tmp_path: Path) -> None:
+    """The two numbers no benchmark can know are flags, not defaults."""
+    dataset = a_dataset(tmp_path / "d.jsonl", n_rows=400)
+    report_path = tmp_path / "report.md"
+
+    result = invoke(
+        "run",
+        str(dataset),
+        "--results",
+        str(tmp_path / "results"),
+        "--report",
+        str(report_path),
+        "--escalation-cost",
+        "0.02",
+        "--error-cost",
+        "1.00",
+        "--boot",
+        "100",
+    )
+
+    assert result.exit_code == 0
+    text = report_path.read_text(encoding="utf-8")
+    assert "stays on the cheap arm" in text
+    assert "versus $" in text
+
+
+def test_without_the_costs_the_report_says_they_are_yours_to_supply(tmp_path: Path) -> None:
+    dataset = a_dataset(tmp_path / "d.jsonl", n_rows=40)
+    report_path = tmp_path / "report.md"
+
+    invoke(
+        "run",
+        str(dataset),
+        "--results",
+        str(tmp_path / "results"),
+        "--report",
+        str(report_path),
+        "--boot",
+        "100",
+    )
+
+    text = report_path.read_text(encoding="utf-8")
+    assert "--escalation-cost" in text

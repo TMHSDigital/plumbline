@@ -209,3 +209,171 @@ def test_the_report_carries_the_dataset_hash_and_the_row_count() -> None:
 
     assert result.dataset_hash[:8] in text
     assert "30" in text
+
+
+# Recalibration: verdicts, not temperatures with caveats
+
+
+def skewed(result: execute.RunResult, temperature_for) -> execute.RunResult:
+    """Re-skew a finished run per case, without moving any predicted label."""
+    from dataclasses import replace
+
+    from plumbline.types import apply_temperature, docs_confidence
+
+    records = []
+    for record in result.records:
+        prediction = record.prediction
+        if prediction is None or prediction.distribution is None:
+            records.append(record)
+            continue
+        distribution = apply_temperature(prediction.distribution, temperature_for(prediction))
+        records.append(
+            replace(
+                record,
+                prediction=replace(
+                    prediction,
+                    distribution=distribution,
+                    prob_selected=distribution[prediction.label],
+                    confidence=docs_confidence(distribution),
+                ),
+            )
+        )
+    return replace(result, records=records)
+
+
+def overconfident(temperature: float = 0.5):
+    def temperature_for(prediction) -> float:
+        return temperature
+
+    return temperature_for
+
+
+def per_label(labels: tuple[str, ...], temperature: float = 0.4):
+    def temperature_for(prediction) -> float:
+        return temperature if prediction.label in labels else 1.0
+
+    return temperature_for
+
+
+def section(text: str, heading: str) -> str:
+    start = text.index(f"#### {heading}")
+    rest = text[start + 1 :]
+    end = rest.find("####")
+    return rest if end == -1 else rest[:end]
+
+
+def test_a_recommended_fit_prints_the_temperature_with_its_interval() -> None:
+    result = skewed(a_run(n_cases=600), overconfident())
+
+    body = section(render(result), "Recalibration")
+
+    assert "Recommended" in body
+    assert "Fitted T" in body
+    assert "interval" in body
+
+
+def test_a_fit_states_the_split_it_was_fitted_and_judged_on() -> None:
+    body = section(render(skewed(a_run(n_cases=600), overconfident())), "Recalibration")
+
+    assert "300 rows" in body  # fit half
+    assert "300 held-out rows" in body
+
+
+def test_a_refused_fit_emits_no_number_anywhere_except_the_split() -> None:
+    """A number that ships is a number that gets hardcoded. Refused means none."""
+    import re
+
+    body = section(render(a_run(n_cases=600)), "Recalibration")
+    without_split = "\n".join(line for line in body.splitlines() if "held-out rows" not in line)
+
+    assert "Refused" in body
+    assert "Fitted T" not in body
+    assert not re.search(r"\d\.\d", without_split)
+
+
+def test_a_refused_fit_still_says_what_it_was_fitted_on() -> None:
+    body = section(render(a_run(n_cases=600)), "Recalibration")
+
+    assert "300 rows" in body
+    assert "300 held-out rows" in body
+
+
+def test_a_partial_fit_prints_the_residual_beside_the_temperature() -> None:
+    """Temperature was the wrong shape for part of it. Say what survived."""
+    result = skewed(a_run(n_cases=600), per_label(("billing", "returns")))
+
+    body = section(render(result), "Recalibration")
+
+    assert "Partial" in body or "Refused" in body
+    if "Partial" in body:
+        assert "Fitted T" in body
+        assert "floor" in body
+        assert "after" in body
+
+
+def test_recalibration_is_not_reported_for_an_arm_with_no_probability() -> None:
+    body = section(render(a_run(semantics="none", name="generative")), "Recalibration")
+
+    assert "not reported" in body.lower()
+    assert "Fitted T" not in body
+
+
+def test_recalibration_is_not_reported_when_the_held_out_half_is_too_small() -> None:
+    body = section(render(a_run(n_cases=60)), "Recalibration")
+
+    assert "not reported" in body.lower()
+    assert "200" in body  # the rule it failed
+
+
+# The cascade: one sentence, or none
+
+
+def with_costs(escalation: float = 0.02, error: float = 1.0) -> markdown.ReportOptions:
+    return markdown.ReportOptions(
+        n_boot=200,
+        today=date(2026, 9, 20),
+        cost_escalation_usd=escalation,
+        cost_error_usd=error,
+    )
+
+
+def test_the_cascade_ends_in_a_sentence_a_person_can_act_on() -> None:
+    result = skewed(a_run(n_cases=600), overconfident())
+
+    body = section(markdown.render([result], options=with_costs()), "Cascade")
+
+    assert "stays on the cheap arm" in body
+    assert "versus" in body
+    assert "$" in body
+
+
+def test_the_cascade_needs_the_two_numbers_no_benchmark_can_know() -> None:
+    body = section(render(a_run(n_cases=600)), "Cascade")
+
+    assert "not reported" in body.lower()
+    assert "escalation" in body.lower()
+    assert "stays on the cheap arm" not in body
+
+
+def test_a_threshold_is_refused_on_an_evaluation_set_too_small_to_support_one() -> None:
+    body = section(markdown.render([a_run(n_cases=40)], options=with_costs()), "Cascade")
+
+    assert "not reported" in body.lower()
+    assert "stays on the cheap arm" not in body
+
+
+def test_the_cascade_says_which_scale_the_threshold_is_on() -> None:
+    result = skewed(a_run(n_cases=600), overconfident())
+
+    body = section(markdown.render([result], options=with_costs()), "Cascade")
+
+    assert "recalibrated" in body.lower()
+
+
+def test_the_cascade_is_not_reported_for_an_arm_with_no_probability() -> None:
+    body = section(
+        markdown.render([a_run(semantics="none", name="generative")], options=with_costs()),
+        "Cascade",
+    )
+
+    assert "not reported" in body.lower()
