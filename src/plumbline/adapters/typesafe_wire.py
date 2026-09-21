@@ -12,9 +12,17 @@ pricing is never hardcoded in an adapter and never silently goes stale.
 
 It does not invent token counts. ``Usage.input_tokens`` and
 ``Usage.output_tokens`` are typed ``int | None`` by the SDK and default to None,
-even though the wire schema marks both required. When the API reports no count,
+even though the wire schema marks both required. A live call on 2026-09-21
+returned both on every row, so the None path is not the common case, but it is
+kept because the SDK's type still permits None. When the API reports no count,
 this adapter reports None, and the cost path turns that into "not reported"
 rather than into zero. A zero would read as free.
+
+One thing to watch when reading a stored answer. The API returns probabilities
+and confidence quantized to two decimals, and with three to six options a tie
+for the maximum is not a rare event. ``answer.choice`` is the vendor's own
+tie-break and is what this adapter records; re-deriving the selection with an
+argmax over ``probabilities`` will disagree with the vendor on a tied row.
 """
 
 from __future__ import annotations
@@ -106,7 +114,7 @@ class TypeSafeWireAdapter(Adapter):
     def __init__(
         self,
         *,
-        model_requested: str = "jev-1",
+        model_requested: str = "jev-latest",
         instructions: str = DEFAULT_INSTRUCTIONS,
         noul_instructions: str = DEFAULT_NOUL_INSTRUCTIONS,
         api_key: str | None = None,
@@ -272,17 +280,12 @@ class TypeSafeWireAdapter(Adapter):
 
         # Both counts stay exactly as reported. See the module docstring.
         #
-        # TODO(first live call): the wire schema
-        # (typesafe_sdk/_schemas/models.py) marks input_tokens and output_tokens
-        # required, while the SDK response type
-        # (typesafe_sdk/_core/response_types.py) widens both to `int | None` and
-        # defaults them to None. Only a live call settles which is true in
-        # practice. Whoever makes the first one: record whether usage came back
-        # populated, on which model, and on what date, in docs/PLAN.md under
-        # open questions. If the API does populate them, the None path here
-        # stays anyway -- it costs nothing and it is the difference between a
-        # blank cost and a false zero -- but the report can stop hedging about
-        # how often it is taken.
+        # Settled by a live call on 2026-09-21 against jev-1.13.0: both counts
+        # came back populated on 40 of 40 rows, so the wire schema is right and
+        # the SDK's `int | None` is a widening rather than a description of
+        # behaviour. The None path stays anyway. It costs nothing, it is the
+        # difference between a blank cost and a false zero, and the SDK's type
+        # still permits None on any call. See docs/PLAN.md, "Live validation".
         usage = response.usage
 
         return Prediction(
