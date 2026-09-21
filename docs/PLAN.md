@@ -4,8 +4,13 @@ The build's memory, not a spec. What is left, what was already decided, and what
 is still unknown. Kept short on purpose: a cleared context should be able to read
 this page and pick up where the work stopped.
 
-v0.1 is code complete. What is left is not code: read the TypeSafe terms on
-publishing benchmark results, make one live call, then decide about going public.
+**v0.1 is complete.** Code, docs, CI, licence and the live validation all
+landed on 2026-09-21. CI is green on Ubuntu and Windows across Python 3.12 and
+3.13. `v0.1.0` is tagged locally and has not been pushed.
+
+What remains is a short list of manual steps for a human, in "Pre-public
+checklist" at the bottom of this page. The repository is still private, and
+flipping it is a deliberate act that nothing here does for you.
 
 ## Phases
 
@@ -26,22 +31,34 @@ publishing benchmark results, make one live call, then decide about going public
 
 ## Before this goes public
 
-None of this is code.
+All three items are done. Kept here because the answers matter, not the list.
 
-1. Read the TypeSafe terms on publishing benchmark results, and check what they
-   permit before any number from a live Jev call is published anywhere.
-2. Make one live call and settle the two open questions below: whether
-   `response.usage` populates, and whether output tokens really bill at zero.
-   Record the answers with the date, here.
-3. Then decide about flipping the repo public. The public fixture is MIT and
-   attributed; nothing else in the tree is anyone else's.
+1. **Terms read**, 2026-09-21. No clause mentions benchmarking or restricts
+   publishing results. Three others constrain what a public README may carry,
+   and all three are handled: 14.1 (pricing confidential) is why no figure
+   ships, 16.4 (publicity) is why the example report uses the mock, and 2.3(c)
+   (reverse engineering) turned out not to apply because the vendor publishes
+   the confidence formula themselves.
+2. **Live call made**, 2026-09-21. See "Live validation" below. Both open
+   questions are settled, and the call found two bugs that had never been
+   exercised.
+3. **Decision on going public** is the human's, and the checklist at the bottom
+   of this page is what is left to do.
 
 ## v0.2
 
-- Ordinal score questions. The six score rows in the public fixture are loaded,
-  marked and excluded; scoring them needs rank-aware metrics, because every
-  metric here treats wrong-by-one and wrong-by-three identically.
-- Adapters do not receive `label_descriptions`, so a dataset's per-option
+- **Ordinal score questions.** The six score rows in the public fixture are
+  loaded, marked and excluded; scoring them needs rank-aware metrics, because
+  every metric here treats wrong-by-one and wrong-by-three identically.
+- **Batching.** One request per case today, so cost and latency are both
+  conservative relative to batched use. The vendor's own documentation describes
+  packing many questions against one shared state in a single call, which is a
+  materially different cost and latency profile and is the single largest
+  measurement gap in v0.1.
+- **Per-label and vector scaling.** Only temperature is fitted. When the
+  residual says temperature is the wrong correction the tool refuses, which is
+  right but leaves the user with nothing to apply.
+- **Adapters do not receive `label_descriptions`**, so a dataset's per-option
   criteria never reach the wire. A Choice takes them directly and a Noul takes
   true/false descriptions.
 
@@ -292,3 +309,81 @@ makes.
 - Whether the residual in the confidence relationship (max 0.0167) is purely
   wire rounding or a slightly different production formula. Not worth another
   spend to settle, and nothing in plumbline depends on the answer.
+- `datasets/private/.gitkeep` exists on disk but is not tracked, because the
+  `datasets/private/` ignore rule matches it. A fresh clone therefore has no
+  such directory even though the README names it as where your own data goes.
+  Harmless, and fixing it means `datasets/private/*` plus a negation, which
+  changes the ignore semantics of a data directory. Left alone deliberately
+  rather than changed on the way out the door.
+
+## Repo description and topics
+
+For the GitHub About box. Paste as is.
+
+**Description** (109 characters):
+
+```
+Measure whether a decision model's probabilities hold up on your own labeled data. Not a leaderboard.
+```
+
+**Topics:**
+
+```
+calibration
+evaluation
+llm
+classification
+machine-learning
+benchmarking
+uncertainty-quantification
+model-evaluation
+confidence-calibration
+expected-calibration-error
+python
+cli
+```
+
+No vendor name is included. The tool is not about one vendor, the README says
+so in its first section, and a vendor topic would file it as a fan project.
+
+## Pre-public checklist
+
+Everything below is a manual step. Nothing in this repository does any of it
+for you.
+
+**Verified already, listed so you can re-check rather than re-derive:**
+
+- [x] Full secret scan across all history, not just the working tree. The live
+      key appears in no commit and no blob; `.env` has never been committed;
+      `apik_`, `sk-ant-` and `Bearer ` match nothing anywhere in history.
+- [x] `results/`, `cache/`, `models/` and `datasets/private/` are all ignored
+      and none has ever been committed. No run artifact is in history.
+- [x] `uv.lock` is tracked and current (`uv lock --check` passes).
+- [x] CI green on `ubuntu-latest` and `windows-latest`, Python 3.12 and 3.13.
+      No cross-platform failure appeared; the suspected path handling was fine.
+- [x] Fresh install from the built wheel: entry point resolves, `--help`,
+      `adapters` and `version` all work, the package imports with core
+      dependencies only, and nothing writes into the working directory.
+- [x] `LICENSE` present, complete, Apache-2.0, dated 2026, holder TMHSDigital.
+
+**Yours to do:**
+
+1. **Decide about the three strings in git history.** Commits `5324bc8`,
+   `865dc85` and `0202d0c` quote a vendor field description that states a price
+   ("Output tokens are currently stated at https://docs.typesafe.ai/models"). They are gone from the
+   working tree. The repository is still private, so this is the last moment
+   where a history rewrite is cheap. Either rewrite before the first public
+   push, or accept them. This is a judgement about 14.1, not a technical
+   problem.
+2. **Read the README yourself, once, as a stranger.** It is the whole public
+   interface and it was written by someone who already knew the answer.
+3. **Push the tag** if you are happy with it: `git push origin v0.1.0`. It is
+   tagged locally and deliberately not pushed.
+4. **Flip the repository public.** Not done here, by instruction.
+5. **Set the About box** from the description and topics above.
+6. **Email TypeSafe** about 16.4 and 14.1 (see "Open questions"). A written yes
+   converts the mock example report into a real vendor one and would let the
+   shipped pricing table carry figures again. Not a blocker for anything.
+7. **Check the CI badge renders** once the repository is public. A badge
+   pointing at a private repository's workflow shows as unknown to logged-out
+   readers.
