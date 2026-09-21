@@ -2,8 +2,9 @@
 
 How plumbline measures what it measures, and what each number does not mean.
 
-This document is written as the implementation lands. Sections marked as pending
-arrive with the phase that produces them.
+Written as the implementation landed. Every claim here is either a rule the code
+enforces or a number this build measured, and the measured ones say what they
+were measured on.
 
 ## Adapters that report no distribution
 
@@ -61,6 +62,15 @@ something a caller can act on; a vendor returning only the top line is not.
 The report states this in one line wherever it applies, on any adapter whose
 `probability_semantics` is not `"none"` that supplied no distribution. A Noul
 answer meets that condition by construction.
+
+That is no longer hypothetical. plumbline now asks a yes/no row as a Noul, so
+every such row is measured as one probability with nothing behind it. Those rows
+are outside the multiclass Brier column -- the column renders as not reported for
+them, never as zero -- and the temperature that can be fitted for them is the
+one-parameter approximation in the table above, the form that left ECE at five
+times the floor on the underconfident case. The penalty is a property of the
+answer shape, not of the model that produced it, and it is the price of a wire
+format that hands back a top line instead of a distribution.
 
 ## What a blank cost column means
 
@@ -155,53 +165,239 @@ that is reported rather than absorbed.
 
 ## Every figure carries its row count and its null
 
-Extended from calibration to everything the report prints. ECE, MCE, Brier and
-multiclass Brier are read against a calibrated-null floor from the parametric
-bootstrap; accuracy is read against chance on this dataset's own mix of option
-widths, which is not 1/n for any single n once the widths differ; AUROC is read
-against a permutation null that keeps the observed ties and class balance.
+ECE has no fixed meaning without the sample size beside it. The floor it has to
+clear is a function of the row count, the bin count, and the shape of the
+predicted probabilities, so 0.03 over 5,000 rows and 0.03 over 80 rows are
+different findings and the second is usually no finding at all. The same is true
+of everything else the report prints, so every figure carries both.
+
+ECE, MCE, Brier and multiclass Brier are read against a calibrated-null floor
+from the parametric bootstrap. Accuracy is read against chance on this dataset's
+own mix of option widths, which is not 1/n for any single n once the widths
+differ. AUROC is read against a permutation null that keeps the observed ties and
+class balance.
 
 Nothing prints as a bare number. A figure whose null cannot be built -- MCE when
-no bin holds enough rows, AUROC when every case is correct -- is reported as not
-reported, with the reason, rather than as a number standing on its own.
+no bin holds enough rows, AUROC when every case is correct or every case is wrong
+-- is reported as not reported with the reason, rather than as a number standing
+on its own.
 
-## Every calibration figure carries its row count
-
-ECE has no fixed meaning without the sample size beside it. The calibrated-null
-floor that ECE has to clear is a function of the row count, the bin count and the
-shape of the predicted probabilities, so 0.03 over 5,000 rows and 0.03 over 80
-rows are different findings and the second one is usually no finding at all.
-
-So the row count travels with the figure: `CalibrationFigure` holds the value,
-the count, the bin count and the floor together, and its one-line statement
-prints all four. The run artifact records `dataset_rows` next to `dataset_hash`,
-so a stored result carries the sample size that its numbers were computed on.
-The hash says which rows; the count says how many, and a reader needs both.
+The row count travels with the figure in the types as well as on the page:
+`CalibrationFigure` and `Figure` each hold the value, the count and the null
+together, and their one-line statements print all of it. The run artifact records
+`dataset_rows` next to `dataset_hash`, so a stored result carries the sample size
+its numbers were computed on. The hash says which rows; the count says how many,
+and a reader needs both.
 
 ## Probabilities versus confidence
 
-Pending. Lands with Phase 9.
+These are two different numbers and plumbline never lets one stand in for the
+other.
+
+`prob_selected` is P(the selected label is correct), as the system reported it.
+It is the only quantity ECE, MCE, and Brier are ever computed against.
+
+`confidence` is a vendor summary statistic derived from the shape of the
+distribution: the TypeSafe docs describe it as a statistic computed from the
+distribution the answer already gives you, collapsed "into a single number from 0
+to 1, so you can threshold on it". It is a gating and ranking signal. It is not a
+probability of correctness, and no calibration metric is computed against it.
+
+The separation is enforced by the type system rather than by a naming
+convention. `ProbabilitySeries` and `ConfidenceSeries` are different types, the
+calibration functions accept the first and nothing else, and the discrimination
+functions accept either. There is no call site at which a confidence column can
+reach ECE by mistake, which matters because the mistake is invisible once made:
+a reliability diagram drawn from confidence looks exactly like a reliability
+diagram.
+
+What confidence is measured with instead is AUROC and a threshold sweep: can it
+separate the cases the system got right from the ones it got wrong, and what
+does accuracy and coverage look like at each cut.
+
+### Confidence and prob_selected rank together, until the option counts vary
+
+The docs' confidence statistic divides out the option count. Within a fixed
+label set it is a monotone transform of the top probability, so the two columns
+rank identically and their AUROCs are the same number. Across cases with
+differing option counts they come apart, and that divergence is the only place
+confidence carries information `prob_selected` does not.
+
+Measured on the public fixture with the mock adapter (seed 7, accuracy 0.8):
+
+| rows | option widths | confidence AUROC | prob_selected AUROC |
+|---|---|---|---|
+| 32 | 4 only | 0.6667 | 0.6667 |
+| 105 | 2 through 6 | 0.6034 | 0.6188 |
+
+Identical on the fixed-width subset, to the digit, which is the Phase 2 parity
+result showing up in a real file. On the full fixture they differ, and the
+variable option widths are the whole reason. When a report shows the two
+diverging, that is the first thing to check, and it is not evidence that the
+vendor statistic is adding judgment.
 
 ## The three probability_semantics classes
 
-Pending. Lands with Phase 9.
+Every adapter declares what kind of number it reports, and the report groups on
+that field and refuses to compare across groups.
+
+**`calibrated_claim`.** The vendor asserts the probabilities are calibrated.
+Calibration metrics are meaningful on their own terms here, and whether the claim
+survives contact with a dataset is what plumbline exists to answer. The label
+records the claim; it never asserts the claim is true.
+
+**`restricted_softmax`.** A softmax over the declared option tokens only, with no
+calibration claim attached. The upstream project is explicit about it. SemIf
+(formerly OpenJev), which reads typed option probabilities straight out of an
+open model, states the constraint in its README:
+
+> Returned probabilities are conditional on the supplied options. Calibrate and
+> validate them on the workload where they will make decisions.
+
+That sentence is the whole argument for this class existing. A number normalized
+across the options you happened to supply is a statement about that option set,
+not a probability of correctness in the world: add an option and every number
+moves, without anything about the case having changed. It can behave like a
+calibrated probability on a given workload, and whether it does is measurable,
+which is why plumbline measures it rather than assuming either way.
+
+Citations, kept separate on purpose. SemIf is an independent project and says so:
+"not affiliated with or endorsed by TypeSafe". fastjev is an independently
+maintained fork of SemIf that preserves its history and MIT license, follows its
+own roadmap, and carries the same sentence about conditional probabilities; it
+serves TypeSafe's documented wire shape while stating plainly that it "does not
+serve Jev or reproduce Jev calibration". Neither is the vendor, and neither
+speaks for the vendor. plumbline's `local_logits` arm is this class by
+construction, and it is the null hypothesis the calibrated claims have to beat.
+
+**`none`.** No probability at all. The arm is excluded from calibration
+entirely, never imputed and never defaulted to zero, and renders as not reported.
+Its accuracy is the floor a probability-reporting system has to clear before its
+probabilities are worth discussing.
+
+The grouping is not cosmetic. A restricted softmax and a calibrated claim are
+different kinds of number, and a table that lists them together invites a
+comparison that the numbers do not support. So the report separates the groups,
+labels each one, and says in its own words that figures in different groups are
+not comparable.
 
 ## The mandatory fit and eval split
 
-Pending. Lands with Phase 9.
+A temperature is fitted on one half of the rows and reported on the other. The
+split is disjoint, the disjointness is checked rather than trusted, and the seed
+and both sizes print in the report -- including when the verdict is a refusal,
+because the procedure is part of the result.
+
+Fitting and reporting on the same rows manufactures an improvement that does not
+survive new data, and it manufactures it reliably enough that the number looks
+like a measurement. Every metric in a recalibration result, before and after, is
+computed on the evaluation rows only, so the pair is comparable and neither half
+has seen the fit.
+
+Below 200 held-out rows plumbline refuses to recalibrate at all. A temperature
+fitted on fewer rows carries uncertainty larger than the correction it claims to
+make, and it arrives looking authoritative. The report says the rule it failed
+and gives no temperature.
 
 ## The binary Brier formulation
 
-Partially covered above. The full statement lands with Phase 9.
+The Brier score plumbline reports by default is
+`mean((prob_selected - correct) ** 2)`: the two-class form applied to the top
+label, where `correct` is 1 when the selected label was right and 0 otherwise.
+
+It is not the multiclass Brier score and the two are never compared. Where a full
+distribution exists plumbline also computes the multiclass form,
+`mean over cases of sum_k (p_k - y_k) ** 2`, in the unnormalized convention with
+range `[0, 2]`. An adapter with no distribution gets the binary figure only, and
+the multiclass column renders as not reported rather than as zero.
+
+Both forms are read against a null, like everything else here. A model that
+reports 0.6 on every case cannot score a binary Brier below 0.24 however well
+calibrated it is, so the floor is computed from the same parametric bootstrap
+that produces the ECE floor: outcomes redrawn from the reported probabilities,
+Brier scored on each resample. Exceeding the floor means worse than a calibrated
+model of the same sharpness, which is a different and more useful claim than
+"not zero".
 
 ## One request per case
 
-Pending. Lands with Phase 9.
+Every case is one request. Nothing is sampled repeatedly and voted on, nothing is
+retried to get a better-looking answer, and nothing is asked twice to reduce
+variance -- because a number produced that way is not the number the system would
+give in production, and it is the production number plumbline is measuring.
+
+Transport failures are retried, with backoff, because a connection reset is not
+an answer. Decisions are not. A refusal -- an option that is not a single token,
+a generator that answered off-label, a model that declined -- is recorded once
+and never retried, since retrying would understate exactly the failure rate the
+report is there to show. A cache hit replaces the call entirely and is recorded
+as a hit, contributing to neither cost nor latency, because it measures disk.
 
 ## Binning scheme and the ECE floor
 
-Pending. Lands with Phase 9.
+ECE is the count-weighted mean gap between predicted probability and observed
+accuracy, over ten equal-width bins by default. Equal-count binning is available
+and moves the number, which is one reason the bin count and scheme print beside
+every figure.
+
+### Why the floor is not zero
+
+A perfectly calibrated model does not score ECE 0 on a finite sample. Each bin's
+observed accuracy is a binomial draw around its mean predicted probability, and
+the absolute gaps do not cancel: they add. So ECE has a positive expectation
+under perfect calibration, set by the row count, the bin count, and how the
+predictions are spread across the range.
+
+plumbline measures that floor rather than assuming it. The parametric bootstrap
+holds the observed probabilities fixed and redraws each outcome from
+Bernoulli(p_i), so every resample is perfectly calibrated by construction, and
+the spread of ECE across resamples is the noise floor for this exact sample. The
+floor prints next to the measurement, always, and "distinguishable" means the
+measurement is above the floor's 95th percentile.
+
+Printing the floor rather than a p-value is deliberate: the reader needs to know
+how big a number has to be here before it means anything, and that quantity is
+useful even when the measurement is nowhere near it.
+
+### The measured result: MCE cannot see gross overconfidence at 500 rows
+
+MCE is the largest gap over bins holding at least ten rows. Being a maximum, its
+null distribution is wide, and the wide null swallows real miscalibration.
+
+Measured on the mock at 500 rows, accuracy 0.75, ten equal-width bins, 2000
+bootstrap draws:
+
+| injected skew | ECE | ECE floor p95 | ECE vs floor | MCE | MCE floor p95 | MCE vs floor |
+|---|---|---|---|---|---|---|
+| none (T = 1.0) | 0.0253 | 0.0526 | 0.48x | 0.0999 | 0.2135 | 0.47x |
+| overconfident (T = 0.5) | 0.1722 | 0.0330 | 5.22x | 0.2504 | 0.2552 | 0.98x |
+| grossly overconfident (T = 0.35) | 0.2128 | 0.0224 | 9.49x | 0.3626 | 0.3374 | 1.07x |
+
+Read the middle row. A model whose reported probabilities have been sharpened by
+a temperature of 0.5 is overconfident in a way any user would notice, ECE
+catches it at more than five times its floor, and MCE lands at 0.98 times its
+own floor: inside the band, not distinguishable from a perfectly calibrated
+model. Even at T = 0.35, where ECE is nine times its floor, MCE clears its floor
+by seven percent.
+
+That is why MCE is demoted to a diagnostics block and never printed beside ECE.
+It is not wrong, and it is not useless on larger samples, but at the few hundred
+rows a real private dataset holds it cannot answer the question it appears to
+answer. A reader who sees "MCE 0.25" next to "ECE 0.17" will weigh them equally
+unless the report stops them, so the report stops them.
 
 ## Requested and reported model strings
 
-Pending. Lands with Phase 9.
+plumbline records what it asked for and what answered, separately, on every run.
+
+A model alias can resolve somewhere other than where the config pointed. Asking
+for `jev-latest` and being answered by `jev-1.13` is normal, and a result labeled
+only with the alias becomes unreadable the moment the alias moves. So the
+artifact carries `model_requested` and `model_reported`, and the report prints
+both.
+
+Pricing follows what answered, not what was asked for, because billing does. A
+local checkpoint is pinned by commit and the revision that actually loaded is
+recorded next to the one that was requested; a pinned commit that resolves
+elsewhere is refused outright, since every number measured under it would be
+attributed to the wrong weights.

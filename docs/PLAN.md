@@ -4,7 +4,10 @@ The build's memory, not a spec. What is left, what was already decided, and what
 is still unknown. Kept short on purpose: a cleared context should be able to read
 this page and pick up where the work stopped.
 
-## Remaining phases
+v0.1 is code complete. What is left is not code: read the TypeSafe terms on
+publishing benchmark results, make one live call, then decide about going public.
+
+## Phases
 
 - **Phase 6 — adapters: `local_logits` and `generative`.** Landed. The restricted
   softmax over a pinned checkpoint, and the text-generating control arm.
@@ -15,11 +18,23 @@ this page and pick up where the work stopped.
   `probability_semantics`, states every figure's row count and null, and demotes
   MCE to diagnostics. `src/plumbline/cli.py` exists, so the `plumbline` console
   script pyproject declares now works: `run`, `report`, `adapters`, `version`.
-- **Phase 9 — what the report still does not show.** Recalibration (fit a
-  temperature on a held-out split and report what it did not fix) and the
-  cascade (threshold sweep, cost at the chosen threshold) are implemented in
-  `metrics/` and have no section yet. The METHODOLOGY sections still marked
-  pending land with them.
+- **Phase 9 — recalibration, the cascade, and the methodology.** Landed. The
+  report fits a temperature on a held-out half and prints the verdict rather
+  than the number when the verdict is a refusal; the cascade section ends in one
+  sentence naming the threshold, the coverage, the expected cost, and the cost
+  of escalating everything. METHODOLOGY has no pending sections left.
+
+## Before this goes public
+
+None of this is code.
+
+1. Read the TypeSafe terms on publishing benchmark results, and check what they
+   permit before any number from a live Jev call is published anywhere.
+2. Make one live call and settle the two open questions below: whether
+   `response.usage` populates, and whether output tokens really bill at zero.
+   Record the answers with the date, here.
+3. Then decide about flipping the repo public. The public fixture is MIT and
+   attributed; nothing else in the tree is anyone else's.
 
 ## v0.2
 
@@ -62,6 +77,14 @@ Settled during the build. Reopen one only with a reason, not from scratch.
 - Ordinal score rows are loaded, marked and excluded from every figure in v0.1.
 - Artifacts never overwrite each other: the timestamp is only accurate to the
   second, so a repeated name gets a suffix rather than replacing user records.
+- A refused recalibration prints no number: the verdict, the split sizes, and
+  nothing that could be lifted into production code.
+- The cascade threshold is chosen on held-out rows, on the recalibrated scale
+  when a temperature was recommended, because a threshold set against a raw
+  overconfident probability sits in the wrong place.
+- Escalation cost and error cost are supplied by the caller and never defaulted.
+  No benchmark can know them, and a made-up default would decide the threshold.
+- Below 200 held-out rows no threshold is printed at all.
 - `generative` configures no fallback model. This is deliberate and deviates
   from the SDK's default advice for this model family: server-side fallback
   would re-run a declined case on another model inside the same call, so one

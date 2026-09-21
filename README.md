@@ -28,13 +28,21 @@ anything.
 
 ```
 plumbline run datasets/public/jevbench-hard.jsonl --format jevbench --results results
-plumbline report results/<artifact>.json --out report.md
+plumbline report results/<artifact>.json --out report.md \
+    --escalation-cost 0.02 --error-cost 1.00
 plumbline adapters
 ```
 
 `run` loads a dataset, runs one adapter over it, writes the artifact, and renders
 the report. `report` renders a document from runs that already happened, so a
 finished run is never repeated to get a write-up out of it.
+
+The two cost flags are the two numbers no benchmark can know: what one escalation
+to a more expensive system costs you, and what one wrong answer costs you.
+Supply both and the report ends in the sentence the tool exists to produce -- at
+this threshold, this much traffic stays on the cheap arm, at this expected cost,
+versus this much if everything escalated. Leave them out and that section says
+so rather than inventing them.
 
 ## Development
 
