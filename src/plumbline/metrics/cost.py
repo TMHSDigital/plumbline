@@ -6,9 +6,10 @@ price was used. The table is config, the table is recorded in the artifact, and
 cost is derived.
 
 Every entry carries where its price was read and the date it was read, because a
-price is a current-state claim rather than a property of a model. Jev's output
-tokens are the clearest case: the wire schema says they are "currently stated at https://docs.typesafe.ai/models", which is true on the day someone read it and says nothing about the day
-the report is printed. An entry older than ``DEFAULT_PRICING_MAX_AGE_DAYS`` is
+price is a current-state claim rather than a property of a model. A vendor's
+published tariff is the clearest case: it is true on the day someone read it and
+says nothing about the day the report is printed, which is why the date travels
+with the entry. An entry older than ``DEFAULT_PRICING_MAX_AGE_DAYS`` is
 still used, and the report says plainly that it may be out of date rather than
 presenting its numbers as current.
 

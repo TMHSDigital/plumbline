@@ -254,23 +254,40 @@ its own arithmetic rather than being bypassed. With no supplied table the same
 run reports `model_not_priced` and `--max-cost-usd` refuses, which is the honest
 default.
 
-### Already-committed material that states a price
+### Already-committed material that stated a price, and the history rewrite
 
-Flagged and fixed in this pass:
+The working tree was cleaned first: `config.py` no longer quotes the SDK field
+description that stated the output price, `METHODOLOGY.md` no longer repeats
+that quotation, and the old open-questions section that carried it is gone.
 
-- `src/plumbline/config.py` quoted the SDK's "Output tokens are currently stated at https://docs.typesafe.ai/models" as `JEV_OUTPUT_SOURCE`. Removed.
-- `METHODOLOGY.md` repeated that quotation in "Prices are dated, and so is every
-  result". Rewritten without it.
-- `docs/PLAN.md` carried it in the old open-questions section. Replaced by this
-  section.
+A scan of all 48 commits then found the claim in **five** files rather than the
+three first identified, plus one commit message:
 
-Those three strings are still in **git history**, in commits `5324bc8`,
-`865dc85` and `0202d0c`. The repository is not public yet, so this is the moment
-to decide: either rewrite history before the first push, or accept that a
-quotation of a vendor field description sits in the log. A decision for the
-manual pre-public pass, recorded in the checklist below. (Matches on "free of
-charge" in `datasets/public/LICENSE-jevbench` and the fixture are MIT licence
-boilerplate and are unrelated.)
+- `src/plumbline/config.py`, as `JEV_OUTPUT_SOURCE`
+- `METHODOLOGY.md`, in "Prices are dated, and so is every result"
+- `docs/PLAN.md`, in the old open-questions section
+- `src/plumbline/metrics/cost.py`, in the module docstring (not previously
+  spotted)
+- `tests/test_cost_and_latency.py`, in an assertion on the source string (not
+  previously spotted)
+- the message of the commit that introduced dated pricing
+
+The numeric input price never reached a commit, and neither did any spend total
+from the live run: both were removed before the first commit that would have
+carried them. The zero output price was also present in history as a populated
+price field, which is the same claim in another form, so it was included.
+
+History was rewritten with `git filter-repo` on 2026-09-21, using a replace-text
+rule over file contents and a replace-message rule over commit messages, rather
+than by rebasing three commits by hand. The replacement is a neutral pointer to
+the vendor's own models page, not a redaction marker: a marker would advertise
+that something was taken out, which is the opposite of the point. The populated
+zero price became `None`, which keeps the historical file valid Python and says
+what the current entry says.
+
+Matches on "free of charge" in `datasets/public/LICENSE-jevbench` and in the
+fixture are MIT licence boilerplate and dataset content, respectively. Both were
+verified byte-identical before and after the rewrite.
 
 ### What the run says about the tool
 
@@ -365,25 +382,20 @@ for you.
       `adapters` and `version` all work, the package imports with core
       dependencies only, and nothing writes into the working directory.
 - [x] `LICENSE` present, complete, Apache-2.0, dated 2026, holder TMHSDigital.
+- [x] History rewritten to remove the vendor price claim, and re-scanned after.
+      The MIT fixture and licence are byte-identical before and after.
 
 **Yours to do:**
 
-1. **Decide about the three strings in git history.** Commits `5324bc8`,
-   `865dc85` and `0202d0c` quote a vendor field description that states a price
-   ("Output tokens are currently stated at https://docs.typesafe.ai/models"). They are gone from the
-   working tree. The repository is still private, so this is the last moment
-   where a history rewrite is cheap. Either rewrite before the first public
-   push, or accept them. This is a judgement about 14.1, not a technical
-   problem.
-2. **Read the README yourself, once, as a stranger.** It is the whole public
+1. **Read the README yourself, once, as a stranger.** It is the whole public
    interface and it was written by someone who already knew the answer.
-3. **Push the tag** if you are happy with it: `git push origin v0.1.0`. It is
+2. **Push the tag** if you are happy with it: `git push origin v0.1.0`. It is
    tagged locally and deliberately not pushed.
-4. **Flip the repository public.** Not done here, by instruction.
-5. **Set the About box** from the description and topics above.
-6. **Email TypeSafe** about 16.4 and 14.1 (see "Open questions"). A written yes
+3. **Flip the repository public.** Not done here, by instruction.
+4. **Set the About box** from the description and topics above.
+5. **Email TypeSafe** about 16.4 and 14.1 (see "Open questions"). A written yes
    converts the mock example report into a real vendor one and would let the
    shipped pricing table carry figures again. Not a blocker for anything.
-7. **Check the CI badge renders** once the repository is public. A badge
+6. **Check the CI badge renders** once the repository is public. A badge
    pointing at a private repository's workflow shows as unknown to logged-out
    readers.
