@@ -1,0 +1,73 @@
+name: Bug report
+description: Something behaves differently from what it says it does.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: a run artifact in `results/` contains per-case records
+        from your own data, and on a live run, content that went to a vendor.
+        Read anything you paste here before you paste it.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What the tool did, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: The command you ran
+      description: The full command line, with any key redacted.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: >
+        What it printed. If a figure looks wrong, include the line with its
+        row count and its null, since those are what the figure has to be read
+        against.
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: adapter
+    attributes:
+      label: Adapter and model
+      description: e.g. mock, or typesafe_wire with jev-latest
+    validations:
+      required: true
+
+  - type: input
+    id: dataset
+    attributes:
+      label: Dataset
+      description: >
+        The vendored public fixture, or your own data. If your own, how many
+        rows and how many labels per row. Do not paste the data itself.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: plumbline version
+      description: Output of `plumbline version`.
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: OS and Python version
+      description: e.g. Windows 11, Python 3.13
+    validations:
+      required: true

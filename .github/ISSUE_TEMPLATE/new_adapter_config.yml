@@ -1,0 +1,73 @@
+name: New vendor or model
+description: You want plumbline to run against something it does not run against yet.
+labels: ["adapter-config"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Most of the time this is a config entry, not a code change.**
+
+        plumbline has three transports and almost every new vendor is already
+        one of them:
+
+        - Anything serving the **Jev wire format** is a `base_url` for
+          `typesafe_wire`. Self-hosted endpoints, compatible servers in front
+          of open models, and open decision models that serve this wire shape
+          all run on the unchanged adapter.
+        - Any **open-weights checkpoint** is a HuggingFace model id and a
+          pinned revision for `local_logits`.
+        - Any **chat model** you want as a control arm is a model string for
+          `generative`.
+
+        If one of those fits, you may not need an issue at all. Try it and tell
+        us if it worked, which is still useful.
+
+  - type: input
+    id: what
+    attributes:
+      label: What do you want to run
+      description: The vendor, service, or checkpoint.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Which transport does it speak
+      options:
+        - Jev wire format over HTTP (typesafe_wire with a base_url)
+        - Open-weights checkpoint (local_logits)
+        - Chat completion (generative)
+        - Something else, or I am not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What happened when you tried it as config
+      description: >
+        The command and the result. If you have not tried yet, say so. If it
+        nearly worked and one thing blocked it, that detail is the most useful
+        part of this issue, because it is probably a small fix rather than a
+        new adapter.
+      render: shell
+
+  - type: textarea
+    id: probabilities
+    attributes:
+      label: What does it return as a probability
+      description: >
+        A calibrated claim, a softmax over the supplied options, or no
+        probability at all. This decides which semantics class it belongs to,
+        and the report refuses to compare across classes, so it matters more
+        than it looks.
+
+  - type: textarea
+    id: why-not-config
+    attributes:
+      label: If this needs a new adapter, why
+      description: >
+        Only fill this in if none of the three transports fit. Say what wire
+        shape it speaks and what about it is genuinely different. A new adapter
+        module is for a new transport, which is rare.
