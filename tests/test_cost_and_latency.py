@@ -176,19 +176,52 @@ def test_provenance_is_json_shaped_so_the_artifact_can_carry_it() -> None:
 # The shipped pricing table
 
 
-def test_jev_output_tokens_are_priced_at_zero_against_a_named_source() -> None:
-    """The wire schema calls this out as a current-state claim, so it is dated."""
-    entry = config.DEFAULT_PRICING_TABLE["jev-1"]
-    assert entry.output_usd_per_million is None
-    assert "docs.typesafe.ai/models" in entry.source.lower()
-    assert entry.as_of == config.PRICING_READ_ON
+def test_the_shipped_jev_entry_names_its_source_but_ships_no_figures() -> None:
+    """The vendor's terms make its prices confidential, so plumbline restates none.
 
-
-def test_the_shipped_jev_entry_publishes_no_input_price() -> None:
-    """Nobody publishes one, so plumbline reports no cost instead of inventing it."""
-    entry = config.DEFAULT_PRICING_TABLE["jev-1"]
+    None on both sides, not 0.0. A zero would be plumbline asserting those tokens
+    are free, which is a claim about someone else's prices that this file does
+    not make. The source names the page so a reader can go and read it.
+    """
+    entry = config.DEFAULT_PRICING_TABLE["jev-1.13.0"]
     assert entry.input_usd_per_million is None
-    assert cost.cost_of(120, 12, entry) is None
+    assert entry.output_usd_per_million is None
+    assert not entry.is_priced
+    assert "docs.typesafe.ai/models" in entry.source
+    assert cost.cost_of(1_000_000, 12, entry) is None
+
+
+def test_no_shipped_entry_states_a_figure_for_the_confidential_vendor() -> None:
+    """A guard against a price creeping back into a published file.
+
+    This is the concrete thing the vendor's confidentiality clause reaches, and
+    a number reintroduced here would be published to everyone who clones the
+    repository.
+    """
+    for key in ("jev-1.13.0", "jev-latest", "jev-preview"):
+        entry = config.DEFAULT_PRICING_TABLE[key]
+        assert entry.input_usd_per_million is None, key
+        assert entry.output_usd_per_million is None, key
+        assert not any(char.isdigit() for char in entry.source.replace("1.13.0", "")), key
+
+
+def test_the_version_that_answers_is_keyed_not_only_the_alias() -> None:
+    """``pricing_for`` prefers what answered, so the reported version must be a key.
+
+    A live call requesting ``jev-latest`` reports ``jev-1.13.0``. Keying the table
+    on aliases alone made every real row price as ``model_not_priced``, which is
+    how the shipped table was wrong before the first live call.
+    """
+    entry, key = cost.pricing_for(config.DEFAULT_PRICING_TABLE, "jev-1.13.0", "jev-latest")
+    assert key == "jev-1.13.0"
+    assert entry is not None
+
+
+def test_an_unknown_version_does_not_match_a_known_one_by_prefix() -> None:
+    """No prefix match: a future release must not inherit a superseded rate."""
+    assert "jev-1.14.0" not in config.DEFAULT_PRICING_TABLE
+    entry, key = cost.pricing_for(config.DEFAULT_PRICING_TABLE, "jev-1.14.0", "some-other-model")
+    assert (entry, key) == (None, None)
 
 
 def test_every_shipped_entry_carries_provenance() -> None:

@@ -1,0 +1,40 @@
+{
+  "_comment": [
+    "Copy this file, fill in the prices you read yourself, and pass it with",
+    "--pricing. Entries here are laid over plumbline's shipped table, so you can",
+    "price a vendor plumbline ships no figures for, or correct a shipped price",
+    "that has gone stale, without editing the package.",
+    "",
+    "The numbers below are placeholders. plumbline does not ship a tariff for",
+    "TypeSafe: its customer agreement treats pricing information as confidential,",
+    "so reading the published page and writing the figure down is your act, not",
+    "plumbline's. The page is named in the shipped entry's source.",
+    "",
+    "Key every model string that can appear. An alias resolves server-side and",
+    "the response reports a version, and pricing prefers whatever answered, so a",
+    "table keyed only on the alias prices every live row as model_not_priced.",
+    "There is no prefix matching: jev-1.14.0 will not inherit jev-1.13.0's rate.",
+    "",
+    "source and as_of are required on every entry. Use null, never 0, where a",
+    "vendor publishes no price: null is the absence of a claim and 0 is the claim",
+    "that those tokens are free.",
+    "",
+    "Keys starting with an underscore are skipped, so this note can stay."
+  ],
+
+  "jev-1.13.0": {
+    "input_usd_per_million": 0.0,
+    "output_usd_per_million": 0.0,
+    "source": "TypeSafe published tariff, https://docs.typesafe.ai/models.md, read by me",
+    "as_of": "2026-01-01",
+    "note": "Placeholder figures. Replace with what the page says, and set as_of to the day you read it."
+  },
+
+  "jev-latest": {
+    "input_usd_per_million": 0.0,
+    "output_usd_per_million": 0.0,
+    "source": "TypeSafe published tariff, https://docs.typesafe.ai/models.md, read by me",
+    "as_of": "2026-01-01",
+    "note": "The alias, in case a run is costed before any response has reported a version."
+  }
+}

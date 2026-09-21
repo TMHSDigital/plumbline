@@ -21,7 +21,7 @@ from typing import Annotated, NoReturn
 
 import typer
 
-from plumbline import __version__
+from plumbline import __version__, config
 from plumbline.adapters import registry
 from plumbline.adapters.base import Adapter
 from plumbline.config import DEFAULT_PRICING_TABLE
@@ -70,6 +70,10 @@ def run(
     error_cost: Annotated[
         float | None, typer.Option("--error-cost", help="What one wrong answer costs, in USD.")
     ] = None,
+    pricing: Annotated[
+        Path | None,
+        typer.Option("--pricing", help="JSON pricing table to lay over the shipped one."),
+    ] = None,
     n_boot: Annotated[int, typer.Option("--boot", help="Bootstrap draws per null.")] = 2000,
 ) -> None:
     """Run one adapter over one dataset, and write what it found."""
@@ -99,7 +103,7 @@ def run(
             cases,
             cache=Cache(cache_dir) if cache_dir else None,
             guard=execute.CostGuard(max_cost_usd=max_cost_usd, max_cases=max_cases),
-            pricing_table=_pricing(),
+            pricing_table=_pricing(pricing),
             workers=workers,
             extra_config={"dataset": str(dataset), "format": data_format},
         )
@@ -216,9 +220,17 @@ def _semantics(value: str) -> ProbabilitySemantics:
     return value
 
 
-def _pricing() -> PricingTable:
-    """The shipped table. Every entry carries the date its price was read."""
-    return DEFAULT_PRICING_TABLE
+def _pricing(supplied: Path | None) -> PricingTable:
+    """The shipped table, with the operator's own entries over it if they gave any.
+
+    plumbline ships no figures for a vendor whose terms make its prices
+    confidential, so for those a cost column exists only when the operator reads
+    the published tariff and supplies it here. Every entry, shipped or supplied,
+    carries the date its price was read.
+    """
+    if supplied is None:
+        return DEFAULT_PRICING_TABLE
+    return config.merged_pricing_table(_guard(lambda: config.load_pricing_file(supplied)))
 
 
 def _guard[T](call: Callable[[], T]) -> T:
