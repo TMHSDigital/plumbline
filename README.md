@@ -1,5 +1,7 @@
 # plumbline
 
+[![CI](https://github.com/TMHSDigital/plumbline/actions/workflows/ci.yml/badge.svg)](https://github.com/TMHSDigital/plumbline/actions/workflows/ci.yml)
+
 Measure whether a decision model's probabilities are trustworthy on your own
 labeled data, and decide what to do about it.
 
