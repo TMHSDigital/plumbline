@@ -49,6 +49,7 @@ from plumbline.runner.cache import (
     to_prediction,
 )
 from plumbline.types import (
+    ArtifactError,
     Case,
     CaseRefusedError,
     ConfidenceSeries,
@@ -256,8 +257,43 @@ class RunResult:
         A report months after the fact should not require paying for the run
         again, and a result re-read this way carries the pricing entry and date
         it was scored against rather than today's.
+
+        A path that is not there, or a file that is not an artifact, is refused
+        with a sentence rather than a traceback. Naming the wrong file is an
+        ordinary mistake, and a stack trace is the right output for a bug and
+        the wrong output for a typo.
         """
-        stored = json.loads(Path(path).read_text(encoding="utf-8"))
+        path = Path(path)
+        try:
+            stored = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            raise ArtifactError(
+                f"no artifact at {path}. plumbline never guesses a results location, "
+                "because a relative default resolves against whatever directory the "
+                "process started in."
+            ) from None
+        except OSError as unreadable:
+            raise ArtifactError(f"{path} could not be read: {unreadable.strerror}") from unreadable
+        except json.JSONDecodeError as broken:
+            raise ArtifactError(
+                f"{path} is not valid JSON: {broken.msg} (line {broken.lineno}). An "
+                "artifact is written by plumbline, so this is usually the wrong file "
+                "rather than a damaged one."
+            ) from broken
+
+        if not isinstance(stored, dict):
+            raise ArtifactError(f"{path} holds a {type(stored).__name__}, not an artifact object.")
+        try:
+            return cls._from_stored(stored, path)
+        except (KeyError, TypeError, AttributeError) as wrong_shape:
+            raise ArtifactError(
+                f"{path} is valid JSON but not a plumbline artifact: {wrong_shape!r}. "
+                "Artifacts are the files `plumbline run` writes into its results "
+                "directory."
+            ) from wrong_shape
+
+    @classmethod
+    def _from_stored(cls, stored: dict[str, Any], path: Path) -> RunResult:
         return cls(
             adapter_name=stored["adapter_name"],
             probability_semantics=stored["probability_semantics"],

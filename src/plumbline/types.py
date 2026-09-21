@@ -144,6 +144,16 @@ class DatasetError(PlumblineError):
     """
 
 
+class ArtifactError(PlumblineError):
+    """A results artifact could not be read back.
+
+    Missing, unreadable, or not the shape a run writes. Separate from
+    ``DatasetError`` because the remedy is different: a dataset is the user's
+    input and they can fix a row, while an artifact is plumbline's own output
+    and a broken one usually means the wrong path was named.
+    """
+
+
 class NotCalibratableError(PlumblineError):
     """A calibration metric was asked for on something that is not a probability.
 
