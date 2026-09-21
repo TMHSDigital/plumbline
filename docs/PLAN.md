@@ -285,9 +285,12 @@ that something was taken out, which is the opposite of the point. The populated
 zero price became `None`, which keeps the historical file valid Python and says
 what the current entry says.
 
-Matches on "free of charge" in `datasets/public/LICENSE-jevbench` and in the
-fixture are MIT licence boilerplate and dataset content, respectively. Both were
-verified byte-identical before and after the rewrite.
+The replacement rules were checked against `datasets/public/LICENSE-jevbench`
+and `datasets/public/jevbench-hard.jsonl` before running, because both contain
+similar wording for unrelated reasons: MIT licence boilerplate in the first, and
+warranty scenarios and a grant figure in the dataset rows of the second. No rule
+matched either file, and both blobs are byte-identical before and after the
+rewrite.
 
 ### What the run says about the tool
 
