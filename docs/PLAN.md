@@ -326,6 +326,13 @@ makes.
   and remove the `--pricing` step for every user of this vendor.
 
   Follow-up, not a release blocker. Nothing about v0.1 depends on the answer.
+
+  **A yes swaps the mock example report for a real one with no other work
+  required.** The live run already happened, its artifact is in gitignored
+  `results/`, and `plumbline report <artifact> --out docs/example-report.md`
+  regenerates the page from it. The header above the generated half is the only
+  hand-written part, and only its provenance table and the sentence explaining
+  why the arm is a mock would change.
 - Whether the residual in the confidence relationship (max 0.0167) is purely
   wire rounding or a slightly different production formula. Not worth another
   spend to settle, and nothing in plumbline depends on the answer.
