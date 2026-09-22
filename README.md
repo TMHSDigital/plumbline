@@ -66,19 +66,20 @@ uv sync
 
 uv run plumbline run datasets/public/jevbench-hard.jsonl `
     --adapter mock --format jevbench `
-    --results results --report report.md
+    --results results --report results/report.md
 ```
 
 That loads the vendored public fixture, runs a deterministic seeded mock over it,
 computes every metric against its null, and writes both a results artifact and a
-report. No network call.
+report. No network call. Both land in `results/`, which is gitignored, so
+following this leaves your clone clean.
 
 Expected output shape:
 
 ```
 111 rows read from datasets\public\jevbench-hard.jsonl, 111 loaded, 0 refused. ...
 artifact: results\20260921T222053+0000-mock-c18e9496.json
-report: report.md
+report: results\report.md
 ```
 
 To run a real vendor instead, set a key and name an adapter. Cost needs a pricing
@@ -90,7 +91,7 @@ $env:TYPESAFE_API_KEY = "your-key-here"
 
 uv run plumbline run datasets/public/jevbench-hard.jsonl `
     --adapter typesafe_wire --model jev-latest --format jevbench `
-    --results results --report report.md `
+    --results results --report results/report.md `
     --max-cases 40 --pricing my-pricing.json
 ```
 
