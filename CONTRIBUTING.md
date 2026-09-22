@@ -58,6 +58,28 @@ mocked and the real one goes in a manual check, recorded in `docs/PLAN.md`. A
 test that reaches the network is a test that fails in CI for reasons unrelated
 to the change.
 
+## Working on this
+
+`main` is protected by a ruleset. It requires a pull request and a green CI run,
+and it blocks force-pushes and deletion. Merges are squash only.
+
+The flow:
+
+1. **Fork** the repository, or branch directly if you have write access.
+2. **Branch** off `main`. Name it after the concern, not the ticket.
+3. **Commit** as below: one concern per commit, conventional messages.
+4. **Open a pull request.** No approval is required, because there is currently
+   one maintainer and a rule demanding one would only demand it of them. CI is
+   the gate that actually matters.
+5. **CI must be green** before merge: ruff, ruff format, mypy --strict and
+   pytest, on Python 3.12 and 3.13, on Ubuntu and Windows. All four jobs are
+   required checks.
+6. **Squash on merge.** The branch is deleted automatically afterwards.
+
+The maintainer can bypass the ruleset, and does so for typos and documentation
+rather than opening a pull request against themselves. That bypass is a
+convenience for trivial changes, not a way around CI for real ones.
+
 ## Commits
 
 One concern per commit, conventional messages.

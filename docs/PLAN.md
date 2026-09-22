@@ -340,7 +340,7 @@ makes.
 
 For the GitHub About box. Paste as is.
 
-**Description** (109 characters):
+**Description** (101 characters):
 
 ```
 Measure whether a decision model's probabilities hold up on your own labeled data. Not a leaderboard.
