@@ -64,12 +64,18 @@ class Figure:
         return self.value > self.band.p95
 
     def statement(self) -> str:
+        # The inconclusive wording names the measurement as what failed, not
+        # the model as what passed. See _judgment in metrics/calibration.py for
+        # why: "not distinguishable from <null>" is read as a pass, and it
+        # means nothing was established either way.
         judgment = (
             f"{self.beats} at this sample size."
             if self.is_distinguishable
             else (
-                f"not distinguishable from {self.band.null} at this sample size. "
-                "Collect more rows before reading anything into it."
+                f"INCONCLUSIVE at this sample size. {self.band.null.capitalize()} "
+                f"would often score this well on this many rows, so this dataset "
+                "cannot tell the two apart. This is not a result in either "
+                "direction. Collect more rows to make the question answerable."
             )
         )
         name = METRIC_NAMES.get(self.metric, self.metric.upper())

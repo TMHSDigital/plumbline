@@ -447,9 +447,9 @@ bootstrap draws:
 Read the middle row. A model whose reported probabilities have been sharpened by
 a temperature of 0.5 is overconfident in a way any user would notice, ECE
 catches it at more than five times its floor, and MCE lands at 0.98 times its
-own floor: inside the band, not distinguishable from a perfectly calibrated
-model. Even at T = 0.35, where ECE is nine times its floor, MCE clears its floor
-by seven percent.
+own floor: inside the band, so MCE reports the question as unanswerable on this
+many rows while ECE answers it plainly. Even at T = 0.35, where ECE is nine
+times its floor, MCE clears its floor by seven percent.
 
 That is why MCE is demoted to a diagnostics block and never printed beside ECE.
 It is not wrong, and it is not useless on larger samples, but at the few hundred

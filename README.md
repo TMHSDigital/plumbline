@@ -40,15 +40,23 @@ noise and sample size. If you do not know that number, you cannot read your own.
 This is not a rounding concern. On a few hundred rows a calibration claim is
 frequently not measurable at all.
 
-So plumbline reports every figure against its own null, and says plainly when a
-value is indistinguishable from a calibrated model. From the example report, 105
-rows:
+So plumbline reports every inferential figure against its own null, and says
+plainly when a value sits inside what that null already produces.
+
+**When it says a figure is inconclusive, that is not a pass.** It means the
+dataset cannot tell your model apart from the null, so nothing was established
+in either direction. A model that is genuinely well calibrated and one that is
+badly calibrated can both land there on too few rows, and the figure does not
+say which you have. Reading it as a clean bill of health is the single easiest
+mistake to make with this tool, and it inverts the conclusion.
+
+From the example report, 105 rows:
 
 - ECE 0.0740, against a calibrated-model floor of 0.0707 and a 95th percentile of
-  0.1109. Not distinguishable.
-- Brier 0.1711, against a floor of 0.1489. Not distinguishable.
+  0.1109. Inconclusive.
+- Brier 0.1711, against a floor of 0.1489. Inconclusive.
 - Confidence AUROC 0.6034, against a permutation null of 0.4997 and a 95th
-  percentile of 0.6116. Not distinguishable.
+  percentile of 0.6116. Inconclusive.
 - Accuracy 0.7714, against a chance null of 0.3416. Better than chance.
 
 Four figures, one of which supports a conclusion. A tool that printed the first
@@ -109,9 +117,11 @@ uv run plumbline version
 lines from it:
 
 > ECE 0.0740 over 105 rows (10 equal width bins), against a calibrated-model
-> floor of 0.0707 (95th percentile 0.1109): not distinguishable from a perfectly
-> calibrated model at this sample size. Collect more rows before reading anything
-> into it.
+> floor of 0.0707 (95th percentile 0.1109): INCONCLUSIVE at this sample size. A
+> perfectly calibrated model would often score this badly on this many rows, so
+> this dataset cannot tell the two apart. This is not a clean bill of health:
+> nothing was established either way. Collect more rows to make the question
+> answerable.
 
 > No cost available. None of the 105 cases could be priced, so cost is not
 > reported rather than being shown as zero. 105 rows: tokens were reported, but

@@ -145,7 +145,15 @@ def test_calibration_is_read_against_its_floor() -> None:
 
     line = next(line for line in text.splitlines() if "ECE" in line)
     assert "floor" in line
-    assert "distinguishable" in line
+    assert "INCONCLUSIVE" in line or "distinguishable from sampling noise" in line
+
+
+def test_the_preamble_says_inconclusive_is_not_a_pass() -> None:
+    """The report defines its own terms, because the report is what gets read."""
+    text = render(a_run())
+
+    assert '**"INCONCLUSIVE" is not a pass.**' in text
+    assert "Nothing was established in either direction." in text
 
 
 def test_the_maximum_error_is_a_diagnostic_and_not_a_headline() -> None:

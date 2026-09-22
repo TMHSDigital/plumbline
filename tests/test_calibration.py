@@ -98,7 +98,11 @@ def test_a_calibrated_mock_lands_inside_its_own_noise_floor(n_cases: int) -> Non
     measured_ece = calibration.ece(run.probabilities, run.outcomes)
 
     assert not calibration.is_distinguishable(measured_ece, floors["ece"])
-    assert "not distinguishable" in calibration.verdict(measured_ece, floors["ece"])
+    verdict = calibration.verdict(measured_ece, floors["ece"])
+    assert "INCONCLUSIVE" in verdict
+    # The valence has to be explicit. Landing on the floor is the absence of a
+    # result, not a passing grade, and the sentence is what gets read.
+    assert "not a clean bill of health" in verdict
 
 
 @pytest.mark.parametrize("n_cases", [500, 4000])
