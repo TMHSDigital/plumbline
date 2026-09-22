@@ -1,0 +1,52 @@
+name: Site
+
+# The site at tmhsdigital.github.io/plumbline carries a JavaScript
+# reimplementation of the calibration floor. If it disagrees with the Python,
+# the site misreports the tool, which is worse than having no site. This
+# workflow holds the two together; later jobs assemble and deploy the site, and
+# they depend on this one, so a wrong calculator never ships. A stale site is
+# the better failure.
+#
+# It is deliberately separate from ci.yml and release.yml: it shares no jobs,
+# no concurrency group, and no permissions with either.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parity:
+    name: the site's floor agrees with the Python
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --locked
+
+      # Without this, a change to the Python floor would leave the JavaScript
+      # agreeing with an old answer and the check below passing.
+      - name: The committed fixture is what the Python produces today
+        run: uv run python scripts/floor_golden.py --check
+
+      # The runner's own Node, with no setup action and no package install.
+      # The check uses the standard library only.
+      - name: floor.js reproduces the fixture
+        run: |
+          node --version
+          node scripts/check_floor_parity.mjs

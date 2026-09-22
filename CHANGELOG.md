@@ -11,6 +11,14 @@ different event from one that moved because it was wrong.
 
 ## Unreleased
 
+### Added
+
+- A browser calculator for the ECE floor (`site/`), a JavaScript port of
+  `synthetic_floor` that reproduces numpy's seeded random stream draw for draw.
+  `scripts/floor_golden.py` exports golden values from the Python and
+  `scripts/check_floor_parity.mjs` holds the port to them within 1e-9 in CI.
+  The page is not deployed yet.
+
 ### Fixed
 
 - The inconclusive verdict read as a pass. "Not distinguishable from a
