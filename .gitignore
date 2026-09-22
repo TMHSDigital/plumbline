@@ -33,3 +33,6 @@ htmlcov/
 .DS_Store
 Thumbs.db
 CLAUDE.md
+
+# The assembled site. Built in CI by scripts/build_site.py, never committed.
+_site/

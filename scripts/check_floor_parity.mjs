@@ -2,7 +2,10 @@
 //
 // Runs on Node's standard library alone, with no package install:
 //
-//     node scripts/check_floor_parity.mjs
+//     node scripts/check_floor_parity.mjs [_site/example-run.json]
+//
+// Given a built site's example-run.json, it also derives the example report's
+// ECE line from the example's rows and requires it to match the report exactly.
 //
 // Exits non-zero on any disagreement larger than the fixture's tolerance, on any
 // verdict sentence that differs by a character, and on a PCG64 starting state
@@ -51,6 +54,27 @@ for (const c of fixture.cases) {
 }
 
 console.log(`\n${fixture.cases.length} cases, largest difference ${worst.toExponential(2)}, tolerance ${tolerance}`);
+
+// The worked example, when a built site is given: the page derives the example
+// report's ECE line from the 105 rows, and it must come out character for
+// character as the report prints it.
+const examplePath = process.argv[2];
+if (examplePath) {
+  const example = JSON.parse(readFileSync(examplePath, "utf8"));
+  if (example.adapter !== "mock") failures.push(`example rows come from ${example.adapter}, not the mock`);
+  const measured = floor.ece(example.probabilities, example.correct, example.n_bins);
+  const band = floor.calibrationFloor(example.probabilities, example.n_bins);
+  const derived = floor.statement(measured, band);
+  if (derived !== example.report.ece_line) {
+    failures.push(`worked example: derived line differs from docs/example-report.md\n  js:     ${derived}\n  report: ${example.report.ece_line}`);
+  }
+  const summary = floor.syntheticFloor(example.probabilities.length, example.n_bins, example.python.accuracy);
+  for (const key of ["mean", "p95"]) {
+    const gap = Math.abs(summary[key] - example.python.summary_floor[key]);
+    if (!(gap <= tolerance)) failures.push(`worked example: summary floor ${key} off by ${gap}`);
+  }
+  console.log(`worked example: ${derived.slice(0, 110)}...`);
+}
 if (failures.length) {
   console.error(`\n${failures.length} disagreement(s) with the Python:\n`);
   for (const failure of failures) console.error(failure);

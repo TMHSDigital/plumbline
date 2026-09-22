@@ -4,13 +4,25 @@ importScripts("floor.js");
 
 self.onmessage = function (event) {
   var job = event.data;
+  var F = self.PlumblineFloor;
+  function progress(fraction) {
+    self.postMessage({ id: job.id, progress: fraction });
+  }
   try {
-    var band = self.PlumblineFloor.syntheticFloor(job.n, job.nBins, job.accuracy, {
-      onProgress: function (fraction) {
-        self.postMessage({ id: job.id, progress: fraction });
-      },
-    });
-    self.postMessage({ id: job.id, band: band });
+    var result;
+    if (job.kind === "synthetic") {
+      result = F.syntheticFloor(job.n, job.nBins, job.accuracy, { onProgress: progress });
+    } else if (job.kind === "plan") {
+      result = F.planRows(job.target, job.nBins, job.accuracy, {
+        onProgress: progress,
+        onStep: function (evaluations) {
+          self.postMessage({ id: job.id, step: evaluations });
+        },
+      });
+    } else {
+      throw new Error("unknown job " + job.kind);
+    }
+    self.postMessage({ id: job.id, result: result });
   } catch (error) {
     self.postMessage({ id: job.id, error: String(error.message || error) });
   }

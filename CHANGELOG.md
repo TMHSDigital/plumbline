@@ -18,6 +18,11 @@ different event from one that moved because it was wrong.
   `scripts/floor_golden.py` exports golden values from the Python and
   `scripts/check_floor_parity.mjs` holds the port to them within 1e-9 in CI.
   The page is not deployed yet.
+- The site page: the argument, a worked example that derives the example
+  report's ECE line from its 105 rows in the browser, and a sample-size planner.
+  `scripts/build_site.py` regenerates the example from the mock adapter at build
+  time and refuses if `docs/example-report.md` no longer matches its own
+  command.
 
 ### Fixed
 
