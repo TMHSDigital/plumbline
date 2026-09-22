@@ -109,6 +109,21 @@ Settled during the build. Reopen one only with a reason, not from scratch.
   about the system under test. A decline is recorded as a refusal with its
   category and counted. The tradeoff is stated at the call site in
   `adapters/generative.py`; it is not an oversight.
+- CodeQL default setup is kept for its **`actions`** coverage, not its Python
+  coverage. Workflow script injection is a real class of bug and `ci.yml` is
+  where it would hide. The Python queries are expected to be low yield on this
+  codebase: it is a CLI with no attacker in its threat model, run by an
+  operator on their own data with their own key. The first full scan produced
+  exactly one alert, a false positive on a test assertion
+  (`py/incomplete-url-substring-sanitization`, a substring check that makes no
+  security decision), dismissed with that reasoning. **Turn it off if a second
+  false positive appears on ordinary work**; at that point it is costing review
+  attention it is not repaying. It is a setting, not a workflow file, so
+  disabling it is one API call and leaves no trace in the tree.
+- Secret scanning and push protection guard credential formats and nothing
+  else. The disclosure risk this project actually has is contractual, and the
+  control for it is the `--pricing` design plus a test. SECURITY.md says so in
+  full, because a green scanning badge invites the wrong assumption.
 
 ## Live validation
 
