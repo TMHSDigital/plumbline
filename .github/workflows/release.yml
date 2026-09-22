@@ -1,0 +1,105 @@
+name: Release
+
+# A release is a tag push. Nothing here is built by hand on a maintainer's
+# laptop, because the v0.1.0 wheel was, and it went out named
+# plumbline-0.1.0.dev0 against a tag that said v0.1.0.
+on:
+  push:
+    tags: ["v*"]
+  # So a release can be re-run against an existing tag without moving it.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and attach, e.g. v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write # attaching assets to the release
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: build and attach the distributions
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --locked
+
+      # The whole reason this workflow exists. A tag and a version that
+      # disagree is exactly what shipped in v0.1.0, and it was invisible
+      # because the test asserting the version used a substring match.
+      - name: The tag and the package version must agree
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          expected="${tag#v}"
+          actual="$(uv run python -c 'import plumbline; print(plumbline.__version__)')"
+          echo "tag $tag implies version $expected; package says $actual"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::tag $tag does not match __version__ $actual. Bump the version or move the tag; do not release a mismatch."
+            exit 1
+          fi
+
+      - name: The gate still passes at this tag
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy --strict
+          uv run pytest -q
+
+      - name: Build the wheel and the sdist
+        run: uv build
+
+      - name: The artifact names carry the released version
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          version="${tag#v}"
+          ls -l dist/
+          test -f "dist/plumbline-${version}-py3-none-any.whl" \
+            || { echo "::error::expected dist/plumbline-${version}-py3-none-any.whl"; exit 1; }
+          test -f "dist/plumbline-${version}.tar.gz" \
+            || { echo "::error::expected dist/plumbline-${version}.tar.gz"; exit 1; }
+
+      - name: The wheel installs clean, with neither torch nor transformers
+        run: |
+          uv venv --python 3.13 /tmp/relvenv
+          uv pip install --python /tmp/relvenv/bin/python dist/*.whl
+          /tmp/relvenv/bin/plumbline version
+          /tmp/relvenv/bin/python - <<'PY'
+          import importlib.util as u, pathlib, plumbline
+          for name in ("torch", "transformers"):
+              assert u.find_spec(name) is None, f"{name} leaked into the core install"
+          assert (pathlib.Path(plumbline.__file__).parent / "py.typed").is_file()
+          print("installed", plumbline.__version__, "clean")
+          PY
+
+      - name: Attach the distributions to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          # The release notes are written by hand, so this only ever adds
+          # assets to a release that already exists. It does not create one and
+          # it does not generate notes from commit messages.
+          if ! gh release view "$tag" > /dev/null 2>&1; then
+            echo "::error::no release exists for $tag. Create it with written notes first, then re-run this workflow."
+            exit 1
+          fi
+          gh release upload "$tag" dist/* --clobber
+          echo "attached:"
+          gh release view "$tag" --json assets --jq '.assets[].name'
