@@ -88,15 +88,15 @@ function inlineText(token) {
     .join("");
 }
 
+// Raw HTML is emitted verbatim, so this validates rather than sanitizes: every
+// "<" in it must open one of the exact allowed tags, or the build fails.
 function checkHtml(content, where, problems) {
-  const rest = content.replace(/<\/?[a-z][^>]*>/gi, (tag) => {
+  for (let at = content.indexOf("<"); at !== -1; at = content.indexOf("<", at + 1)) {
+    const close = content.indexOf(">", at);
+    const tag = close === -1 ? content.slice(at) : content.slice(at, close + 1);
     if (!ALLOWED_TAGS.has(tag.toLowerCase())) {
       problems.push(`${where}: raw HTML ${JSON.stringify(tag)} is not on the allowlist`);
     }
-    return "";
-  });
-  if (/[<>&]/.test(rest)) {
-    problems.push(`${where}: raw HTML carries markup outside its allowed tags`);
   }
 }
 
@@ -222,6 +222,7 @@ function selfTest() {
   refuses("<script>alert(1)</script>\n", /not on the allowlist/);
   refuses("hi <img src=x onerror=alert(1)>\n", /not on the allowlist/);
   refuses('<details open onclick="x">\n', /not on the allowlist/);
+  refuses("<details>\n<scr<b>ipt>alert(1)</script>\n</details>\n", /not on the allowlist/);
   refuses("[x](missing.md)\n", /neither a hosted doc nor a tracked file/);
   refuses("[x](docs/b.md#nope)\n", /names no heading/);
   refuses("# A\n\n[x](#nope)\n", /names no heading/);
@@ -233,7 +234,7 @@ function selfTest() {
   expect(!html("[![CI](https://e.x/b.svg)](https://e.x)\n").includes("<img"), "remote image");
   expect(html("# T\n\n## T\n").includes('id="t-1"'), "duplicate heading anchors");
   expect(html("<details open>\n<summary><b>PS</b></summary>\n\nx\n\n</details>\n").includes("<details open>"), "allowlist");
-  console.log("render_docs self-test: 14 cases pass");
+  console.log("render_docs self-test: 15 cases pass");
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
