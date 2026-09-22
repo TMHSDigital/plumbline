@@ -84,6 +84,20 @@ The flow:
    required checks.
 6. **Squash on merge.** The branch is deleted automatically afterwards.
 
+**Some checks are advisory and do not gate a merge.** CodeQL and Socket
+Security both report on pull requests, and neither is a required check. The
+four CI jobs are the gate. This is deliberate, not an oversight: a
+supply-chain advisory is a judgement call that a human should make, and a
+scanner that can block a merge on a false positive ends up being routed around
+rather than read.
+
+So read them. A Socket alert on a dependency change is the one worth stopping
+for, because it is the case the tooling is actually good at: a package that has
+started running install scripts or reaching the network is a real signal even
+with no CVE attached. Say in the pull request what you concluded. Clicking past
+it silently is the failure mode, and so is panicking at a report that turns out
+to be a transitive dependency's changelog.
+
 The maintainer can bypass the ruleset, and does so for typos and documentation
 rather than opening a pull request against themselves. That bypass is a
 convenience for trivial changes, not a way around CI for real ones.
