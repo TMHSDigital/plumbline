@@ -8,9 +8,11 @@ this page and pick up where the work stopped.
 landed on 2026-09-21. CI is green on Ubuntu and Windows across Python 3.12 and
 3.13. `v0.1.0` is tagged and released.
 
-What remains is a short list of manual steps for a human, in "Pre-public
-checklist" at the bottom of this page. The repository is still private, and
-flipping it is a deliberate act that nothing here does for you.
+The repository is public as of 2026-09-21. The "Pre-public checklist" at the
+bottom of this page is kept as the record of what was verified before that
+happened, not as outstanding work.
+
+The remaining work is the v0.2 milestone, and #3 comes first.
 
 ## Phases
 

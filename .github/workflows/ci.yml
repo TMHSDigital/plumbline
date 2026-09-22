@@ -9,6 +9,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Nothing here pins its dependencies beyond uv.lock's resolution, so a
+  # transitive release can break the build with no commit of ours involved.
+  # Weekly is often enough to find that while it is still a small problem, and
+  # rare enough that nobody learns to ignore the mail.
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
 
 # No secrets are used anywhere in this workflow, and none should be added.
 # Every test must pass with no network connection and no API key. A test that
@@ -57,3 +64,112 @@ jobs:
 
       - name: Tests
         run: uv run pytest
+
+  # The unit suite has twice now passed while the path a new user takes first
+  # was broken: an adapter that raised a bare TypeError when a setting was
+  # missing, and a local arm that failed every case with the reason visible
+  # only inside the artifact. Both were found by hand. This job walks the
+  # README quickstart instead of trusting it.
+  quickstart:
+    name: quickstart, as the README documents it
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --locked
+
+      - name: Run the quickstart command verbatim
+        run: |
+          uv run plumbline run datasets/public/jevbench-hard.jsonl \
+              --adapter mock --format jevbench \
+              --results results --report results/report.md
+
+      - name: The report says what it is supposed to say
+        run: |
+          test -f results/report.md || { echo "no report written"; exit 1; }
+          grep -q "ECE" results/report.md
+          # The inconclusive verdict must not regress to reading as a pass.
+          grep -q "INCONCLUSIVE" results/report.md
+          grep -q '"INCONCLUSIVE" is not a pass' results/report.md
+          # Every calibration figure carries its row count and its floor.
+          grep -q "calibrated-model floor" results/report.md
+
+      - name: Following the quickstart leaves the clone clean
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "the quickstart dirtied the working tree:"
+            git status --porcelain
+            exit 1
+          fi
+
+      - name: The other documented commands work
+        run: |
+          uv run plumbline --help > /dev/null
+          uv run plumbline adapters | grep -q mock
+          test "$(uv run plumbline version)" = "$(uv run python -c 'import plumbline; print(plumbline.__version__)')"
+
+      - name: A missing required setting refuses instead of crashing
+        run: |
+          set +e
+          out="$(uv run plumbline run datasets/public/jevbench-hard.jsonl \
+                   --adapter local_logits --format jevbench --limit 1 \
+                   --results results 2>&1)"
+          set -e
+          echo "$out" | grep -q "requires" || { echo "expected a named refusal, got:"; echo "$out"; exit 1; }
+          echo "$out" | grep -qv "Traceback" || { echo "traceback leaked"; exit 1; }
+
+  # Gate 6 found that the built distribution is a different artifact from the
+  # source tree: the entry point, the optional extra boundary, and py.typed all
+  # only exist once packaged.
+  wheel:
+    name: the built wheel installs and runs
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Build
+        run: uv build
+
+      - name: Install the wheel alone, into a clean environment
+        run: |
+          uv venv --python 3.13 /tmp/venv
+          uv pip install --python /tmp/venv/bin/python dist/*.whl
+
+      - name: The entry point resolves and the package is importable
+        run: |
+          /tmp/venv/bin/plumbline version
+          /tmp/venv/bin/plumbline adapters | grep -q typesafe_wire
+          /tmp/venv/bin/python -c "import plumbline"
+
+      - name: The local extra is genuinely optional
+        run: |
+          /tmp/venv/bin/python - <<'PY'
+          import importlib.util as u
+          for name in ("torch", "transformers"):
+              assert u.find_spec(name) is None, f"{name} leaked into the core install"
+          print("core install carries neither torch nor transformers")
+          PY
+
+      - name: py.typed ships, so downstream annotations are visible
+        run: |
+          /tmp/venv/bin/python - <<'PY'
+          import pathlib, plumbline
+          marker = pathlib.Path(plumbline.__file__).parent / "py.typed"
+          assert marker.is_file(), "py.typed missing from the installed package"
+          print("py.typed present at", marker)
+          PY
