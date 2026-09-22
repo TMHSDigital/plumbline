@@ -23,6 +23,12 @@ different event from one that moved because it was wrong.
   `scripts/build_site.py` regenerates the example from the mock adapter at build
   time and refuses if `docs/example-report.md` no longer matches its own
   command.
+- The site hosts the repository's docs (README, METHODOLOGY, PLAN, the example
+  report, CHANGELOG, CONTRIBUTING, SECURITY, and the dataset README), rendered
+  at build time from the commit being deployed by a vendored markdown-it under
+  the runner's Node. Each page names the commit and build time it came from.
+  The build fails on a broken link or anchor, on raw HTML outside a short
+  allowlist, and on a modified vendored renderer.
 
 ### Changed
 

@@ -3,9 +3,9 @@ name: Site
 # The site at tmhsdigital.github.io/plumbline carries a JavaScript
 # reimplementation of the calibration floor. If it disagrees with the Python,
 # the site misreports the tool, which is worse than having no site. This
-# workflow holds the two together; later jobs assemble and deploy the site, and
-# they depend on this one, so a wrong calculator never ships. A stale site is
-# the better failure.
+# workflow holds the two together. The site is assembled inside this job, and
+# the deploy job (not yet added) will need it, so a wrong calculator or a
+# broken doc never ships. A stale site is the better failure.
 #
 # It is deliberately separate from ci.yml and release.yml: it shares no jobs,
 # no concurrency group, and no permissions with either.
@@ -44,8 +44,15 @@ jobs:
       - name: The committed fixture is what the Python produces today
         run: uv run python scripts/floor_golden.py --check
 
+      # The renderer's refusals (raw HTML off the allowlist, broken links and
+      # anchors, remote images, a modified vendored file) each have a case.
+      - name: The doc renderer refuses what it should
+        run: node scripts/render_docs.mjs --self-test
+
       # Regenerates the worked example from the mock adapter, by the command
       # docs/example-report.md records, and refuses if the report is stale.
+      # Renders the repository's docs from this commit, and refuses on a broken
+      # link or anchor, or raw HTML outside the allowlist.
       - name: Assemble the site
         run: uv run python scripts/build_site.py --out _site
 
