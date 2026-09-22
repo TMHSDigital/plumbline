@@ -1,0 +1,429 @@
+{
+  "about": "Golden values from plumbline.metrics.calibration.synthetic_floor, which site/floor.js must reproduce. Written by scripts/floor_golden.py.",
+  "function": "synthetic_floor(n, n_bins, accuracy), all other arguments default",
+  "defaults": {
+    "binning": "equal_width",
+    "n_boot": 2000,
+    "concentration": 6.0,
+    "seed": 0
+  },
+  "numpy": "2.5.3",
+  "tolerance": 1e-09,
+  "pcg64_initial_state": {
+    "0": {
+      "state": "35399562948360463058890781895381311971",
+      "inc": "87136372517582989555478159403783844777"
+    },
+    "1": {
+      "state": "207833532711051698738587646355624148094",
+      "inc": "194290289479364712180083596243593368443"
+    }
+  },
+  "cases": [
+    {
+      "n": 1,
+      "n_bins": 10,
+      "accuracy": 0.8,
+      "mean": 0.3800222137274552,
+      "p95": 0.7463609574384902,
+      "statements": {
+        "0.005": "ECE 0.0050 over 1 rows (10 equal width bins), against a calibrated-model floor of 0.3800 (95th percentile 0.7464): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 1 rows (10 equal width bins), against a calibrated-model floor of 0.3800 (95th percentile 0.7464): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 1 rows (10 equal width bins), against a calibrated-model floor of 0.3800 (95th percentile 0.7464): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.074": "ECE 0.0740 over 1 rows (10 equal width bins), against a calibrated-model floor of 0.3800 (95th percentile 0.7464): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.1": "ECE 0.1000 over 1 rows (10 equal width bins), against a calibrated-model floor of 0.3800 (95th percentile 0.7464): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.2": "ECE 0.2000 over 1 rows (10 equal width bins), against a calibrated-model floor of 0.3800 (95th percentile 0.7464): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable."
+      }
+    },
+    {
+      "n": 5,
+      "n_bins": 10,
+      "accuracy": 0.8,
+      "mean": 0.2847577610479967,
+      "p95": 0.42849582212750476,
+      "statements": {
+        "0.005": "ECE 0.0050 over 5 rows (10 equal width bins), against a calibrated-model floor of 0.2848 (95th percentile 0.4285): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 5 rows (10 equal width bins), against a calibrated-model floor of 0.2848 (95th percentile 0.4285): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 5 rows (10 equal width bins), against a calibrated-model floor of 0.2848 (95th percentile 0.4285): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.074": "ECE 0.0740 over 5 rows (10 equal width bins), against a calibrated-model floor of 0.2848 (95th percentile 0.4285): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.1": "ECE 0.1000 over 5 rows (10 equal width bins), against a calibrated-model floor of 0.2848 (95th percentile 0.4285): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.2": "ECE 0.2000 over 5 rows (10 equal width bins), against a calibrated-model floor of 0.2848 (95th percentile 0.4285): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable."
+      }
+    },
+    {
+      "n": 5,
+      "n_bins": 20,
+      "accuracy": 0.5,
+      "mean": 0.4039633559253163,
+      "p95": 0.555938114043049,
+      "statements": {
+        "0.005": "ECE 0.0050 over 5 rows (20 equal width bins), against a calibrated-model floor of 0.4040 (95th percentile 0.5559): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 5 rows (20 equal width bins), against a calibrated-model floor of 0.4040 (95th percentile 0.5559): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 5 rows (20 equal width bins), against a calibrated-model floor of 0.4040 (95th percentile 0.5559): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.074": "ECE 0.0740 over 5 rows (20 equal width bins), against a calibrated-model floor of 0.4040 (95th percentile 0.5559): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.1": "ECE 0.1000 over 5 rows (20 equal width bins), against a calibrated-model floor of 0.4040 (95th percentile 0.5559): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.2": "ECE 0.2000 over 5 rows (20 equal width bins), against a calibrated-model floor of 0.4040 (95th percentile 0.5559): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable."
+      }
+    },
+    {
+      "n": 10,
+      "n_bins": 50,
+      "accuracy": 0.8,
+      "mean": 0.27711625440709153,
+      "p95": 0.39266384333888094,
+      "statements": {
+        "0.005": "ECE 0.0050 over 10 rows (50 equal width bins), against a calibrated-model floor of 0.2771 (95th percentile 0.3927): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 10 rows (50 equal width bins), against a calibrated-model floor of 0.2771 (95th percentile 0.3927): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 10 rows (50 equal width bins), against a calibrated-model floor of 0.2771 (95th percentile 0.3927): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.074": "ECE 0.0740 over 10 rows (50 equal width bins), against a calibrated-model floor of 0.2771 (95th percentile 0.3927): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.1": "ECE 0.1000 over 10 rows (50 equal width bins), against a calibrated-model floor of 0.2771 (95th percentile 0.3927): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.2": "ECE 0.2000 over 10 rows (50 equal width bins), against a calibrated-model floor of 0.2771 (95th percentile 0.3927): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable."
+      }
+    },
+    {
+      "n": 20,
+      "n_bins": 10,
+      "accuracy": 0.9,
+      "mean": 0.11220229222944622,
+      "p95": 0.16500137870960746,
+      "statements": {
+        "0.005": "ECE 0.0050 over 20 rows (10 equal width bins), against a calibrated-model floor of 0.1122 (95th percentile 0.1650): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 20 rows (10 equal width bins), against a calibrated-model floor of 0.1122 (95th percentile 0.1650): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 20 rows (10 equal width bins), against a calibrated-model floor of 0.1122 (95th percentile 0.1650): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.074": "ECE 0.0740 over 20 rows (10 equal width bins), against a calibrated-model floor of 0.1122 (95th percentile 0.1650): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.1": "ECE 0.1000 over 20 rows (10 equal width bins), against a calibrated-model floor of 0.1122 (95th percentile 0.1650): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.2": "ECE 0.2000 over 20 rows (10 equal width bins), against a calibrated-model floor of 0.1122 (95th percentile 0.1650): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 30,
+      "n_bins": 5,
+      "accuracy": 0.7,
+      "mean": 0.12139637539943718,
+      "p95": 0.20461675476596455,
+      "statements": {
+        "0.005": "ECE 0.0050 over 30 rows (5 equal width bins), against a calibrated-model floor of 0.1214 (95th percentile 0.2046): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 30 rows (5 equal width bins), against a calibrated-model floor of 0.1214 (95th percentile 0.2046): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 30 rows (5 equal width bins), against a calibrated-model floor of 0.1214 (95th percentile 0.2046): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.074": "ECE 0.0740 over 30 rows (5 equal width bins), against a calibrated-model floor of 0.1214 (95th percentile 0.2046): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.1": "ECE 0.1000 over 30 rows (5 equal width bins), against a calibrated-model floor of 0.1214 (95th percentile 0.2046): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.2": "ECE 0.2000 over 30 rows (5 equal width bins), against a calibrated-model floor of 0.1214 (95th percentile 0.2046): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable."
+      }
+    },
+    {
+      "n": 50,
+      "n_bins": 15,
+      "accuracy": 0.8,
+      "mean": 0.13313113466264428,
+      "p95": 0.18497730704057386,
+      "statements": {
+        "0.005": "ECE 0.0050 over 50 rows (15 equal width bins), against a calibrated-model floor of 0.1331 (95th percentile 0.1850): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 50 rows (15 equal width bins), against a calibrated-model floor of 0.1331 (95th percentile 0.1850): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 50 rows (15 equal width bins), against a calibrated-model floor of 0.1331 (95th percentile 0.1850): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.074": "ECE 0.0740 over 50 rows (15 equal width bins), against a calibrated-model floor of 0.1331 (95th percentile 0.1850): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.1": "ECE 0.1000 over 50 rows (15 equal width bins), against a calibrated-model floor of 0.1331 (95th percentile 0.1850): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.2": "ECE 0.2000 over 50 rows (15 equal width bins), against a calibrated-model floor of 0.1331 (95th percentile 0.1850): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 100,
+      "n_bins": 10,
+      "accuracy": 0.5,
+      "mean": 0.10154939772542025,
+      "p95": 0.1506344546031062,
+      "statements": {
+        "0.005": "ECE 0.0050 over 100 rows (10 equal width bins), against a calibrated-model floor of 0.1015 (95th percentile 0.1506): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 100 rows (10 equal width bins), against a calibrated-model floor of 0.1015 (95th percentile 0.1506): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 100 rows (10 equal width bins), against a calibrated-model floor of 0.1015 (95th percentile 0.1506): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.074": "ECE 0.0740 over 100 rows (10 equal width bins), against a calibrated-model floor of 0.1015 (95th percentile 0.1506): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.1": "ECE 0.1000 over 100 rows (10 equal width bins), against a calibrated-model floor of 0.1015 (95th percentile 0.1506): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.2": "ECE 0.2000 over 100 rows (10 equal width bins), against a calibrated-model floor of 0.1015 (95th percentile 0.1506): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 105,
+      "n_bins": 10,
+      "accuracy": 0.7714,
+      "mean": 0.07507178247177257,
+      "p95": 0.11790988562838273,
+      "statements": {
+        "0.005": "ECE 0.0050 over 105 rows (10 equal width bins), against a calibrated-model floor of 0.0751 (95th percentile 0.1179): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 105 rows (10 equal width bins), against a calibrated-model floor of 0.0751 (95th percentile 0.1179): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 105 rows (10 equal width bins), against a calibrated-model floor of 0.0751 (95th percentile 0.1179): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.074": "ECE 0.0740 over 105 rows (10 equal width bins), against a calibrated-model floor of 0.0751 (95th percentile 0.1179): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.1": "ECE 0.1000 over 105 rows (10 equal width bins), against a calibrated-model floor of 0.0751 (95th percentile 0.1179): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.2": "ECE 0.2000 over 105 rows (10 equal width bins), against a calibrated-model floor of 0.0751 (95th percentile 0.1179): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 105,
+      "n_bins": 10,
+      "accuracy": 0.8,
+      "mean": 0.07199355208097018,
+      "p95": 0.11196474547538811,
+      "statements": {
+        "0.005": "ECE 0.0050 over 105 rows (10 equal width bins), against a calibrated-model floor of 0.0720 (95th percentile 0.1120): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 105 rows (10 equal width bins), against a calibrated-model floor of 0.0720 (95th percentile 0.1120): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 105 rows (10 equal width bins), against a calibrated-model floor of 0.0720 (95th percentile 0.1120): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.074": "ECE 0.0740 over 105 rows (10 equal width bins), against a calibrated-model floor of 0.0720 (95th percentile 0.1120): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.1": "ECE 0.1000 over 105 rows (10 equal width bins), against a calibrated-model floor of 0.0720 (95th percentile 0.1120): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.2": "ECE 0.2000 over 105 rows (10 equal width bins), against a calibrated-model floor of 0.0720 (95th percentile 0.1120): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 200,
+      "n_bins": 20,
+      "accuracy": 0.6,
+      "mean": 0.09645611455860527,
+      "p95": 0.1281392861832022,
+      "statements": {
+        "0.005": "ECE 0.0050 over 200 rows (20 equal width bins), against a calibrated-model floor of 0.0965 (95th percentile 0.1281): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 200 rows (20 equal width bins), against a calibrated-model floor of 0.0965 (95th percentile 0.1281): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 200 rows (20 equal width bins), against a calibrated-model floor of 0.0965 (95th percentile 0.1281): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.074": "ECE 0.0740 over 200 rows (20 equal width bins), against a calibrated-model floor of 0.0965 (95th percentile 0.1281): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.1": "ECE 0.1000 over 200 rows (20 equal width bins), against a calibrated-model floor of 0.0965 (95th percentile 0.1281): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.2": "ECE 0.2000 over 200 rows (20 equal width bins), against a calibrated-model floor of 0.0965 (95th percentile 0.1281): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 250,
+      "n_bins": 100,
+      "accuracy": 0.8,
+      "mean": 0.14023235095799594,
+      "p95": 0.1626327053033523,
+      "statements": {
+        "0.005": "ECE 0.0050 over 250 rows (100 equal width bins), against a calibrated-model floor of 0.1402 (95th percentile 0.1626): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 250 rows (100 equal width bins), against a calibrated-model floor of 0.1402 (95th percentile 0.1626): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 250 rows (100 equal width bins), against a calibrated-model floor of 0.1402 (95th percentile 0.1626): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.074": "ECE 0.0740 over 250 rows (100 equal width bins), against a calibrated-model floor of 0.1402 (95th percentile 0.1626): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.1": "ECE 0.1000 over 250 rows (100 equal width bins), against a calibrated-model floor of 0.1402 (95th percentile 0.1626): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.2": "ECE 0.2000 over 250 rows (100 equal width bins), against a calibrated-model floor of 0.1402 (95th percentile 0.1626): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 300,
+      "n_bins": 10,
+      "accuracy": 0.95,
+      "mean": 0.023666559618355967,
+      "p95": 0.03662071112951838,
+      "statements": {
+        "0.005": "ECE 0.0050 over 300 rows (10 equal width bins), against a calibrated-model floor of 0.0237 (95th percentile 0.0366): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 300 rows (10 equal width bins), against a calibrated-model floor of 0.0237 (95th percentile 0.0366): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 300 rows (10 equal width bins), against a calibrated-model floor of 0.0237 (95th percentile 0.0366): miscalibration is distinguishable from sampling noise.",
+        "0.074": "ECE 0.0740 over 300 rows (10 equal width bins), against a calibrated-model floor of 0.0237 (95th percentile 0.0366): miscalibration is distinguishable from sampling noise.",
+        "0.1": "ECE 0.1000 over 300 rows (10 equal width bins), against a calibrated-model floor of 0.0237 (95th percentile 0.0366): miscalibration is distinguishable from sampling noise.",
+        "0.2": "ECE 0.2000 over 300 rows (10 equal width bins), against a calibrated-model floor of 0.0237 (95th percentile 0.0366): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 500,
+      "n_bins": 10,
+      "accuracy": 0.8,
+      "mean": 0.0355612696325439,
+      "p95": 0.053085240536494605,
+      "statements": {
+        "0.005": "ECE 0.0050 over 500 rows (10 equal width bins), against a calibrated-model floor of 0.0356 (95th percentile 0.0531): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 500 rows (10 equal width bins), against a calibrated-model floor of 0.0356 (95th percentile 0.0531): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 500 rows (10 equal width bins), against a calibrated-model floor of 0.0356 (95th percentile 0.0531): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.074": "ECE 0.0740 over 500 rows (10 equal width bins), against a calibrated-model floor of 0.0356 (95th percentile 0.0531): miscalibration is distinguishable from sampling noise.",
+        "0.1": "ECE 0.1000 over 500 rows (10 equal width bins), against a calibrated-model floor of 0.0356 (95th percentile 0.0531): miscalibration is distinguishable from sampling noise.",
+        "0.2": "ECE 0.2000 over 500 rows (10 equal width bins), against a calibrated-model floor of 0.0356 (95th percentile 0.0531): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 500,
+      "n_bins": 15,
+      "accuracy": 0.9,
+      "mean": 0.02784884432264174,
+      "p95": 0.040260151802465075,
+      "statements": {
+        "0.005": "ECE 0.0050 over 500 rows (15 equal width bins), against a calibrated-model floor of 0.0278 (95th percentile 0.0403): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 500 rows (15 equal width bins), against a calibrated-model floor of 0.0278 (95th percentile 0.0403): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 500 rows (15 equal width bins), against a calibrated-model floor of 0.0278 (95th percentile 0.0403): miscalibration is distinguishable from sampling noise.",
+        "0.074": "ECE 0.0740 over 500 rows (15 equal width bins), against a calibrated-model floor of 0.0278 (95th percentile 0.0403): miscalibration is distinguishable from sampling noise.",
+        "0.1": "ECE 0.1000 over 500 rows (15 equal width bins), against a calibrated-model floor of 0.0278 (95th percentile 0.0403): miscalibration is distinguishable from sampling noise.",
+        "0.2": "ECE 0.2000 over 500 rows (15 equal width bins), against a calibrated-model floor of 0.0278 (95th percentile 0.0403): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 500,
+      "n_bins": 5,
+      "accuracy": 0.3,
+      "mean": 0.029970541953061883,
+      "p95": 0.05014769842329827,
+      "statements": {
+        "0.005": "ECE 0.0050 over 500 rows (5 equal width bins), against a calibrated-model floor of 0.0300 (95th percentile 0.0501): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 500 rows (5 equal width bins), against a calibrated-model floor of 0.0300 (95th percentile 0.0501): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 500 rows (5 equal width bins), against a calibrated-model floor of 0.0300 (95th percentile 0.0501): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.074": "ECE 0.0740 over 500 rows (5 equal width bins), against a calibrated-model floor of 0.0300 (95th percentile 0.0501): miscalibration is distinguishable from sampling noise.",
+        "0.1": "ECE 0.1000 over 500 rows (5 equal width bins), against a calibrated-model floor of 0.0300 (95th percentile 0.0501): miscalibration is distinguishable from sampling noise.",
+        "0.2": "ECE 0.2000 over 500 rows (5 equal width bins), against a calibrated-model floor of 0.0300 (95th percentile 0.0501): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 750,
+      "n_bins": 10,
+      "accuracy": 0.99,
+      "mean": 0.005165671794089274,
+      "p95": 0.00870125465515504,
+      "statements": {
+        "0.005": "ECE 0.0050 over 750 rows (10 equal width bins), against a calibrated-model floor of 0.0052 (95th percentile 0.0087): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 750 rows (10 equal width bins), against a calibrated-model floor of 0.0052 (95th percentile 0.0087): miscalibration is distinguishable from sampling noise.",
+        "0.05": "ECE 0.0500 over 750 rows (10 equal width bins), against a calibrated-model floor of 0.0052 (95th percentile 0.0087): miscalibration is distinguishable from sampling noise.",
+        "0.074": "ECE 0.0740 over 750 rows (10 equal width bins), against a calibrated-model floor of 0.0052 (95th percentile 0.0087): miscalibration is distinguishable from sampling noise.",
+        "0.1": "ECE 0.1000 over 750 rows (10 equal width bins), against a calibrated-model floor of 0.0052 (95th percentile 0.0087): miscalibration is distinguishable from sampling noise.",
+        "0.2": "ECE 0.2000 over 750 rows (10 equal width bins), against a calibrated-model floor of 0.0052 (95th percentile 0.0087): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 1000,
+      "n_bins": 10,
+      "accuracy": 0.75,
+      "mean": 0.02675736936838183,
+      "p95": 0.04020104887001681,
+      "statements": {
+        "0.005": "ECE 0.0050 over 1000 rows (10 equal width bins), against a calibrated-model floor of 0.0268 (95th percentile 0.0402): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 1000 rows (10 equal width bins), against a calibrated-model floor of 0.0268 (95th percentile 0.0402): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 1000 rows (10 equal width bins), against a calibrated-model floor of 0.0268 (95th percentile 0.0402): miscalibration is distinguishable from sampling noise.",
+        "0.074": "ECE 0.0740 over 1000 rows (10 equal width bins), against a calibrated-model floor of 0.0268 (95th percentile 0.0402): miscalibration is distinguishable from sampling noise.",
+        "0.1": "ECE 0.1000 over 1000 rows (10 equal width bins), against a calibrated-model floor of 0.0268 (95th percentile 0.0402): miscalibration is distinguishable from sampling noise.",
+        "0.2": "ECE 0.2000 over 1000 rows (10 equal width bins), against a calibrated-model floor of 0.0268 (95th percentile 0.0402): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 1000,
+      "n_bins": 20,
+      "accuracy": 0.85,
+      "mean": 0.029019264436455913,
+      "p95": 0.03978104831245656,
+      "statements": {
+        "0.005": "ECE 0.0050 over 1000 rows (20 equal width bins), against a calibrated-model floor of 0.0290 (95th percentile 0.0398): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 1000 rows (20 equal width bins), against a calibrated-model floor of 0.0290 (95th percentile 0.0398): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 1000 rows (20 equal width bins), against a calibrated-model floor of 0.0290 (95th percentile 0.0398): miscalibration is distinguishable from sampling noise.",
+        "0.074": "ECE 0.0740 over 1000 rows (20 equal width bins), against a calibrated-model floor of 0.0290 (95th percentile 0.0398): miscalibration is distinguishable from sampling noise.",
+        "0.1": "ECE 0.1000 over 1000 rows (20 equal width bins), against a calibrated-model floor of 0.0290 (95th percentile 0.0398): miscalibration is distinguishable from sampling noise.",
+        "0.2": "ECE 0.2000 over 1000 rows (20 equal width bins), against a calibrated-model floor of 0.0290 (95th percentile 0.0398): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 1000,
+      "n_bins": 50,
+      "accuracy": 0.95,
+      "mean": 0.02521845499263482,
+      "p95": 0.031638820373931995,
+      "statements": {
+        "0.005": "ECE 0.0050 over 1000 rows (50 equal width bins), against a calibrated-model floor of 0.0252 (95th percentile 0.0316): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 1000 rows (50 equal width bins), against a calibrated-model floor of 0.0252 (95th percentile 0.0316): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 1000 rows (50 equal width bins), against a calibrated-model floor of 0.0252 (95th percentile 0.0316): miscalibration is distinguishable from sampling noise.",
+        "0.074": "ECE 0.0740 over 1000 rows (50 equal width bins), against a calibrated-model floor of 0.0252 (95th percentile 0.0316): miscalibration is distinguishable from sampling noise.",
+        "0.1": "ECE 0.1000 over 1000 rows (50 equal width bins), against a calibrated-model floor of 0.0252 (95th percentile 0.0316): miscalibration is distinguishable from sampling noise.",
+        "0.2": "ECE 0.2000 over 1000 rows (50 equal width bins), against a calibrated-model floor of 0.0252 (95th percentile 0.0316): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 2000,
+      "n_bins": 10,
+      "accuracy": 0.8,
+      "mean": 0.017489921485761555,
+      "p95": 0.02596877487096666,
+      "statements": {
+        "0.005": "ECE 0.0050 over 2000 rows (10 equal width bins), against a calibrated-model floor of 0.0175 (95th percentile 0.0260): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 2000 rows (10 equal width bins), against a calibrated-model floor of 0.0175 (95th percentile 0.0260): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 2000 rows (10 equal width bins), against a calibrated-model floor of 0.0175 (95th percentile 0.0260): miscalibration is distinguishable from sampling noise.",
+        "0.074": "ECE 0.0740 over 2000 rows (10 equal width bins), against a calibrated-model floor of 0.0175 (95th percentile 0.0260): miscalibration is distinguishable from sampling noise.",
+        "0.1": "ECE 0.1000 over 2000 rows (10 equal width bins), against a calibrated-model floor of 0.0175 (95th percentile 0.0260): miscalibration is distinguishable from sampling noise.",
+        "0.2": "ECE 0.2000 over 2000 rows (10 equal width bins), against a calibrated-model floor of 0.0175 (95th percentile 0.0260): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 2000,
+      "n_bins": 15,
+      "accuracy": 0.1,
+      "mean": 0.013880785016449071,
+      "p95": 0.02054651436977377,
+      "statements": {
+        "0.005": "ECE 0.0050 over 2000 rows (15 equal width bins), against a calibrated-model floor of 0.0139 (95th percentile 0.0205): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 2000 rows (15 equal width bins), against a calibrated-model floor of 0.0139 (95th percentile 0.0205): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.05": "ECE 0.0500 over 2000 rows (15 equal width bins), against a calibrated-model floor of 0.0139 (95th percentile 0.0205): miscalibration is distinguishable from sampling noise.",
+        "0.074": "ECE 0.0740 over 2000 rows (15 equal width bins), against a calibrated-model floor of 0.0139 (95th percentile 0.0205): miscalibration is distinguishable from sampling noise.",
+        "0.1": "ECE 0.1000 over 2000 rows (15 equal width bins), against a calibrated-model floor of 0.0139 (95th percentile 0.0205): miscalibration is distinguishable from sampling noise.",
+        "0.2": "ECE 0.2000 over 2000 rows (15 equal width bins), against a calibrated-model floor of 0.0139 (95th percentile 0.0205): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 4000,
+      "n_bins": 10,
+      "accuracy": 0.8,
+      "mean": 0.012206409389429185,
+      "p95": 0.018615275077065226,
+      "statements": {
+        "0.005": "ECE 0.0050 over 4000 rows (10 equal width bins), against a calibrated-model floor of 0.0122 (95th percentile 0.0186): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 4000 rows (10 equal width bins), against a calibrated-model floor of 0.0122 (95th percentile 0.0186): miscalibration is distinguishable from sampling noise.",
+        "0.05": "ECE 0.0500 over 4000 rows (10 equal width bins), against a calibrated-model floor of 0.0122 (95th percentile 0.0186): miscalibration is distinguishable from sampling noise.",
+        "0.074": "ECE 0.0740 over 4000 rows (10 equal width bins), against a calibrated-model floor of 0.0122 (95th percentile 0.0186): miscalibration is distinguishable from sampling noise.",
+        "0.1": "ECE 0.1000 over 4000 rows (10 equal width bins), against a calibrated-model floor of 0.0122 (95th percentile 0.0186): miscalibration is distinguishable from sampling noise.",
+        "0.2": "ECE 0.2000 over 4000 rows (10 equal width bins), against a calibrated-model floor of 0.0122 (95th percentile 0.0186): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 5000,
+      "n_bins": 20,
+      "accuracy": 0.97,
+      "mean": 0.005268464475778579,
+      "p95": 0.00761369266481136,
+      "statements": {
+        "0.005": "ECE 0.0050 over 5000 rows (20 equal width bins), against a calibrated-model floor of 0.0053 (95th percentile 0.0076): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 5000 rows (20 equal width bins), against a calibrated-model floor of 0.0053 (95th percentile 0.0076): miscalibration is distinguishable from sampling noise.",
+        "0.05": "ECE 0.0500 over 5000 rows (20 equal width bins), against a calibrated-model floor of 0.0053 (95th percentile 0.0076): miscalibration is distinguishable from sampling noise.",
+        "0.074": "ECE 0.0740 over 5000 rows (20 equal width bins), against a calibrated-model floor of 0.0053 (95th percentile 0.0076): miscalibration is distinguishable from sampling noise.",
+        "0.1": "ECE 0.1000 over 5000 rows (20 equal width bins), against a calibrated-model floor of 0.0053 (95th percentile 0.0076): miscalibration is distinguishable from sampling noise.",
+        "0.2": "ECE 0.2000 over 5000 rows (20 equal width bins), against a calibrated-model floor of 0.0053 (95th percentile 0.0076): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 10000,
+      "n_bins": 10,
+      "accuracy": 0.8,
+      "mean": 0.007729592376046467,
+      "p95": 0.011776573914467762,
+      "statements": {
+        "0.005": "ECE 0.0050 over 10000 rows (10 equal width bins), against a calibrated-model floor of 0.0077 (95th percentile 0.0118): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 10000 rows (10 equal width bins), against a calibrated-model floor of 0.0077 (95th percentile 0.0118): miscalibration is distinguishable from sampling noise.",
+        "0.05": "ECE 0.0500 over 10000 rows (10 equal width bins), against a calibrated-model floor of 0.0077 (95th percentile 0.0118): miscalibration is distinguishable from sampling noise.",
+        "0.074": "ECE 0.0740 over 10000 rows (10 equal width bins), against a calibrated-model floor of 0.0077 (95th percentile 0.0118): miscalibration is distinguishable from sampling noise.",
+        "0.1": "ECE 0.1000 over 10000 rows (10 equal width bins), against a calibrated-model floor of 0.0077 (95th percentile 0.0118): miscalibration is distinguishable from sampling noise.",
+        "0.2": "ECE 0.2000 over 10000 rows (10 equal width bins), against a calibrated-model floor of 0.0077 (95th percentile 0.0118): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 10000,
+      "n_bins": 30,
+      "accuracy": 0.9,
+      "mean": 0.008988447318912384,
+      "p95": 0.011866513346387128,
+      "statements": {
+        "0.005": "ECE 0.0050 over 10000 rows (30 equal width bins), against a calibrated-model floor of 0.0090 (95th percentile 0.0119): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 10000 rows (30 equal width bins), against a calibrated-model floor of 0.0090 (95th percentile 0.0119): miscalibration is distinguishable from sampling noise.",
+        "0.05": "ECE 0.0500 over 10000 rows (30 equal width bins), against a calibrated-model floor of 0.0090 (95th percentile 0.0119): miscalibration is distinguishable from sampling noise.",
+        "0.074": "ECE 0.0740 over 10000 rows (30 equal width bins), against a calibrated-model floor of 0.0090 (95th percentile 0.0119): miscalibration is distinguishable from sampling noise.",
+        "0.1": "ECE 0.1000 over 10000 rows (30 equal width bins), against a calibrated-model floor of 0.0090 (95th percentile 0.0119): miscalibration is distinguishable from sampling noise.",
+        "0.2": "ECE 0.2000 over 10000 rows (30 equal width bins), against a calibrated-model floor of 0.0090 (95th percentile 0.0119): miscalibration is distinguishable from sampling noise."
+      }
+    },
+    {
+      "n": 20000,
+      "n_bins": 10,
+      "accuracy": 0.65,
+      "mean": 0.006857970527670982,
+      "p95": 0.010249792847569345,
+      "statements": {
+        "0.005": "ECE 0.0050 over 20000 rows (10 equal width bins), against a calibrated-model floor of 0.0069 (95th percentile 0.0102): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.",
+        "0.02": "ECE 0.0200 over 20000 rows (10 equal width bins), against a calibrated-model floor of 0.0069 (95th percentile 0.0102): miscalibration is distinguishable from sampling noise.",
+        "0.05": "ECE 0.0500 over 20000 rows (10 equal width bins), against a calibrated-model floor of 0.0069 (95th percentile 0.0102): miscalibration is distinguishable from sampling noise.",
+        "0.074": "ECE 0.0740 over 20000 rows (10 equal width bins), against a calibrated-model floor of 0.0069 (95th percentile 0.0102): miscalibration is distinguishable from sampling noise.",
+        "0.1": "ECE 0.1000 over 20000 rows (10 equal width bins), against a calibrated-model floor of 0.0069 (95th percentile 0.0102): miscalibration is distinguishable from sampling noise.",
+        "0.2": "ECE 0.2000 over 20000 rows (10 equal width bins), against a calibrated-model floor of 0.0069 (95th percentile 0.0102): miscalibration is distinguishable from sampling noise."
+      }
+    }
+  ]
+}

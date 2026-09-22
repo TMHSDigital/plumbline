@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>plumbline: ECE floor calculator</title>
+<meta name="description" content="The ECE a perfectly calibrated model scores on n rows. Below it, a calibration claim is not measurable.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1v9' stroke='%23555' stroke-width='1.5'/%3E%3Cpath d='M5 10h6l-3 5z' fill='%23555'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #fbfbf9;
+    --fg: #1b1b1a;
+    --muted: #5d5d58;
+    --line: #d6d5cf;
+    --panel: #f1f0ec;
+    --accent: #1f5f8b;
+    --warn-bg: #fbf1dc;
+    --warn-fg: #6a4600;
+    --ok-bg: #e5f0e8;
+    --ok-fg: #1d5230;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413;
+      --fg: #e7e6e1;
+      --muted: #a3a29b;
+      --line: #3a3a36;
+      --panel: #1e1e1c;
+      --accent: #7db4dc;
+      --warn-bg: #3a2c0e;
+      --warn-fg: #f1d18f;
+      --ok-bg: #173022;
+      --ok-fg: #a9dcb8;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.55 var(--sans);
+  }
+  main { max-width: 44rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 0.5rem; }
+  h2 { font-size: 1.1rem; margin: 2rem 0 0.5rem; }
+  p { margin: 0 0 1rem; }
+  a { color: var(--accent); }
+  a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  code, .num { font-family: var(--mono); font-size: 0.92em; }
+  .lede { color: var(--muted); }
+
+  form { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 1rem; margin: 1.5rem 0 1rem; }
+  label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.25rem; }
+  .hint { display: block; font-size: 0.8rem; font-weight: 400; color: var(--muted); }
+  input {
+    width: 100%;
+    font: 1rem var(--mono);
+    padding: 0.5rem 0.6rem;
+    color: var(--fg);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+  }
+  .actions { grid-column: 1 / -1; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+  button {
+    font: 600 1rem var(--sans);
+    padding: 0.55rem 1.1rem;
+    color: var(--bg);
+    background: var(--fg);
+    border: 0;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button[disabled] { opacity: 0.55; cursor: progress; }
+  progress { flex: 1 1 8rem; height: 0.5rem; }
+  .error { color: #b3261e; }
+  @media (prefers-color-scheme: dark) { .error { color: #f2b8b5; } }
+
+  .result { border: 1px solid var(--line); border-radius: 6px; padding: 1rem; background: var(--panel); }
+  .result[hidden] { display: none; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1rem; margin: 0 0 1rem; }
+  dt { color: var(--muted); }
+  dd { margin: 0; font-family: var(--mono); }
+  .verdict { padding: 0.75rem; border-radius: 4px; margin: 0; }
+  .verdict.inconclusive { background: var(--warn-bg); color: var(--warn-fg); }
+  .verdict.distinguishable { background: var(--ok-bg); color: var(--ok-fg); }
+  .verdict strong { display: block; margin-bottom: 0.25rem; }
+
+  .provenance { font-size: 0.9rem; color: var(--muted); border-top: 1px solid var(--line); margin-top: 2rem; padding-top: 1rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>The ECE floor</h1>
+  <p class="lede">A perfectly calibrated model does not score an Expected Calibration Error of zero
+  on a finite sample. It scores something above zero, and how far above depends on how many rows
+  you have. Enter a configuration to see that floor, and optionally a measured ECE to see whether
+  it clears it.</p>
+
+  <form id="calc" novalidate>
+    <div>
+      <label for="n">Rows <span class="hint">scored cases, n</span></label>
+      <input id="n" name="n" type="number" inputmode="numeric" min="1" max="100000" step="1" value="500" required>
+    </div>
+    <div>
+      <label for="bins">Bins <span class="hint">equal width</span></label>
+      <input id="bins" name="bins" type="number" inputmode="numeric" min="1" max="1000" step="1" value="10" required>
+    </div>
+    <div>
+      <label for="accuracy">Accuracy <span class="hint">between 0 and 1</span></label>
+      <input id="accuracy" name="accuracy" type="number" inputmode="decimal" min="0.001" max="0.999" step="any" value="0.8" required>
+    </div>
+    <div>
+      <label for="measured">Measured ECE <span class="hint">optional</span></label>
+      <input id="measured" name="measured" type="number" inputmode="decimal" min="0" max="1" step="any" placeholder="e.g. 0.04">
+    </div>
+    <div class="actions">
+      <button id="go" type="submit">Compute floor</button>
+      <progress id="progress" max="1" value="0" hidden aria-label="Bootstrap progress"></progress>
+      <span id="status" role="status" aria-live="polite"></span>
+    </div>
+  </form>
+
+  <section id="result" class="result" hidden aria-live="polite" aria-labelledby="result-heading">
+    <h2 id="result-heading" style="margin-top:0">Calibrated-model floor</h2>
+    <dl>
+      <dt>Mean</dt><dd id="out-mean"></dd>
+      <dt>95th percentile</dt><dd id="out-p95"></dd>
+      <dt>Configuration</dt><dd id="out-config"></dd>
+    </dl>
+    <p id="out-read"></p>
+    <div id="out-verdict" class="verdict" hidden></div>
+  </section>
+
+  <section class="provenance" aria-labelledby="about-heading">
+    <h2 id="about-heading" style="margin-top:0;font-size:1rem">What computes this</h2>
+    <p>This calculator is a JavaScript reimplementation of plumbline's
+    <code>synthetic_floor(n, n_bins, accuracy)</code>, not the Python itself. It reproduces
+    numpy's seeded random stream draw for draw (the PCG64 generator and numpy's own normal,
+    gamma, and beta samplers), so with the same seeds it redraws exactly the outcomes the Python
+    draws. It is checked against values exported from the Python on every change, in CI, and the
+    site does not deploy if they disagree by more than 1e-9. The checked values are in
+    <a href="floor-golden.json">floor-golden.json</a>; the check is
+    <a href="https://github.com/TMHSDigital/plumbline/blob/main/scripts/check_floor_parity.mjs">scripts/check_floor_parity.mjs</a>.</p>
+    <p>The floor here is built from summary numbers: it invents <var>n</var> predicted
+    probabilities averaging your accuracy. A plumbline report uses
+    <code>calibration_floor</code> on your actual predictions instead, which conditions on how
+    they are spread, so its floor for the same row count can differ. Use this page to plan and to
+    sanity-check; use the report for the verdict on a real run.</p>
+  </section>
+</main>
+<script src="floor.js"></script>
+<script>
+(function () {
+  "use strict";
+  var F = window.PlumblineFloor;
+  var form = document.getElementById("calc");
+  var go = document.getElementById("go");
+  var progress = document.getElementById("progress");
+  var status = document.getElementById("status");
+  var result = document.getElementById("result");
+  var jobId = 0;
+
+  // A worker keeps the page responsive on large n. Opened from disk, some
+  // browsers refuse workers, so the arithmetic falls back to the page thread.
+  var worker = null;
+  try { worker = new Worker("floor-worker.js"); } catch (e) { worker = null; }
+
+  function compute(n, nBins, accuracy, onProgress) {
+    return new Promise(function (resolve, reject) {
+      if (!worker) {
+        setTimeout(function () {
+          try { resolve(F.syntheticFloor(n, nBins, accuracy)); } catch (e) { reject(e); }
+        }, 20);
+        return;
+      }
+      var id = ++jobId;
+      worker.onmessage = function (event) {
+        var m = event.data;
+        if (m.id !== id) return;
+        if (m.progress !== undefined) onProgress(m.progress);
+        else if (m.error) reject(new Error(m.error));
+        else resolve(m.band);
+      };
+      worker.onerror = function (event) {
+        // The worker could not load; do the work here instead.
+        worker = null;
+        event.preventDefault();
+        try { resolve(F.syntheticFloor(n, nBins, accuracy)); } catch (e) { reject(e); }
+      };
+      worker.postMessage({ id: id, n: n, nBins: nBins, accuracy: accuracy });
+    });
+  }
+
+  function readInputs() {
+    var n = Number(form.n.value);
+    var nBins = Number(form.bins.value);
+    var accuracy = Number(form.accuracy.value);
+    var measuredText = form.measured.value.trim();
+    var measured = measuredText === "" ? null : Number(measuredText);
+    if (!Number.isInteger(n) || n < 1 || n > 100000) return { error: "Rows must be a whole number from 1 to 100,000.", field: form.n };
+    if (!Number.isInteger(nBins) || nBins < 1 || nBins > 1000) return { error: "Bins must be a whole number from 1 to 1,000.", field: form.bins };
+    if (!(accuracy > 0 && accuracy < 1)) return { error: "Accuracy must lie strictly between 0 and 1.", field: form.accuracy };
+    if (measured !== null && !(measured >= 0 && measured <= 1)) return { error: "Measured ECE must lie between 0 and 1.", field: form.measured };
+    return { n: n, nBins: nBins, accuracy: accuracy, measured: measured };
+  }
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var input = readInputs();
+    status.classList.remove("error");
+    if (input.error) {
+      status.textContent = input.error;
+      status.classList.add("error");
+      input.field.focus();
+      return;
+    }
+    go.disabled = true;
+    progress.hidden = false;
+    progress.value = 0;
+    status.textContent = "Running 2,000 bootstrap resamples...";
+    compute(input.n, input.nBins, input.accuracy, function (f) { progress.value = f; })
+      .then(function (band) { show(band, input); status.textContent = "Done."; })
+      .catch(function (error) { status.textContent = error.message; status.classList.add("error"); })
+      .then(function () { go.disabled = false; progress.hidden = true; });
+  });
+
+  function show(band, input) {
+    document.getElementById("out-mean").textContent = F.fixed4(band.mean);
+    document.getElementById("out-p95").textContent = F.fixed4(band.p95);
+    document.getElementById("out-config").textContent =
+      band.n + " rows, " + band.nBins + " bins, accuracy " + input.accuracy;
+    document.getElementById("out-read").textContent =
+      "A perfectly calibrated model scores " + F.fixed4(band.mean) + " on average at this size, and above " +
+      F.fixed4(band.p95) + " one time in twenty. A measured ECE at or below " + F.fixed4(band.p95) +
+      " cannot be told apart from calibrated on this many rows.";
+    var verdict = document.getElementById("out-verdict");
+    if (input.measured === null) {
+      verdict.hidden = true;
+    } else {
+      var clears = F.isDistinguishable(input.measured, band);
+      verdict.className = "verdict " + (clears ? "distinguishable" : "inconclusive");
+      verdict.innerHTML = "";
+      var head = document.createElement("strong");
+      head.textContent = clears ? "Distinguishable from sampling noise" : "Inconclusive, which is not a pass";
+      var body = document.createElement("span");
+      body.textContent = F.statement(input.measured, band);
+      verdict.appendChild(head);
+      verdict.appendChild(body);
+      verdict.hidden = false;
+    }
+    result.hidden = false;
+  }
+})();
+</script>
+</body>
+</html>
