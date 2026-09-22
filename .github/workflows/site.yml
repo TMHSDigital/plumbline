@@ -3,9 +3,10 @@ name: Site
 # The site at tmhsdigital.github.io/plumbline carries a JavaScript
 # reimplementation of the calibration floor. If it disagrees with the Python,
 # the site misreports the tool, which is worse than having no site. This
-# workflow holds the two together. The site is assembled inside this job, and
-# the deploy job (not yet added) will need it, so a wrong calculator or a
-# broken doc never ships. A stale site is the better failure.
+# workflow holds the two together, checks the assembled site as a visitor would
+# meet it, and only then deploys. Pull requests run both checks and never
+# deploy; a push to main or a manual run deploys only if both pass. A stale
+# site is the better failure.
 #
 # It is deliberately separate from ci.yml and release.yml: it shares no jobs,
 # no concurrency group, and no permissions with either.
@@ -18,9 +19,11 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request makes its older run pointless. On main, a run
+# is never cancelled part way, so a deploy is never cut off.
 concurrency:
   group: site-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   parity:
@@ -44,15 +47,11 @@ jobs:
       - name: The committed fixture is what the Python produces today
         run: uv run python scripts/floor_golden.py --check
 
-      # The renderer's refusals (raw HTML off the allowlist, broken links and
-      # anchors, remote images, a modified vendored file) each have a case.
-      - name: The doc renderer refuses what it should
-        run: node scripts/render_docs.mjs --self-test
-
       # Regenerates the worked example from the mock adapter, by the command
-      # docs/example-report.md records, and refuses if the report is stale.
-      # Renders the repository's docs from this commit, and refuses on a broken
-      # link or anchor, or raw HTML outside the allowlist.
+      # docs/example-report.md records, and refuses if any line of the report
+      # differs from what that command prints today. Renders the repository's
+      # docs from this commit, and refuses on a broken link or anchor, or raw
+      # HTML outside the allowlist.
       - name: Assemble the site
         run: uv run python scripts/build_site.py --out _site
 
@@ -63,3 +62,58 @@ jobs:
         run: |
           node --version
           node scripts/check_floor_parity.mjs _site/example-run.json
+
+      # The exact bytes the deploy job publishes. On a pull request this is
+      # also a downloadable preview of the site.
+      - name: Keep the assembled site
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  docs:
+    name: the assembled site's links, anchors, and meta tags resolve
+    needs: parity
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # The renderer's refusals (raw HTML off the allowlist, broken links and
+      # anchors, remote images, a modified vendored file) each have a case.
+      - name: The doc renderer refuses what it should
+        run: node scripts/render_docs.mjs --self-test
+
+      - name: Fetch the assembled site
+        uses: actions/download-artifact@v8
+        with:
+          name: github-pages
+          path: artifact
+
+      # Checked as published, not as built: the same archive the deploy job
+      # serves, unpacked.
+      - name: Every link, anchor, and meta tag resolves, and nothing loads from another origin
+        run: |
+          mkdir site-as-published
+          tar -xf artifact/artifact.tar -C site-as-published
+          node scripts/check_site_links.mjs site-as-published
+
+  deploy:
+    name: deploy to GitHub Pages
+    needs: [parity, docs]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    # One deploy at a time; a queued one waits rather than cancelling.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+
+    steps:
+      - name: Publish the checked site
+        id: deployment
+        uses: actions/deploy-pages@v5

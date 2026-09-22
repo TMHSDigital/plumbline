@@ -5,6 +5,9 @@
 Measure whether a decision model's probabilities are trustworthy on your own
 labeled data, and decide what to do about it.
 
+Check where your own ECE sits against its floor, in the browser, with nothing
+installed: **[tmhsdigital.github.io/plumbline](https://tmhsdigital.github.io/plumbline/)**.
+
 > **v0.1.0, one maintainer.** The measurement behaviour is settled; the Python
 > API and the CLI flags are not, and will change in v0.2. Pin a version if you
 > build on it.

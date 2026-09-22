@@ -17,7 +17,6 @@ different event from one that moved because it was wrong.
   `synthetic_floor` that reproduces numpy's seeded random stream draw for draw.
   `scripts/floor_golden.py` exports golden values from the Python and
   `scripts/check_floor_parity.mjs` holds the port to them within 1e-9 in CI.
-  The page is not deployed yet.
 - The site page: the argument, a worked example that derives the example
   report's ECE line from its 105 rows in the browser, and a sample-size planner.
   `scripts/build_site.py` regenerates the example from the mock adapter at build
@@ -29,6 +28,13 @@ different event from one that moved because it was wrong.
   the runner's Node. Each page names the commit and build time it came from.
   The build fails on a broken link or anchor, on raw HTML outside a short
   allowlist, and on a modified vendored renderer.
+- The site is live at <https://tmhsdigital.github.io/plumbline/>, deployed by
+  `site.yml` from `main` only after the parity check passes and
+  `scripts/check_site_links.mjs` finds every link, anchor, and meta tag in the
+  assembled site resolving and nothing loading from another origin. Every page
+  carries a canonical URL and Open Graph and Twitter card tags; the card image
+  (`site/og.png`) is rendered from `scripts/og_image.html`. Missing paths get a
+  404 page that links back.
 
 ### Changed
 

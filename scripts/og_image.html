@@ -1,0 +1,57 @@
+<!doctype html>
+<!--
+  Source of site/og.png, the 1200x630 card image social sites show for a link
+  to the site. It is rendered once and the PNG is committed, because link
+  previews need a raster image and the build installs nothing that could draw
+  one. To regenerate: open this file in a browser with a 1200x630 viewport and
+  screenshot the viewport as PNG (for example, Playwright's page.screenshot),
+  then save it over site/og.png.
+
+  The numbers are the worked example's own: ECE 0.0740 on 105 rows against a
+  floor whose 95th percentile is 0.1109. Change them only with the report.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; }
+  body {
+    width: 1200px; height: 630px; box-sizing: border-box; padding: 72px 88px;
+    background: #fbfbf9; color: #1b1b1a;
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .kicker { font: 600 34px ui-monospace, "Cascadia Mono", Consolas, monospace; color: #5b5b56; margin: 0; }
+  h1 { font-size: 84px; line-height: 1.05; margin: 18px 0 0; letter-spacing: -0.01em; }
+  .scale { position: relative; height: 128px; }
+  .track { position: absolute; left: 0; right: 0; top: 58px; height: 12px; background: #d6d5cf; border-radius: 6px; }
+  .band { position: absolute; left: 0; top: 58px; height: 12px; background: #fbf1dc; border: 2px solid #6a4600; border-radius: 6px; box-sizing: border-box; }
+  .mark { position: absolute; top: 34px; width: 6px; height: 60px; margin-left: -3px; border-radius: 3px; }
+  .label { position: absolute; top: 100px; transform: translateX(-50%); font: 600 26px ui-monospace, "Cascadia Mono", Consolas, monospace; white-space: nowrap; }
+  .zero { position: absolute; left: 0; top: 100px; font: 600 26px ui-monospace, "Cascadia Mono", Consolas, monospace; color: #5b5b56; }
+  .foot { display: flex; justify-content: space-between; align-items: baseline; font-size: 34px; color: #5b5b56; }
+  .foot strong { color: #1b1b1a; }
+</style>
+</head>
+<body>
+  <div>
+    <p class="kicker">plumbline</p>
+    <h1>A calibration claim<br>has a floor</h1>
+  </div>
+  <!-- 0 to 0.15 across the full width: the floor's 95th percentile (0.1109)
+       and the measured ECE (0.0740) at their true positions. -->
+  <div class="scale" aria-hidden="true">
+    <div class="track"></div>
+    <div class="band" style="width: 73.93%"></div>
+    <div class="mark" style="left: 49.33%; background: #1b1b1a"></div>
+    <div class="mark" style="left: 73.93%; background: #b3261e"></div>
+    <span class="zero">0</span>
+    <span class="label" style="left: 49.33%; color: #1b1b1a">ECE 0.074</span>
+    <span class="label" style="left: 73.93%; color: #b3261e">floor p95 0.111</span>
+  </div>
+  <div class="foot">
+    <span>105 rows: <strong>inconclusive</strong>, not a pass</span>
+    <span>tmhsdigital.github.io/plumbline</span>
+  </div>
+</body>
+</html>

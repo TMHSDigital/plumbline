@@ -351,11 +351,12 @@ def render_docs(prov: Provenance) -> dict[str, dict[str, str]]:
     return rendered
 
 
-def _nav(current: str | None, up: str) -> str:
+def _nav(current: str | None, up: str, docs: str = "") -> str:
+    """Links to the explainer (``up``) and every doc (``docs`` + slug)."""
     items = [f'<li><a href="{up}">The ECE floor</a></li>']
     for doc in DOCS:
         mark = ' aria-current="page"' if doc.slug == current else ""
-        items.append(f'<li><a href="{doc.slug}.html"{mark}>{html.escape(doc.label)}</a></li>')
+        items.append(f'<li><a href="{docs}{doc.slug}.html"{mark}>{html.escape(doc.label)}</a></li>')
     joined = "\n    ".join(items)
     return f'<nav aria-label="Documentation">\n  <ul>\n    {joined}\n  </ul>\n</nav>'
 
@@ -367,6 +368,47 @@ ICON = (
     "%3Cpath d='M5 10h6l-3 5z' fill='%23555'/%3E%3C/svg%3E"
 )
 
+#: Where Pages serves the site. Canonical and Open Graph URLs are absolute, and
+#: the 404 page links by absolute path, because it is served at any depth.
+SITE_URL = "https://tmhsdigital.github.io/plumbline/"
+SITE_PATH = "/plumbline/"
+OG_IMAGE_ALT = (
+    "A calibration claim has a floor: ECE 0.074 on 105 rows sits below the floor's "
+    "95th percentile of 0.111, so the result is inconclusive."
+)
+
+
+def social_meta(title: str, description: str, url: str) -> str:
+    """Canonical, Open Graph, and Twitter card tags for one page.
+
+    ``site/index.html`` carries the same tags written out by hand, and
+    ``scripts/check_site_links.mjs`` checks every page has them and that its
+    canonical and og:url name the page itself.
+    """
+    title, description = html.escape(title), html.escape(description)
+    image = f"{SITE_URL}og.png"
+    alt = html.escape(OG_IMAGE_ALT)
+    return "\n".join(
+        (
+            f'<link rel="canonical" href="{url}">',
+            '<meta property="og:type" content="website">',
+            '<meta property="og:site_name" content="plumbline">',
+            f'<meta property="og:title" content="{title}">',
+            f'<meta property="og:description" content="{description}">',
+            f'<meta property="og:url" content="{url}">',
+            f'<meta property="og:image" content="{image}">',
+            '<meta property="og:image:width" content="1200">',
+            '<meta property="og:image:height" content="630">',
+            f'<meta property="og:image:alt" content="{alt}">',
+            '<meta name="twitter:card" content="summary_large_image">',
+            f'<meta name="twitter:title" content="{title}">',
+            f'<meta name="twitter:description" content="{description}">',
+            f'<meta name="twitter:image" content="{image}">',
+            f'<meta name="twitter:image:alt" content="{alt}">',
+        )
+    )
+
+
 PAGE = """<!doctype html>
 <html lang="en">
 <head>
@@ -374,15 +416,16 @@ PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title} | plumbline</title>
 <meta name="description" content="{description}">
+{meta}
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="{icon}">
-<link rel="stylesheet" href="../base.css">
-<link rel="stylesheet" href="../docs.css">
+<link rel="stylesheet" href="{root}base.css">
+<link rel="stylesheet" href="{root}docs.css">
 </head>
 <body>
 <a class="skip" href="#doc">Skip to the document</a>
 <header>
-<p class="kicker"><a href="../">plumbline</a></p>
+<p class="kicker"><a href="{root}">plumbline</a></p>
 {nav}
 </header>
 <main id="doc">
@@ -398,6 +441,19 @@ No analytics, no trackers, no external requests.</p>
 """
 
 
+def _page(title: str, description: str, meta: str, root: str, nav: str, body: str) -> str:
+    return PAGE.format(
+        title=html.escape(title),
+        description=html.escape(description, quote=True),
+        meta=meta,
+        icon=ICON,
+        root=root,
+        nav=nav,
+        body=body,
+        repo=REPO,
+    )
+
+
 def write_docs(out: Path, prov: Provenance, rendered: dict[str, dict[str, str]]) -> None:
     docs = out / "docs"
     docs.mkdir()
@@ -407,14 +463,8 @@ def write_docs(out: Path, prov: Provenance, rendered: dict[str, dict[str, str]])
             f'<p class="provenance">{prov.line(doc)}</p>\n'
             f'<article class="prose">\n{rendered[doc.slug]["html"]}</article>'
         )
-        page = PAGE.format(
-            title=html.escape(doc.label),
-            description=html.escape(doc.blurb, quote=True),
-            nav=_nav(doc.slug, "../"),
-            body=body,
-            repo=REPO,
-            icon=ICON,
-        )
+        meta = social_meta(f"{doc.label} | plumbline", doc.blurb, f"{SITE_URL}docs/{doc.slug}.html")
+        page = _page(doc.label, doc.blurb, meta, "../", _nav(doc.slug, "../"), body)
         (docs / f"{doc.slug}.html").write_text(page, encoding="utf-8")
 
     listing = "\n".join(
@@ -431,17 +481,24 @@ def write_docs(out: Path, prov: Provenance, rendered: dict[str, dict[str, str]])
         f"at {at}.</p>\n"
         f'<ul class="doc-list">\n{listing}\n</ul>\n</article>'
     )
-    (docs / "index.html").write_text(
-        PAGE.format(
-            title="Documentation",
-            description="plumbline's documentation, rendered from the repository.",
-            nav=_nav(None, "../"),
-            body=index,
-            repo=REPO,
-            icon=ICON,
-        ),
-        encoding="utf-8",
+    description = "plumbline's documentation, rendered from the repository."
+    meta = social_meta("Documentation | plumbline", description, f"{SITE_URL}docs/")
+    page = _page("Documentation", description, meta, "../", _nav(None, "../"), index)
+    (docs / "index.html").write_text(page, encoding="utf-8")
+
+
+def write_404(out: Path) -> None:
+    """Pages serves this for any missing path, at any depth, so it links absolutely."""
+    body = (
+        '<article class="prose">\n<h1>Not found</h1>\n'
+        "<p>There is no page at this address.</p>\n"
+        f'<p><a href="{SITE_PATH}">Go to the explainer</a>, or '
+        f'<a href="{SITE_PATH}docs/">browse the documentation</a>.</p>\n</article>'
     )
+    nav = _nav(None, SITE_PATH, f"{SITE_PATH}docs/")
+    meta = '<meta name="robots" content="noindex">'
+    page = _page("Not found", "No page at this address.", meta, SITE_PATH, nav, body)
+    (out / "404.html").write_text(page, encoding="utf-8")
 
 
 def main() -> int:
@@ -470,6 +527,7 @@ def main() -> int:
     shutil.copytree(SITE, out, ignore=shutil.ignore_patterns("vendor"))
     (out / "example-run.json").write_text(json.dumps(example, indent=1) + "\n", encoding="utf-8")
     write_docs(out, prov, rendered)
+    write_404(out)
     print(f"site assembled in {out}")
     return 0
 
