@@ -2,3 +2,7 @@
 # bytes still match the upstream file it is attributed to.
 datasets/public/*.jsonl -text
 datasets/public/LICENSE-* -text
+
+# The vendored markdown renderer is pinned by sha256 in scripts/render_docs.mjs,
+# so a line-ending conversion on checkout would fail the build.
+site/vendor/** -text

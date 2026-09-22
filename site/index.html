@@ -7,64 +7,10 @@
 <meta name="description" content="A perfectly calibrated model does not score an ECE of zero on a finite sample. Enter your row count and see the floor your number has to clear.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1v9' stroke='%23555' stroke-width='1.5'/%3E%3Cpath d='M5 10h6l-3 5z' fill='%23555'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="base.css">
 <style>
-  :root {
-    --bg: #fbfbf9;
-    --fg: #1b1b1a;
-    --muted: #5b5b56;
-    --line: #d6d5cf;
-    --panel: #f1f0ec;
-    --accent: #1f5f8b;
-    --bar: #9aa3ab;
-    --mark-measured: #1b1b1a;
-    --mark-p95: #b3261e;
-    --warn-bg: #fbf1dc;
-    --warn-fg: #6a4600;
-    --ok-bg: #e5f0e8;
-    --ok-fg: #1d5230;
-    --error: #b3261e;
-    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
-    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #141413;
-      --fg: #e7e6e1;
-      --muted: #a3a29b;
-      --line: #3a3a36;
-      --panel: #1e1e1c;
-      --accent: #7db4dc;
-      --bar: #5d666e;
-      --mark-measured: #e7e6e1;
-      --mark-p95: #f2b8b5;
-      --warn-bg: #3a2c0e;
-      --warn-fg: #f1d18f;
-      --ok-bg: #173022;
-      --ok-fg: #a9dcb8;
-      --error: #f2b8b5;
-    }
-  }
-  * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
-  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--sans); }
-  main, header, footer { max-width: 46rem; margin: 0 auto; padding: 0 1rem; }
-  header { padding-top: 2rem; }
-  .kicker { font: 600 0.85rem var(--mono); color: var(--muted); margin: 0 0 0.5rem; letter-spacing: 0.02em; }
-  h1 { font-size: 1.65rem; line-height: 1.2; margin: 0 0 0.75rem; }
-  h2 { font-size: 1.25rem; line-height: 1.3; margin: 0 0 0.75rem; }
-  h3 { font-size: 1rem; margin: 1.5rem 0 0.5rem; }
   section { padding: 2rem 0; border-top: 1px solid var(--line); }
-  p { margin: 0 0 1rem; }
-  a { color: var(--accent); }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  code, .num { font-family: var(--mono); font-size: 0.92em; }
   .lede { font-size: 1.05rem; }
-  .muted { color: var(--muted); }
-  .small { font-size: 0.9rem; }
-  nav ul { list-style: none; padding: 0; margin: 1.25rem 0 2rem; display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
-  nav a { font-size: 0.95rem; }
-  blockquote { margin: 0 0 1rem; padding: 0.75rem 1rem; border-left: 3px solid var(--line); background: var(--panel); }
-  blockquote p:last-child { margin: 0; }
   .label { display: inline-block; font: 600 0.75rem var(--mono); text-transform: uppercase; letter-spacing: 0.05em; color: var(--warn-fg); background: var(--warn-bg); padding: 0.1rem 0.4rem; border-radius: 3px; margin-bottom: 0.5rem; }
 
   form { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 1rem; margin: 1.25rem 0 1rem; }
@@ -116,10 +62,10 @@
   ol.steps { padding-left: 1.25rem; }
   ol.steps > li { margin-bottom: 1.25rem; }
   .trace { font: 0.85rem var(--mono); color: var(--muted); padding-left: 1.25rem; margin: 0 0 1rem; }
-  footer { padding-bottom: 3rem; border-top: 1px solid var(--line); padding-top: 1.5rem; font-size: 0.9rem; color: var(--muted); }
 </style>
 </head>
 <body>
+<a class="skip" href="#argument">Skip to the argument</a>
 <header>
   <p class="kicker">plumbline</p>
   <h1>A calibration claim has a floor</h1>
@@ -135,6 +81,7 @@
       <li><a href="#example">Worked example</a></li>
       <li><a href="#planner">Sample-size planner</a></li>
       <li><a href="#provenance">What computes this</a></li>
+      <li><a href="docs/">Documentation</a></li>
       <li><a href="https://github.com/TMHSDigital/plumbline">Repository</a></li>
     </ul>
   </nav>
@@ -204,7 +151,7 @@
 
   <section id="example" aria-labelledby="example-h">
     <h2 id="example-h">Worked example: the 105-row report</h2>
-    <p>The repository's <a href="https://github.com/TMHSDigital/plumbline/blob/main/docs/example-report.md">example report</a>
+    <p>The repository's <a href="docs/example-report.html">example report</a>
     prints this line:</p>
     <blockquote id="ex-report-line"><p class="muted">Loading the example...</p></blockquote>
     <p>Below, this page derives that line from the 105 rows behind it, rather than quoting it.</p>
@@ -340,7 +287,7 @@
 
 <footer>
   <p>plumbline measures whether a decision model's probabilities are trustworthy on your own labeled
-  data. It is not a leaderboard. <a href="https://github.com/TMHSDigital/plumbline">Source on GitHub</a>, MIT licensed.
+  data. It is not a leaderboard. <a href="docs/">Documentation</a>. <a href="https://github.com/TMHSDigital/plumbline">Source on GitHub</a>, Apache-2.0 licensed.
   No analytics, no trackers, no external requests.</p>
 </footer>
 

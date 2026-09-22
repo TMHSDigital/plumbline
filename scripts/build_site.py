@@ -10,6 +10,13 @@ its worked example from:
     rows, in JavaScript, and ``scripts/check_floor_parity.mjs`` fails the build if
     what it derives differs from the report by a single character.
 
+``docs/``
+    The repository's markdown docs as they are at the commit being built: each
+    one copied verbatim as ``<slug>.md`` and rendered to ``<slug>.html`` by
+    ``scripts/render_docs.mjs``, with a line naming the commit and build time it
+    came from. Nothing is written by hand and nothing is fetched at runtime, so
+    the pages cannot drift from ``main``: a deploy re-renders them.
+
 The example is regenerated from the **mock** adapter and nothing else. The
 command is read from the report, and anything other than ``--adapter mock`` is
 refused, so a vendor run can never be published through this path. The run
@@ -17,20 +24,26 @@ writes into a fresh temporary directory and only the artifact written there is
 read; no existing results directory or artifact is ever opened.
 
     uv run python scripts/build_site.py --out _site
+
+Rendering needs ``node`` on the PATH (the runner's own; nothing is installed).
 """
 
 from __future__ import annotations
 
 import argparse
 import contextlib
+import html
 import io
 import json
 import os
 import re
 import shlex
 import shutil
+import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -41,9 +54,64 @@ from plumbline.runner.execute import RunResult
 ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / "site"
 EXAMPLE_REPORT = ROOT / "docs" / "example-report.md"
+RENDERER = ROOT / "scripts" / "render_docs.mjs"
+REPO = "TMHSDigital/plumbline"
 
 #: The only adapter whose output this script will publish.
 ALLOWED_ADAPTER = "mock"
+
+
+@dataclass(frozen=True)
+class Doc:
+    source: str  # path in the repository
+    slug: str  # docs/<slug>.html and docs/<slug>.md on the site
+    label: str  # its name in the navigation
+    blurb: str  # one line on the docs index
+
+
+#: The docs the site hosts, in navigation order. A relative link between two of
+#: these becomes a link between their pages; a link to any other file goes to
+#: GitHub at the commit being built.
+DOCS = (
+    Doc(
+        "README.md",
+        "readme",
+        "README",
+        "What plumbline is, how to run it, and what it does not do.",
+    ),
+    Doc(
+        "METHODOLOGY.md",
+        "methodology",
+        "Methodology",
+        "How each figure is computed, and the floor each is reported against.",
+    ),
+    Doc(
+        "docs/example-report.md",
+        "example-report",
+        "Example report",
+        "Unedited output of one mock run: the report the explainer derives its example from.",
+    ),
+    Doc("docs/PLAN.md", "plan", "Plan", "What is built, what is deliberately not, and why."),
+    Doc("CHANGELOG.md", "changelog", "Changelog", "Notable changes per release."),
+    Doc(
+        "CONTRIBUTING.md",
+        "contributing",
+        "Contributing",
+        "How to work on the code and what CI checks.",
+    ),
+    Doc(
+        "SECURITY.md",
+        "security",
+        "Security",
+        "How to report a vulnerability, and what the scanners cover.",
+    ),
+    Doc(
+        "datasets/public/README.md",
+        "dataset",
+        "Dataset",
+        "The vendored JevBench fixture: where it comes from and its license.",
+    ),
+)
 
 ECE_LINE = re.compile(
     r"^- (ECE (?P<ece>\d\.\d{4}) over (?P<n>\d+) rows \((?P<bins>\d+) equal width bins\), "
@@ -170,6 +238,175 @@ def build_example() -> dict[str, Any]:
     }
 
 
+def _git(*arguments: str) -> str:
+    try:
+        done = subprocess.run(
+            ["git", *arguments], cwd=ROOT, capture_output=True, text=True, check=True
+        )
+    except (OSError, subprocess.CalledProcessError) as failed:
+        raise BuildError(f"git {' '.join(arguments)} failed: {failed}") from failed
+    return done.stdout
+
+
+@dataclass(frozen=True)
+class Provenance:
+    sha: str
+    built: datetime
+    #: Hosted docs whose working copy differs from the commit. Always empty in
+    #: CI; a local build says so on the page rather than claiming the commit.
+    modified: frozenset[str]
+
+    def line(self, doc: Doc) -> str:
+        short = self.sha[:7]
+        at = self.built.strftime("%Y-%m-%d %H:%M UTC")
+        source = f"https://github.com/{REPO}/blob/{self.sha}/{doc.source}"
+        commit = f"https://github.com/{REPO}/commit/{self.sha}"
+        dirty = (
+            " <strong>plus uncommitted local changes</strong>"
+            if doc.source in self.modified
+            else ""
+        )
+        return (
+            f'Rendered from <a href="{source}"><code>{html.escape(doc.source)}</code></a> '
+            f'at commit <a href="{commit}"><code>{short}</code></a>{dirty}, built {at}. '
+            f'<a href="{doc.slug}.md">Markdown source</a>.'
+        )
+
+
+def provenance() -> Provenance:
+    sha = _git("rev-parse", "HEAD").strip()
+    status = _git("status", "--porcelain", "--", *(doc.source for doc in DOCS))
+    modified = frozenset(line[3:].strip() for line in status.splitlines())
+    # SOURCE_DATE_EPOCH makes the build reproducible when it is set.
+    epoch = os.environ.get("SOURCE_DATE_EPOCH")
+    built = datetime.fromtimestamp(int(epoch), UTC) if epoch else datetime.now(UTC)
+    return Provenance(sha, built, modified)
+
+
+def render_docs(prov: Provenance) -> dict[str, dict[str, str]]:
+    """Markdown to HTML fragments, by the vendored renderer under the runner's Node."""
+    job = {
+        "repo": REPO,
+        "sha": prov.sha,
+        "tracked": _git("ls-files").splitlines(),
+        "docs": [
+            {
+                "source": doc.source,
+                "slug": doc.slug,
+                "markdown": (ROOT / doc.source).read_text(encoding="utf-8"),
+            }
+            for doc in DOCS
+        ],
+    }
+    try:
+        done = subprocess.run(
+            ["node", str(RENDERER)],
+            input=json.dumps(job),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+    except OSError as missing:
+        raise BuildError(f"could not run node to render the docs: {missing}") from missing
+    if done.returncode != 0:
+        raise BuildError(f"the docs did not render:\n{done.stderr.strip()}")
+    rendered: dict[str, dict[str, str]] = json.loads(done.stdout)
+    return rendered
+
+
+def _nav(current: str | None, up: str) -> str:
+    items = [f'<li><a href="{up}">The ECE floor</a></li>']
+    for doc in DOCS:
+        mark = ' aria-current="page"' if doc.slug == current else ""
+        items.append(f'<li><a href="{doc.slug}.html"{mark}>{html.escape(doc.label)}</a></li>')
+    joined = "\n    ".join(items)
+    return f'<nav aria-label="Documentation">\n  <ul>\n    {joined}\n  </ul>\n</nav>'
+
+
+# The explainer's plumb-bob icon, inline so the page makes no request for it.
+ICON = (
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E"
+    "%3Cpath d='M8 1v9' stroke='%23555' stroke-width='1.5'/%3E"
+    "%3Cpath d='M5 10h6l-3 5z' fill='%23555'/%3E%3C/svg%3E"
+)
+
+PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title} | plumbline</title>
+<meta name="description" content="{description}">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="{icon}">
+<link rel="stylesheet" href="../base.css">
+<link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+<a class="skip" href="#doc">Skip to the document</a>
+<header>
+<p class="kicker"><a href="../">plumbline</a></p>
+{nav}
+</header>
+<main id="doc">
+{body}
+</main>
+<footer>
+<p>Every page here is rendered from the repository at deploy time; none is edited by hand.
+<a href="https://github.com/{repo}">Source on GitHub</a>, Apache-2.0 licensed.
+No analytics, no trackers, no external requests.</p>
+</footer>
+</body>
+</html>
+"""
+
+
+def write_docs(out: Path, prov: Provenance, rendered: dict[str, dict[str, str]]) -> None:
+    docs = out / "docs"
+    docs.mkdir()
+    for doc in DOCS:
+        shutil.copyfile(ROOT / doc.source, docs / f"{doc.slug}.md")
+        body = (
+            f'<p class="provenance">{prov.line(doc)}</p>\n'
+            f'<article class="prose">\n{rendered[doc.slug]["html"]}</article>'
+        )
+        page = PAGE.format(
+            title=html.escape(doc.label),
+            description=html.escape(doc.blurb, quote=True),
+            nav=_nav(doc.slug, "../"),
+            body=body,
+            repo=REPO,
+            icon=ICON,
+        )
+        (docs / f"{doc.slug}.html").write_text(page, encoding="utf-8")
+
+    listing = "\n".join(
+        f'  <li><a href="{doc.slug}.html">{html.escape(doc.label)}</a> '
+        f'<span class="muted small">{html.escape(doc.source)}</span><br>'
+        f"{html.escape(doc.blurb)}</li>"
+        for doc in DOCS
+    )
+    at = prov.built.strftime("%Y-%m-%d %H:%M UTC")
+    index = (
+        '<article class="prose">\n<h1>Documentation</h1>\n'
+        "<p>The repository's own markdown, rendered from commit "
+        f'<a href="https://github.com/{REPO}/commit/{prov.sha}"><code>{prov.sha[:7]}</code></a> '
+        f"at {at}.</p>\n"
+        f'<ul class="doc-list">\n{listing}\n</ul>\n</article>'
+    )
+    (docs / "index.html").write_text(
+        PAGE.format(
+            title="Documentation",
+            description="plumbline's documentation, rendered from the repository.",
+            nav=_nav(None, "../"),
+            body=index,
+            repo=REPO,
+            icon=ICON,
+        ),
+        encoding="utf-8",
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", type=Path, default=ROOT / "_site", help="output directory")
@@ -183,14 +420,19 @@ def main() -> int:
 
     try:
         example = build_example()
+        prov = provenance()
+        rendered = render_docs(prov)
     except BuildError as problem:
         print(f"site build refused: {problem}", file=sys.stderr)
         return 1
 
     if out.exists():
         shutil.rmtree(out)
-    shutil.copytree(SITE, out)
+    # vendor/ holds the markdown renderer, which runs here at build time; the
+    # pages it produces need no script, so it is not shipped.
+    shutil.copytree(SITE, out, ignore=shutil.ignore_patterns("vendor"))
     (out / "example-run.json").write_text(json.dumps(example, indent=1) + "\n", encoding="utf-8")
+    write_docs(out, prov, rendered)
     print(f"site assembled in {out}")
     return 0
 
