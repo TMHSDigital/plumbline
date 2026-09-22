@@ -61,7 +61,25 @@ def test_an_accuracy_at_chance_is_not_dressed_up_as_a_result() -> None:
     figure = baseline.accuracy_figure([True] * 25 + [False] * 75, [4] * 100, n_boot=N_BOOT)
 
     assert not figure.is_distinguishable
-    assert "not distinguishable" in figure.statement()
+    statement = figure.statement()
+    assert "INCONCLUSIVE" in statement
+    assert "cannot tell the two apart" in statement
+
+
+def test_an_inconclusive_statement_does_not_read_as_a_pass() -> None:
+    """The wording must not let a reader take "no difference found" as good news.
+
+    The old wording was "not distinguishable from <null> at this sample size",
+    which is what the arithmetic says and the opposite of what it means. A
+    reader skimming a report saw their model compared against a null and no
+    difference found, and read it as a clean result.
+    """
+    figure = baseline.accuracy_figure([True] * 25 + [False] * 75, [4] * 100, n_boot=N_BOOT)
+    statement = figure.statement().lower()
+
+    assert "not a result in either direction" in statement
+    for pass_like in ("passes", "acceptable", "looks fine", "no issue", "is calibrated"):
+        assert pass_like not in statement
 
 
 def test_auroc_of_an_uninformative_score_is_not_distinguishable_from_the_null() -> None:

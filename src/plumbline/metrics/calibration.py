@@ -597,10 +597,22 @@ def verdict(measured: float, floor: FloorBand) -> str:
 
 
 def _judgment(measured: float, floor: FloorBand) -> str:
-    """The trailing clause of a verdict, so one wording serves every caller."""
+    """The trailing clause of a verdict, so one wording serves every caller.
+
+    The inconclusive wording puts the failure on the measurement, not on the
+    model. "Not distinguishable from a perfectly calibrated model" is literally
+    what the arithmetic says, and it reads as a pass: a reader skimming a
+    report sees their model compared to a perfect one and no difference found.
+    What it actually means is that this dataset is too small to resolve the
+    question either way, which is the absence of a result rather than a good
+    one. The sentence has to say so, because the sentence is what gets read.
+    """
     if is_distinguishable(measured, floor):
         return "miscalibration is distinguishable from sampling noise."
     return (
-        "not distinguishable from a perfectly calibrated model at this sample size. "
-        "Collect more rows before reading anything into it."
+        "INCONCLUSIVE at this sample size. A perfectly calibrated model would "
+        "often score this badly on this many rows, so this dataset cannot tell "
+        "the two apart. This is not a clean bill of health: nothing was "
+        "established either way. Collect more rows to make the question "
+        "answerable."
     )

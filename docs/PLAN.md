@@ -310,11 +310,12 @@ rewrite.
 ### What the run says about the tool
 
 Accuracy 0.6500 over 40 rows against a chance null of 0.2571, better than
-chance. ECE 0.1070 against a calibrated-model floor of 0.1400, **not
-distinguishable from a perfectly calibrated model at this sample size**. Brier
-0.1737 against a floor of 0.1512, also not distinguishable. Confidence AUROC
-0.7981 against a permutation null of 0.5013, separates correct from incorrect.
-Recalibration refused: it needs 200 held-out rows and this split has 20.
+chance. ECE 0.1070 against a calibrated-model floor of 0.1400, **inconclusive:
+40 rows cannot tell this apart from a perfectly calibrated model, which
+establishes nothing in either direction**. Brier 0.1737 against a floor of
+0.1512, also inconclusive. Confidence AUROC 0.7981 against a permutation null
+of 0.5013, separates correct from incorrect. Recalibration refused: it needs
+200 held-out rows and this split has 20.
 
 That is the intended behaviour at n = 40 and it is the argument the README
 makes.

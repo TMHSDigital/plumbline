@@ -148,9 +148,11 @@ def _how_to_read() -> list[str]:
         "",
         "- Every figure states the rows it was computed on and the null it is read "
         "against. A number on its own is not a finding.",
-        '- "Not distinguishable" means the value sits inside what the null produces at '
-        "this sample size. It does not mean the systems are the same; it means this "
-        "dataset cannot tell them apart yet.",
+        '- **"INCONCLUSIVE" is not a pass.** It means the value sits inside what the '
+        "null already produces at this sample size, so this dataset cannot tell the two "
+        "apart. Nothing was established in either direction. A model that is genuinely "
+        "well calibrated and one that is badly calibrated can both land here on too few "
+        "rows, and the figure does not say which you have.",
         "- Arms are grouped by what kind of number they report. **Figures in different "
         "groups are not comparable** and are never placed side by side.",
         '- "Not reported" is a result with a reason attached, not a missing cell.',
