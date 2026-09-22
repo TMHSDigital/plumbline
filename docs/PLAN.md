@@ -6,7 +6,7 @@ this page and pick up where the work stopped.
 
 **v0.1 is complete.** Code, docs, CI, licence and the live validation all
 landed on 2026-09-21. CI is green on Ubuntu and Windows across Python 3.12 and
-3.13. `v0.1.0` is tagged locally and has not been pushed.
+3.13. `v0.1.0` is tagged and released.
 
 What remains is a short list of manual steps for a human, in "Pre-public
 checklist" at the bottom of this page. The repository is still private, and

@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from plumbline import cli
+from plumbline import __version__, cli
 
 runner = CliRunner()
 FIXTURE = Path(__file__).resolve().parent.parent / "datasets/public/jevbench-hard.jsonl"
@@ -61,10 +61,18 @@ def test_it_lists_the_transports_it_can_run() -> None:
 
 
 def test_it_reports_its_version() -> None:
+    """Exactly, not as a substring.
+
+    This asserted ``"0.1.0" in stdout``, which is true of ``0.1.0.dev0`` as
+    well, so a release tagged v0.1.0 shipped a package still calling itself
+    ``0.1.0.dev0`` and the test stayed green. Comparing against ``__version__``
+    also pins the CLI to the package rather than to a literal that has to be
+    remembered in two places.
+    """
     result = invoke("version")
 
     assert result.exit_code == 0
-    assert "0.1.0" in result.stdout
+    assert result.stdout.strip() == __version__
 
 
 def test_a_run_writes_an_artifact_and_a_report(tmp_path: Path) -> None:

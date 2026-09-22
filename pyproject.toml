@@ -1,6 +1,6 @@
 [project]
 name = "plumbline"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Choose and configure a decision model on your own labeled data."
 readme = "README.md"
 requires-python = ">=3.12"
