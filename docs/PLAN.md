@@ -127,6 +127,45 @@ Settled during the build. Reopen one only with a reason, not from scratch.
   control for it is the `--pricing` design plus a test. SECURITY.md says so in
   full, because a green scanning badge invites the wrong assumption.
 
+- The site's calculator (`site/floor.js`) is a JavaScript port of the floor that
+  reproduces numpy's random stream draw for draw, not a statistical
+  approximation of it. It is held to golden values from the Python within 1e-9
+  by `.github/workflows/site.yml`, and a failing check blocks the deploy: a
+  stale site is the better failure than a wrong one.
+- The site's worked example is regenerated at deploy time from the **mock**
+  adapter by the command `docs/example-report.md` records. `scripts/build_site.py`
+  refuses any other adapter, so no vendor's rows can reach the site through it.
+
+### The site's port depends on numpy's random streams
+
+numpy does not promise that `Generator` streams are stable across versions. The
+port reproduces numpy 2.5.3's PCG64, its ziggurat normal and exponential
+samplers (with their tables copied from that release), `random_standard_gamma`,
+and `random_beta`. If a numpy release changes any of those, the port and the
+Python silently diverge.
+
+- **What breaks.** The first draw that differs shifts every draw after it, so
+  the floors move by around 1e-3, not by rounding error.
+- **How it shows up.** `site.yml` runs on every pull request, with no path
+  filter, so a Dependabot pull request that bumps numpy in `uv.lock` runs it.
+  `scripts/floor_golden.py --check` fails first if the Python's own floors
+  moved ("fixture is stale"); after regenerating the fixture,
+  `check_floor_parity.mjs` fails with every case listed. Either way it fails on
+  the pull request, not on `main`, and the site keeps serving the last good
+  build.
+- **The fix.** Re-port the sampler that changed from the new numpy source
+  (`numpy/random/src/distributions/distributions.c`,
+  `ziggurat_constants.h`, and `pcg64/pcg64.h` at the new tag), update the version
+  named in `floor.js`, regenerate the fixture, and let the check pass. Do not
+  loosen the tolerance to make it pass: a tolerance wide enough to absorb a
+  desynchronised stream is wide enough to absorb a wrong port.
+- **Why numpy is not pinned tighter in `pyproject.toml`.** The site builds with
+  `uv sync --locked`, so the version the port runs against is `uv.lock`'s exact
+  pin, which is already tighter than a major.minor bound. A bound in
+  `pyproject.toml` would constrain everyone who installs plumbline, for the sake
+  of a page they never run, and would protect the site from nothing the lock
+  does not already cover.
+
 ### Repository files and tooling deliberately not added
 
 Considered and declined on 2026-09-21. Listed so they are not re-proposed as

@@ -1,8 +1,10 @@
 /*
  * The calibrated-model floor for ECE, reimplemented from plumbline's Python.
  *
- * This is a port of plumbline.metrics.calibration.synthetic_floor, and it is
- * meant to produce the same numbers, not numbers like them. It does that by
+ * This is a port of plumbline.metrics.calibration.synthetic_floor and
+ * calibration_floor (ECE, equal-width bins), plus ece() and reliability(), and
+ * it is meant to produce the same numbers, not numbers like them. planRows() is
+ * the one function here with no Python counterpart; it only calls the others. It does that by
  * reproducing numpy's random stream draw for draw: the PCG64 bit generator,
  * numpy's ziggurat normal and exponential samplers, its Marsaglia-Tsang gamma,
  * and its beta. With the same seeds the Python uses (0 for the invented
@@ -254,52 +256,110 @@
     return total / values.length;
   }
 
-  /**
-   * The ECE a perfectly calibrated model scores on n rows, from summary numbers.
-   *
-   * Mirrors synthetic_floor(n, n_bins, accuracy) with equal-width bins: invent n
-   * predicted probabilities from Beta(accuracy * 6, (1 - accuracy) * 6), then
-   * redraw every outcome from Bernoulli(p_i) n_boot times and read the ECE of
-   * each resample. Returns { mean, p95, n, nBins, nBoot }.
-   *
-   * options.onProgress(fraction) is called during the bootstrap, for the page.
-   */
-  function syntheticFloor(n, nBins, accuracy, options) {
-    options = options || {};
-    var nBoot = options.nBoot || DEFAULT_N_BOOT;
-    var concentration = options.concentration || DEFAULT_CONCENTRATION;
-    var onProgress = options.onProgress;
-    nBins = nBins || DEFAULT_N_BINS;
-
-    if (!(Number.isInteger(n) && n >= 1)) throw new Error("n must be a whole number of rows, at least 1");
-    if (!(Number.isInteger(nBins) && nBins >= 1)) throw new Error("the bin count must be a whole number, at least 1");
-    if (!(accuracy > 0 && accuracy < 1)) throw new Error("accuracy must lie strictly inside (0, 1)");
-
-    var seed = 0;
-    var g = generator(seed);
-    var a = accuracy * concentration;
-    var b = (1.0 - accuracy) * concentration;
-    var probabilities = new Float64Array(n);
-    for (var i = 0; i < n; i++) probabilities[i] = beta(g, a, b);
-
-    // _bootstrap_floor, equal-width binning.
+  function binIndices(probabilities, nBins) {
+    // bin_assignments, equal width: floor(p * n_bins), clipped into range.
+    var n = probabilities.length;
     var index = new Int32Array(n);
-    var counts = new Float64Array(nBins);
-    var summed = new Float64Array(nBins);
-    for (i = 0; i < n; i++) {
+    for (var i = 0; i < n; i++) {
       var bin = Math.floor(probabilities[i] * nBins);
       if (bin < 0) bin = 0;
       if (bin > nBins - 1) bin = nBins - 1;
       index[i] = bin;
-      counts[bin] += 1;
-      summed[bin] += probabilities[i];
+    }
+    return index;
+  }
+
+  function checkBins(nBins) {
+    if (!(Number.isInteger(nBins) && nBins >= 1)) {
+      throw new Error("the bin count must be a whole number, at least 1");
+    }
+  }
+
+  /**
+   * reliability(): per occupied bin, the row count, mean predicted probability,
+   * and accuracy. For display; ece() below does the same sums in the same order.
+   */
+  function reliability(probabilities, correct, nBins) {
+    nBins = nBins || DEFAULT_N_BINS;
+    checkBins(nBins);
+    var index = binIndices(probabilities, nBins);
+    var counts = new Float64Array(nBins);
+    var summedProbability = new Float64Array(nBins);
+    var summedCorrect = new Float64Array(nBins);
+    for (var i = 0; i < probabilities.length; i++) {
+      counts[index[i]] += 1;
+      summedProbability[index[i]] += probabilities[i];
+      summedCorrect[index[i]] += correct[i] ? 1 : 0;
+    }
+    var bins = [];
+    for (var k = 0; k < nBins; k++) {
+      if (counts[k] === 0) continue;
+      var meanProbability = summedProbability[k] / counts[k];
+      var accuracy = summedCorrect[k] / counts[k];
+      bins.push({
+        index: k,
+        lower: k / nBins,
+        upper: (k + 1) / nBins,
+        count: counts[k],
+        meanProbability: meanProbability,
+        accuracy: accuracy,
+        gap: Math.abs(accuracy - meanProbability),
+      });
+    }
+    return bins;
+  }
+
+  /**
+   * ECE of observed rows: the count-weighted mean per-bin gap, as ece() computes it.
+   */
+  function ece(probabilities, correct, nBins) {
+    nBins = nBins || DEFAULT_N_BINS;
+    checkBins(nBins);
+    var n = probabilities.length;
+    if (!n || n !== correct.length) throw new Error("probabilities and outcomes must be non-empty and the same length");
+    var index = binIndices(probabilities, nBins);
+    var counts = new Float64Array(nBins);
+    var summedProbability = new Float64Array(nBins);
+    var summedCorrect = new Float64Array(nBins);
+    for (var i = 0; i < n; i++) {
+      counts[index[i]] += 1;
+      summedProbability[index[i]] += probabilities[i];
+      summedCorrect[index[i]] += correct[i] ? 1 : 0;
+    }
+    var weighted = 0;
+    var total = 0;
+    for (var k = 0; k < nBins; k++) {
+      if (counts[k] === 0) continue;
+      var gap = Math.abs(summedCorrect[k] / counts[k] - summedProbability[k] / counts[k]);
+      weighted += counts[k] * gap;
+      total += counts[k];
+    }
+    return weighted / total;
+  }
+
+  /**
+   * _bootstrap_floor, equal-width binning, ECE only. Holds the probabilities
+   * fixed and redraws every outcome from Bernoulli(p_i), n_boot times.
+   */
+  function bootstrapFloor(probabilities, nBins, options) {
+    var nBoot = options.nBoot || DEFAULT_N_BOOT;
+    var seed = options.seed;
+    var onProgress = options.onProgress;
+    var n = probabilities.length;
+
+    var index = binIndices(probabilities, nBins);
+    var counts = new Float64Array(nBins);
+    var summed = new Float64Array(nBins);
+    for (var i = 0; i < n; i++) {
+      counts[index[i]] += 1;
+      summed[index[i]] += probabilities[i];
     }
     var meanProbability = new Float64Array(nBins);
     for (var k = 0; k < nBins; k++) {
       if (counts[k] > 0) meanProbability[k] = summed[k] / counts[k];
     }
 
-    var boot = generator(seed + 1);
+    var boot = generator(seed);
     var draws = new Float64Array(nBoot);
     var correct = new Float64Array(nBins);
     var every = Math.max(1, Math.floor(nBoot / 50));
@@ -319,7 +379,142 @@
     }
     if (onProgress) onProgress(1);
 
-    return { metric: "ece", mean: mean(draws), p95: percentile(draws, 95), n: n, nBins: nBins, nBoot: nBoot };
+    var band = { metric: "ece", mean: mean(draws), p95: percentile(draws, 95), n: n, nBins: nBins, nBoot: nBoot };
+    if (options.keepDraws) band.draws = Array.from(draws);
+    return band;
+  }
+
+  /**
+   * The ECE floor for these exact predictions: calibration_floor(series, n_bins)
+   * with its defaults, which is the floor a plumbline report prints.
+   *
+   * options: onProgress(fraction), keepDraws (return every resample's ECE).
+   */
+  function calibrationFloor(probabilities, nBins, options) {
+    options = options || {};
+    nBins = nBins || DEFAULT_N_BINS;
+    checkBins(nBins);
+    if (!probabilities.length) throw new Error("no predictions to build a floor from");
+    return bootstrapFloor(Float64Array.from(probabilities), nBins, {
+      seed: 0,
+      nBoot: options.nBoot,
+      onProgress: options.onProgress,
+      keepDraws: options.keepDraws,
+    });
+  }
+
+  /**
+   * The ECE a perfectly calibrated model scores on n rows, from summary numbers.
+   *
+   * Mirrors synthetic_floor(n, n_bins, accuracy) with equal-width bins: invent n
+   * predicted probabilities from Beta(accuracy * 6, (1 - accuracy) * 6), then
+   * redraw every outcome from Bernoulli(p_i) n_boot times and read the ECE of
+   * each resample. Returns { mean, p95, n, nBins, nBoot }.
+   *
+   * options: onProgress(fraction), keepDraws (return every resample's ECE).
+   */
+  function syntheticFloor(n, nBins, accuracy, options) {
+    options = options || {};
+    var concentration = options.concentration || DEFAULT_CONCENTRATION;
+    nBins = nBins || DEFAULT_N_BINS;
+
+    if (!(Number.isInteger(n) && n >= 1)) throw new Error("n must be a whole number of rows, at least 1");
+    checkBins(nBins);
+    if (!(accuracy > 0 && accuracy < 1)) throw new Error("accuracy must lie strictly inside (0, 1)");
+
+    var seed = 0;
+    var g = generator(seed);
+    var a = accuracy * concentration;
+    var b = (1.0 - accuracy) * concentration;
+    var probabilities = new Float64Array(n);
+    for (var i = 0; i < n; i++) probabilities[i] = beta(g, a, b);
+
+    var band = bootstrapFloor(probabilities, nBins, {
+      seed: seed + 1,
+      nBoot: options.nBoot,
+      onProgress: options.onProgress,
+      keepDraws: options.keepDraws,
+    });
+    if (options.keepProbabilities) band.probabilities = Array.from(probabilities);
+    return band;
+  }
+
+  /* ------------------------------------------------------------- planner */
+
+  // Not a port: the Python has no planner. It searches over n by calling
+  // syntheticFloor, so every figure it reports for a given n is one the Python
+  // would produce for that n. The search itself is a heuristic and makes no
+  // claim to find the exact smallest n: the floor falls roughly as 1/sqrt(n),
+  // so each step rescales by (p95 / target)^2, and the answer is rounded up to
+  // two significant figures and then confirmed by computing the floor there.
+
+  var DEFAULT_MAX_ROWS = 100000;
+
+  function niceCeil(x) {
+    if (x <= 100) return Math.max(1, Math.ceil(x));
+    var step = Math.pow(10, Math.floor(Math.log10(x)) - 1);
+    return Math.ceil(x / step) * step;
+  }
+
+  /**
+   * About how many rows until a measured ECE of `target` clears the summary
+   * floor's 95th percentile, at this bin count and accuracy.
+   *
+   * Returns { rows, band, evaluations } when found, or { exceeds: true,
+   * maxRows, band, extrapolated, evaluations } when more than options.maxRows
+   * (100,000 by default) would be needed. options.onStep(evaluations) and
+   * options.onProgress(fraction) report progress, for the page.
+   */
+  function planRows(target, nBins, accuracy, options) {
+    options = options || {};
+    var maxRows = options.maxRows || DEFAULT_MAX_ROWS;
+    if (!(target > 0 && target < 1)) throw new Error("the ECE to detect must lie strictly between 0 and 1");
+    var evaluations = [];
+
+    function evaluate(n) {
+      var band = syntheticFloor(n, nBins, accuracy, { onProgress: options.onProgress });
+      evaluations.push({ n: n, mean: band.mean, p95: band.p95 });
+      if (options.onStep) options.onStep(evaluations.slice());
+      return band;
+    }
+
+    function exceeded(band) {
+      return {
+        exceeds: true,
+        maxRows: maxRows,
+        band: band,
+        extrapolated: niceCeil(maxRows * Math.pow(band.p95 / target, 2)),
+        evaluations: evaluations,
+      };
+    }
+
+    // Rescale toward the target a few times.
+    var n = Math.min(200, maxRows);
+    var band = evaluate(n);
+    for (var step = 0; step < 4; step++) {
+      if (Math.abs(band.p95 - target) / target < 0.03) break;
+      var next = Math.min(maxRows, Math.max(1, Math.ceil(n * Math.pow(band.p95 / target, 2))));
+      if (next === n) break;
+      n = next;
+      band = evaluate(n);
+      if (n === maxRows && band.p95 >= target) return exceeded(band);
+    }
+
+    // Round up, then confirm the floor at the rounded n actually clears.
+    var rows = niceCeil(n);
+    if (rows !== n) band = evaluate(rows);
+    for (var bump = 0; band.p95 >= target && bump < 5; bump++) {
+      rows = niceCeil(rows * 1.1 + 1);
+      if (rows > maxRows) {
+        rows = maxRows;
+        band = evaluate(rows);
+        if (band.p95 >= target) return exceeded(band);
+        break;
+      }
+      band = evaluate(rows);
+    }
+    if (band.p95 >= target) return exceeded(band);
+    return { rows: rows, band: band, evaluations: evaluations };
   }
 
   /* -------------------------------------------------------------- wording */
@@ -856,6 +1051,10 @@
 
   var api = {
     syntheticFloor: syntheticFloor,
+    calibrationFloor: calibrationFloor,
+    ece: ece,
+    reliability: reliability,
+    planRows: planRows,
     statement: statement,
     judgment: judgment,
     isDistinguishable: isDistinguishable,

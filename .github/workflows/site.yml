@@ -44,9 +44,15 @@ jobs:
       - name: The committed fixture is what the Python produces today
         run: uv run python scripts/floor_golden.py --check
 
+      # Regenerates the worked example from the mock adapter, by the command
+      # docs/example-report.md records, and refuses if the report is stale.
+      - name: Assemble the site
+        run: uv run python scripts/build_site.py --out _site
+
       # The runner's own Node, with no setup action and no package install.
-      # The check uses the standard library only.
-      - name: floor.js reproduces the fixture
+      # The check uses the standard library only. Given the built example, it
+      # also requires the page to derive the report's ECE line exactly.
+      - name: floor.js reproduces the fixture and the example report
         run: |
           node --version
-          node scripts/check_floor_parity.mjs
+          node scripts/check_floor_parity.mjs _site/example-run.json
