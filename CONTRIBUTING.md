@@ -26,6 +26,14 @@ the conversation toward config before anyone writes code.
 If a vendor is nearly compatible and something small blocks it, that is a bug in
 the adapter worth fixing, not a reason for a fourth one.
 
+**A new adapter config must not commit the vendor's published rates.** Name the
+tariff page and leave the figures to the operator's own `--pricing` table. Some
+vendors' terms make their pricing confidential and override the usual
+public-knowledge exclusion, so copying a rate out of a public page into a file
+this project publishes is a disclosure by this project. Secret scanning will not
+catch it, because a price is not a credential format; see SECURITY.md and the
+test named there.
+
 ## The rule about figures
 
 **No figure may be rendered without its n and its null.**
