@@ -16,16 +16,16 @@ The remaining work is the v0.2 milestone, and #3 comes first.
 
 ## Phases
 
-- **Phase 6 — adapters: `local_logits` and `generative`.** Landed. The restricted
+- **Phase 6: adapters, `local_logits` and `generative`.** Landed. The restricted
   softmax over a pinned checkpoint, and the text-generating control arm.
-- **Phase 7 — datasets.** Landed. The JSONL loader that refuses unscoreable
+- **Phase 7: datasets.** Landed. The JSONL loader that refuses unscoreable
   rows, the JevBench public fixture and its translation, and the end-to-end
   smoke run in `examples/smoke_public_dataset.py`.
-- **Phase 8 — report and CLI.** Landed. The markdown report groups arms by
+- **Phase 8: report and CLI.** Landed. The markdown report groups arms by
   `probability_semantics`, states every figure's row count and null, and demotes
   MCE to diagnostics. `src/plumbline/cli.py` exists, so the `plumbline` console
   script pyproject declares now works: `run`, `report`, `adapters`, `version`.
-- **Phase 9 — recalibration, the cascade, and the methodology.** Landed. The
+- **Phase 9: recalibration, the cascade, and the methodology.** Landed. The
   report fits a temperature on a held-out half and prints the verdict rather
   than the number when the verdict is a refusal; the cascade section ends in one
   sentence naming the threshold, the coverage, the expected cost, and the cost
@@ -71,7 +71,7 @@ Settled during the build. Reopen one only with a reason, not from scratch.
 - ECE and MCE are always reported against their calibrated-null floor.
 - MCE is demoted to a diagnostics block, never beside ECE, because it cannot
   detect gross overconfidence at 500 rows.
-- Recalibration has three verdicts — recommended, partial, refused — and emits no
+- Recalibration has three verdicts (recommended, partial, refused) and emits no
   temperature on refusal.
 - Latency percentiles use nearest rank, not interpolation.
 - Adapters are organized by transport; a new vendor is config, not code.
@@ -312,7 +312,7 @@ side. The figures are deliberately not reproduced here; read the page.
 That settles the open question that had blocked cost entirely. The previous
 shipped entry quoted an SDK field description for the output side and carried no
 input price at all, so `is_priced` was False and **the cost guard refused any run
-with `--max-cost-usd` set** — it cannot bound a run it cannot cost.
+with `--max-cost-usd` set**: it cannot bound a run it cannot cost.
 
 **What plumbline ships is a separate decision from what the tariff says.** MCA
 14.1 makes the vendor's pricing information confidential and explicitly

@@ -24,6 +24,13 @@ different event from one that moved because it was wrong.
   time and refuses if `docs/example-report.md` no longer matches its own
   command.
 
+### Changed
+
+- Report bullets separate the label from the figure with a colon instead of an
+  em dash (`- **Cost**: not reported.`), and the docs no longer use em dashes.
+  A CI job now fails on an em dash in tracked markdown or `src/`. **This
+  changes report text, not any number.**
+
 ### Fixed
 
 - The inconclusive verdict read as a pass. "Not distinguishable from a
@@ -55,7 +62,7 @@ different event from one that moved because it was wrong.
   since the closest thing to a disclosure this project has had was a vendor's
   price, which no scanner recognises.
 
-## v0.1.0 — 2026-09-21
+## v0.1.0 (2026-09-21)
 
 First release.
 
