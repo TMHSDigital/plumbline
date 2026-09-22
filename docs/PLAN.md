@@ -125,6 +125,38 @@ Settled during the build. Reopen one only with a reason, not from scratch.
   control for it is the `--pricing` design plus a test. SECURITY.md says so in
   full, because a green scanning badge invites the wrong assumption.
 
+### Repository files and tooling deliberately not added
+
+Considered and declined on 2026-09-21. Listed so they are not re-proposed as
+oversights. Each would be defensible later for a stated reason; none is
+defensible merely because projects usually have one.
+
+- **`.editorconfig`.** ruff already owns formatting here, CI enforces
+  `ruff format --check`, and no tool in this repository reads an editorconfig.
+  Adding one creates a second source of truth for line length and indentation
+  that can silently disagree with the first. `.gitattributes` already pins the
+  vendored fixture's bytes, which is the only line-ending rule that affects
+  correctness. Revisit if a contributor's editor is actually fighting ruff.
+- **pre-commit.** It would catch exactly what CI already catches, in exchange
+  for a setup step in CONTRIBUTING, a pinned-hook config to keep current, and a
+  second place where the lint versions live. `uv run ruff check . && uv run
+  mypy --strict` is already documented and is one command. Revisit if CI
+  minutes or review round-trips become the bottleneck, which at this size they
+  are not.
+- **CODEOWNERS.** One maintainer. The file would assign every path to the
+  person who would be reviewing it anyway, and the ruleset already requires a
+  pull request. Revisit on the second maintainer.
+- **`CITATION.cff`.** Nobody has cited this. A citation file asserting how to
+  cite work nobody has referenced is a claim about its significance rather than
+  a service to a reader. Revisit if someone references the METHODOLOGY results.
+- **PyPI publishing.** Premature. It commits the project to a name and to a
+  release cadence before the API has settled, and the API is explicitly not
+  stable before v0.2. The README says cloning is the install path, which is
+  honest and costs a reader one command. Revisit when the CLI flags stop
+  moving.
+- **CI dependency caching** was not added because it was already there:
+  `astral-sh/setup-uv` runs with `enable-cache: true`.
+
 ## Live validation
 
 Run on **2026-09-21**. Model requested `jev-latest`; model that answered
