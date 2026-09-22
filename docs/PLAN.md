@@ -164,7 +164,11 @@ Python silently diverge.
   pin, which is already tighter than a major.minor bound. A bound in
   `pyproject.toml` would constrain everyone who installs plumbline, for the sake
   of a page they never run, and would protect the site from nothing the lock
-  does not already cover.
+  does not already cover. The existing `numpy>=2.1` floor is also not looser
+  than the port tolerates: on 2026-09-22, `floor_golden.py --check` matched all
+  27 cases under numpy 2.1.3, 2.2.6, 2.3, 2.4.6, and 2.5.3, so a user on any of
+  those gets the floors the site shows. To recheck a version, run
+  `uv run --isolated --with 'numpy==X.Y.*' python scripts/floor_golden.py --check`.
 
 ### Repository files and tooling deliberately not added
 
