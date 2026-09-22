@@ -69,15 +69,15 @@ The vendor asserts these probabilities are calibrated. Whether that survives con
 
 ### mock
 
-- **Model** — requested `mock-1`, reported `mock-1`.
-- **Asked** — 67 choice asked as choice, 38 noul asked as choice.
+- **Model**: requested `mock-1`, reported `mock-1`.
+- **Asked**: 67 choice asked as choice, 38 noul asked as choice.
   - 38 noul rows were asked as choice questions, which is a different question from the one the dataset states. Not comparable with an arm that asked them as noul.
 - Accuracy 0.7714 over 105 rows, against a chance null of 0.3416 (95th percentile 0.4190): better than chance at this sample size.
 - ECE 0.0740 over 105 rows (10 equal width bins), against a calibrated-model floor of 0.0707 (95th percentile 0.1109): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.
 - Brier 0.1711 over 105 rows, against a calibrated-model floor of 0.1489 (95th percentile 0.1839): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.
-- **Confidence** — AUROC 0.6034 over 105 rows, against a permutation null of 0.4997 (95th percentile 0.6116): INCONCLUSIVE at this sample size. Permutation would often score this well on this many rows, so this dataset cannot tell the two apart. This is not a result in either direction. Collect more rows to make the question answerable.
-- **Cost** — not reported. No cost available. None of the 105 cases could be priced, so cost is not reported rather than being shown as zero. 105 rows: tokens were reported, but the model that answered is not priced.
-- **Latency** — p50 37.7ms, p95 85.0ms, p99 104.7ms over 105 live calls
+- **Confidence**: AUROC 0.6034 over 105 rows, against a permutation null of 0.4997 (95th percentile 0.6116): INCONCLUSIVE at this sample size. Permutation would often score this well on this many rows, so this dataset cannot tell the two apart. This is not a result in either direction. Collect more rows to make the question answerable.
+- **Cost**: not reported. No cost available. None of the 105 cases could be priced, so cost is not reported rather than being shown as zero. 105 rows: tokens were reported, but the model that answered is not priced.
+- **Latency**: p50 37.7ms, p95 85.0ms, p99 104.7ms over 105 live calls
 
 #### Recalibration
 

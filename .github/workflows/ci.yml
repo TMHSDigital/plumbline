@@ -126,6 +126,23 @@ jobs:
           echo "$out" | grep -q "requires" || { echo "expected a named refusal, got:"; echo "$out"; exit 1; }
           echo "$out" | grep -qv "Traceback" || { echo "traceback leaked"; exit 1; }
 
+  # The house style has no em dashes, and the report's own strings are prose a
+  # reader sees. datasets/public/ is excluded because it holds vendored
+  # third-party rows that are reproduced as published.
+  prose:
+    name: no em dashes in the docs or the report strings
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Tracked markdown and src/ contain no em dash
+        run: |
+          if git grep -n -P '\x{2014}' -- '*.md' 'src/' ':!datasets/public/'; then
+            echo "::error::em dash found above; use a comma, colon, parentheses, or a new sentence"
+            exit 1
+          fi
+
   # Gate 6 found that the built distribution is a different artifact from the
   # source tree: the entry point, the optional extra boundary, and py.typed all
   # only exist once packaged.

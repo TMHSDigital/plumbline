@@ -25,7 +25,7 @@ prompts differ, and the scoring differs:
 - JevBench asks each row through its own harness. plumbline composes a case text
   from the row's `question.instructions` above its `state` and sends that through
   whichever adapter is under test, with that adapter's own prompt shape.
-- JevBench's rows come in three question types — `choice`, `noul`, and `score`.
+- JevBench's rows come in three question types: `choice`, `noul`, and `score`.
   plumbline asks each row as the type it declares, where the transport has one:
   a `noul` row is asked as a Noul by `typesafe_wire`, and as a two-option choice
   by a transport with no Noul. Those are different questions, so every record
@@ -53,6 +53,6 @@ python examples/smoke_public_dataset.py
 
 Loads this file, runs the mock adapter over it, computes the metrics, and writes
 an artifact. It makes no network call and spends nothing. The numbers are
-meaningless — a seeded mock is answering — and the point is to prove the loader,
+meaningless (a seeded mock is answering), and the point is to prove the loader,
 the runner, the metrics, and the artifact compose on a real file before a live
 run turns a mistake into money.

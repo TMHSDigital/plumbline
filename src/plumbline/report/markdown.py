@@ -182,12 +182,12 @@ def _arm(result: RunResult, options: ReportOptions) -> list[str]:
     lines = ["", f"### {result.adapter_name}", "", *_provenance(result, options)]
     if excluded:
         lines.append(
-            f"- **Excluded** — {excluded} rows of an unsupported question type were not scored."
+            f"- **Excluded**: {excluded} rows of an unsupported question type were not scored."
         )
     lines.extend(_asked_as(scoreable))
 
     if not successes:
-        lines.append("- **No figures** — every case failed or was refused, so there is nothing")
+        lines.append("- **No figures**: every case failed or was refused, so there is nothing")
         lines.append("  to measure. The failures are in the artifact.")
         return lines
 
@@ -203,7 +203,7 @@ def _arm(result: RunResult, options: ReportOptions) -> list[str]:
     )
     if failures:
         lines.append(
-            f"- **Failures** — {len(failures)} of {len(scoreable)} cases produced no "
+            f"- **Failures**: {len(failures)} of {len(scoreable)} cases produced no "
             "prediction and are excluded from accuracy rather than scored wrong."
         )
 
@@ -440,7 +440,7 @@ def _scaled(prediction: Prediction, temperature: float) -> float:
 def _provenance(result: RunResult, options: ReportOptions) -> list[str]:
     reported = result.model_reported or "not reported"
     line = (
-        f"- **Model** — requested `{result.model_requested}`, reported `{reported}`"
+        f"- **Model**: requested `{result.model_requested}`, reported `{reported}`"
         + (f", revision `{result.revision}`" if result.revision else "")
         + "."
     )
@@ -461,7 +461,7 @@ def _asked_as(records: Sequence[CaseRecord]) -> list[str]:
         f"{count} {question_type} asked as {asked}"
         for (question_type, asked), count in sorted(pairs.items())
     )
-    lines = [f"- **Asked** — {described}."]
+    lines = [f"- **Asked**: {described}."]
 
     mismatched = {
         (question_type, asked): count
@@ -492,7 +492,7 @@ def _calibration_lines(
     try:
         probabilities.require_reportable()
     except NotCalibratableError as absent:
-        return [f"- **Calibration** — not reported. {absent}"]
+        return [f"- **Calibration**: not reported. {absent}"]
 
     figure = calibration.ece_figure(
         probabilities,
@@ -521,14 +521,14 @@ def _confidence_lines(
     values = tuple(record.prediction.confidence for record in successes if record.prediction)
     if all(value is None for value in values):
         return [
-            "- **Confidence** — not reported. This arm reports no confidence statistic: a "
+            "- **Confidence**: not reported. This arm reports no confidence statistic: a "
             "yes/no answer has no distribution to summarize, so the number does not exist "
             "rather than being missing."
         ]
     if any(value is None for value in values):
         missing = sum(1 for value in values if value is None)
         return [
-            f"- **Confidence** — not reported. {missing} of {len(values)} rows carry no "
+            f"- **Confidence**: not reported. {missing} of {len(values)} rows carry no "
             "confidence, and dropping them silently would change which cases the figure "
             "covers."
         ]
@@ -537,8 +537,8 @@ def _confidence_lines(
     try:
         figure = baseline.auroc_figure(series, outcomes, n_boot=options.n_boot, seed=options.seed)
     except ValueError as undefined:
-        return [f"- **Confidence** — not reported. {undefined}"]
-    return [f"- **Confidence** — {figure.statement()}"]
+        return [f"- **Confidence**: not reported. {undefined}"]
+    return [f"- **Confidence**: {figure.statement()}"]
 
 
 def _distribution_caveat(result: RunResult, successes: Sequence[CaseRecord]) -> list[str]:
@@ -551,7 +551,7 @@ def _distribution_caveat(result: RunResult, successes: Sequence[CaseRecord]) -> 
     if not without:
         return []
     return [
-        f"- **Distribution** — {without} of {len(successes)} rows reported a probability "
+        f"- **Distribution**: {without} of {len(successes)} rows reported a probability "
         "with no distribution behind it. Those rows are outside the multiclass Brier "
         "figure, and the temperature that can be fitted for them is the one-parameter "
         "approximation, which is weaker than the multiclass form even when the "
@@ -568,10 +568,10 @@ def _cost_lines(
         bases=[record.cost_basis for record in scoreable],
     )
     if summary.total_usd is None:
-        return [f"- **Cost** — not reported. {summary.note}"]
+        return [f"- **Cost**: not reported. {summary.note}"]
 
     line = (
-        f"- **Cost** — ${summary.total_usd:.4f} over {summary.priced_cases} priced rows, "
+        f"- **Cost**: ${summary.total_usd:.4f} over {summary.priced_cases} priced rows, "
         f"${summary.per_case_usd:.6f} per case"
     )
     if summary.per_correct_usd is not None:
@@ -587,11 +587,11 @@ def _latency_lines(result: RunResult) -> list[str]:
     live = [record.prediction.latency_ms for record in result.live_calls if record.prediction]
     if not live:
         return [
-            "- **Latency** — not reported. No call went out, so every latency here would "
+            "- **Latency**: not reported. No call went out, so every latency here would "
             "be a measurement of disk."
         ]
     summary = latency.summarize(live, excluded_cache_hits=len(result.records) - len(live))
-    return [f"- **Latency** — {summary}"]
+    return [f"- **Latency**: {summary}"]
 
 
 def _diagnostics(
@@ -615,7 +615,7 @@ def _diagnostics(
     try:
         probabilities.require_reportable()
     except NotCalibratableError:
-        lines.append("- **MCE** — not reported. This arm reports no probability.")
+        lines.append("- **MCE**: not reported. This arm reports no probability.")
         return lines
 
     try:
@@ -629,7 +629,7 @@ def _diagnostics(
         )
         lines.append(f"- {figure.statement()}")
     except ValueError as undefined:
-        lines.append(f"- **MCE** — not reported. {undefined}")
+        lines.append(f"- **MCE**: not reported. {undefined}")
 
     distributions = [record.prediction.distribution for record in successes if record.prediction]
     if all(distribution is not None for distribution in distributions) and distributions:
@@ -643,7 +643,7 @@ def _diagnostics(
         lines.append(f"- {multiclass.statement()}")
     else:
         lines.append(
-            "- **Multiclass Brier** — not reported. This arm supplied no distribution, so "
+            "- **Multiclass Brier**: not reported. This arm supplied no distribution, so "
             "the multiclass form does not exist for it. It is not zero."
         )
     return lines
