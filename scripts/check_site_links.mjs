@@ -78,8 +78,9 @@ function references(html) {
 }
 
 const ids = (html) => new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
+const literal = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const meta = (html, key, value) =>
-  new RegExp(`<meta (?:property|name)="${key}" content="${value}">`).test(html);
+  new RegExp(`<meta (?:property|name)="${literal(key)}" content="${literal(value)}">`).test(html);
 const metaValue = (html, key) =>
   new RegExp(`<meta (?:property|name)="${key}" content="([^"]*)">`).exec(html)?.[1] ?? null;
 
