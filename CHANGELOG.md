@@ -58,6 +58,10 @@ different event from one that moved because it was wrong.
 
 ### Documentation
 
+- `docs/example-report.md` is now checked line for line against its recorded
+  command on every site build, not only its ECE line, and the README says that
+  instead of calling it "unedited".
+
 - README rewritten for a reader arriving from a link: what the tool is now
   precedes what it is not, and decision model, calibration, cascade, Noul,
   binning noise and the Jev wire format are each defined where they appear.

@@ -1,14 +1,16 @@
 # Example report
 
-This is real, unedited output from `plumbline run`. Everything below the rule is
-exactly what the tool printed. Nothing in it was tuned to look good.
+This is real output from `plumbline run`. Everything below the rule is exactly
+what the command in the table prints, and CI checks that on every change and
+before every deploy: it reruns the command and refuses if any line differs,
+other than the date. Nothing in it was tuned to look good.
 
 | | |
 |---|---|
 | Dataset | `datasets/public/jevbench-hard.jsonl`, the vendored JevBench public fixture |
 | Rows | 111 read, 105 scored, 6 held back as ordinal score rows |
 | Arm | the `mock` adapter, seed 7, target accuracy 0.8 |
-| Date | 2026-09-21 |
+| Date | 2026-09-22 |
 | Command | `plumbline run datasets/public/jevbench-hard.jsonl --adapter mock --format jevbench --seed 7 --accuracy 0.8 --report example.md` |
 
 **The arm is a seeded mock, not a vendor.** It is a deterministic stand-in that

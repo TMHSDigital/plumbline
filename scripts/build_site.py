@@ -8,7 +8,10 @@ its worked example from:
     produced by re-running the command that report records, together with the
     figures the report prints. The page recomputes the ECE and its floor from the
     rows, in JavaScript, and ``scripts/check_floor_parity.mjs`` fails the build if
-    what it derives differs from the report by a single character.
+    what it derives differs from the report by a single character. Before any
+    of that, every line of the committed report is compared with what the
+    command prints today (only the generation date and path separators are
+    normalized), and the build refuses on any difference.
 
 ``docs/``
     The repository's markdown docs as they are at the commit being built: each
@@ -89,7 +92,7 @@ DOCS = (
         "docs/example-report.md",
         "example-report",
         "Example report",
-        "Unedited output of one mock run: the report the explainer derives its example from.",
+        "One seeded mock run, rechecked against its command on every build.",
     ),
     Doc("docs/PLAN.md", "plan", "Plan", "What is built, what is deliberately not, and why."),
     Doc("CHANGELOG.md", "changelog", "Changelog", "Notable changes per release."),
@@ -141,6 +144,47 @@ def _single(pattern: re.Pattern[str], lines: list[str], what: str) -> re.Match[s
     if len(found) != 1:
         raise BuildError(f"expected exactly one {what} line in the report, found {len(found)}")
     return found[0]
+
+
+#: The report's generation date, the one line that legitimately differs between
+#: the committed report and a rerun of its command on a later day.
+GENERATED_LINE = re.compile(r"^Generated \d{4}-\d{2}-\d{2} against ")
+
+
+def _comparable(line: str) -> str:
+    """A report line with what depends on when and where it ran taken out.
+
+    The date is dropped, and the dataset path's separators are made POSIX: the
+    committed report may have been written on Windows and CI runs on Linux.
+    Nothing else is normalized. The mock's latencies are simulated from its
+    seed, so even the latency line must match exactly.
+    """
+    if GENERATED_LINE.match(line):
+        return GENERATED_LINE.sub("Generated <date> against ", line)
+    return line.replace("datasets\\public\\", "datasets/public/")
+
+
+def _require_same_report(committed: list[str], regenerated: list[str]) -> None:
+    """Every line of the committed report must be what its command prints today."""
+    ours = [_comparable(line) for line in committed]
+    theirs = [_comparable(line) for line in regenerated]
+    if ours == theirs:
+        return
+    differing = [
+        (number, mine, fresh)
+        for number, (mine, fresh) in enumerate(zip(ours, theirs, strict=False), start=1)
+        if mine != fresh
+    ]
+    detail = "".join(
+        f"\n  line {number}\n    report says: {mine}\n    run gives:   {fresh}"
+        for number, mine, fresh in differing[:3]
+    )
+    if len(ours) != len(theirs):
+        detail += f"\n  the report has {len(ours)} lines and the run printed {len(theirs)}"
+    raise BuildError(
+        "docs/example-report.md no longer matches what its own command produces."
+        f"{detail}\nRegenerate the example report before deploying."
+    )
 
 
 def _example_arguments(command: str, results: Path, report: Path) -> list[str]:
@@ -195,14 +239,7 @@ def build_example() -> dict[str, Any]:
     if run.adapter_name != ALLOWED_ADAPTER:
         raise BuildError(f"the example artifact came from {run.adapter_name!r}, not the mock")
 
-    fresh_line = _single(ECE_LINE, regenerated, "ECE").group(1)
-    if fresh_line != ece_match.group(1):
-        raise BuildError(
-            "docs/example-report.md no longer matches what its own command produces.\n"
-            f"  report says: {ece_match.group(1)}\n"
-            f"  run gives:   {fresh_line}\n"
-            "Regenerate the example report before deploying."
-        )
+    _require_same_report(printed, regenerated)
 
     probabilities = list(run.probabilities().values)
     outcomes = run.outcomes

@@ -79,7 +79,7 @@ This is not a rounding concern. On a few hundred rows, a calibration claim is
 frequently not measurable at all.
 
 So plumbline computes that floor by simulation and prints every inferential
-figure against it. Here is a real line from the example report, unedited:
+figure against it. Here is a real line from the example report:
 
 > ECE 0.0740 over 105 rows (10 equal width bins), against a calibrated-model
 > floor of 0.0707 (95th percentile 0.1109): INCONCLUSIVE at this sample size. A
@@ -222,9 +222,11 @@ only path on which the recalibration numbers mean anything.
 
 ## Example report
 
-[docs/example-report.md](docs/example-report.md) is real, unedited output. The
-ECE line is quoted in [The argument](#the-argument) above. Three more, each
-showing the tool declining to do something:
+[docs/example-report.md](docs/example-report.md) is the output of one seeded mock
+run, and CI holds it to that: on every change and before every deploy it reruns
+the report's recorded command and refuses if any line differs, other than the
+date. The ECE line is quoted in [The argument](#the-argument) above. Three more,
+each showing the tool declining to do something:
 
 > Not reported. recalibration needs at least 200 held-out evaluation rows and
 > this split has 53. Fitting a temperature on fewer rows produces a number whose
