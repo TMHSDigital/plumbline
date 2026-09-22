@@ -1,7 +1,13 @@
 name: CI
 
+# A branch pushed to origin and then opened as a pull request fired both
+# triggers, so every pull request ran all four jobs twice. The push trigger is
+# restricted to main, which is the only branch where a push is not already
+# covered by a pull request. pull_request stays unfiltered so a request from
+# any branch or fork is checked.
 on:
   push:
+    branches: [main]
   pull_request:
 
 # No secrets are used anywhere in this workflow, and none should be added.
