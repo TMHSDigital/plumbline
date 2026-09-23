@@ -811,3 +811,91 @@ def test_a_credential_inside_a_list_is_redacted_too() -> None:
     assert cleaned["endpoints"][0]["url"] == "https://a"
     assert cleaned["pair"][0]["token"] == "[redacted]"
     assert "sk-live-123" not in json.dumps(cleaned)
+
+
+# Pricing a row the response did not name (#36), label order (#37), and what the
+# dataset hash and the cache key cover (#39)
+
+
+class UnnamedModelAdapter(Adapter):
+    """Answers with token counts but, like some APIs, without naming the model."""
+
+    def __init__(self, reported: str | None = None) -> None:
+        self.name = "unnamed"
+        self.model_requested = "mock-1"
+        self.revision = None
+        self.probability_semantics = "calibrated_claim"
+        self.reported = reported
+
+    def classify(self, text: str, labels: list[str], **asked: object) -> Prediction:
+        return Prediction(
+            label=labels[0],
+            prob_selected=0.6,
+            distribution=None,
+            confidence=None,
+            latency_ms=5.0,
+            cost_usd=None,
+            input_tokens=1000,
+            output_tokens=10,
+            model_reported=self.reported,
+        )
+
+
+def test_a_row_whose_response_names_no_model_is_priced_by_the_requested_one() -> None:
+    result = execute.run(
+        UnnamedModelAdapter(), make_cases(3, labels=LABELS), pricing_table=PRICING, workers=1
+    )
+
+    assert all(record.cost_basis == "priced" for record in result.records)
+    assert all(record.pricing_key == "mock-1" for record in result.records)
+
+
+def test_a_named_model_missing_from_the_table_is_not_priced_as_the_requested_one() -> None:
+    """Billing follows what answered; a newer version never inherits an older rate."""
+    result = execute.run(
+        UnnamedModelAdapter(reported="mock-2"),
+        make_cases(3, labels=LABELS),
+        pricing_table=PRICING,
+        workers=1,
+    )
+
+    assert all(record.cost_basis == "model_not_priced" for record in result.records)
+
+
+def test_label_order_is_in_the_key_for_an_adapter_whose_prompt_lists_the_options() -> None:
+    adapter = an_adapter(make_cases(2, labels=LABELS))
+    adapter.label_order_matters = True  # type: ignore[misc]
+
+    forward = cache_key(adapter, "t", ["approve", "escalate"])
+    backward = cache_key(adapter, "t", ["escalate", "approve"])
+
+    assert forward != backward
+
+
+def test_the_dataset_hash_covers_question_type_and_descriptions() -> None:
+    import dataclasses
+
+    choice = make_cases(4, labels=("no", "yes"))
+    noul = [dataclasses.replace(case, question_type="noul") for case in choice]
+    described = [
+        dataclasses.replace(case, label_descriptions={"yes": "it is", "no": "it is not"})
+        for case in choice
+    ]
+
+    assert len({execute.dataset_hash(rows) for rows in (choice, noul, described)}) == 3
+
+
+def test_a_plain_choice_dataset_keeps_the_hash_it_always_had() -> None:
+    """Only rows that carry a type or descriptions change their fingerprint."""
+    import hashlib
+
+    cases = make_cases(5, labels=LABELS)
+    old = json.dumps(
+        [
+            {"id": c.id, "text": c.text, "labels": sorted(c.labels), "gold": c.gold_label}
+            for c in cases
+        ],
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    assert execute.dataset_hash(cases) == hashlib.blake2b(old.encode(), digest_size=16).hexdigest()

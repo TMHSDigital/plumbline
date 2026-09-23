@@ -126,6 +126,7 @@ class GenerativeAdapter(Adapter):
             raise ValueError(f"effort must be one of {EFFORTS!r}, got {effort!r}")
 
         self.name = "generative"
+        self.label_order_matters = True  # the prompt lists the options in order
         self.model_requested = model_requested
         self.revision = None  # Hosted models are not pinned by checkpoint.
         self.probability_semantics = "none"

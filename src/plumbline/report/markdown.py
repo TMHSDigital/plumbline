@@ -235,6 +235,12 @@ def _arm(result: RunResult, options: ReportOptions, heading: str) -> list[str]:
     failures = [record for record in scoreable if record.prediction is None]
 
     lines = ["", f"### {heading}", "", *_provenance(result, options)]
+    described = result.config.get("label_descriptions") or {}
+    if described.get("rows") and not described.get("sent"):
+        lines.append(
+            f"- **Option descriptions**: {described['rows']} rows carried option descriptions, "
+            "and this adapter does not send them, so they had no effect on its answers."
+        )
     if excluded:
         lines.append(
             f"- **Excluded**: {excluded} rows of an unsupported question type were not scored."

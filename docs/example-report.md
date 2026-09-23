@@ -48,7 +48,7 @@ Running the same command against a real vendor produces the same shape. See
 
 # plumbline report
 
-Generated 2026-09-23 against dataset `c18e9496`, 105 rows. 1 arm(s).
+Generated 2026-09-23 against dataset `1b96dc91`, 105 rows. 1 arm(s).
 
 ## How to read this
 
@@ -72,6 +72,7 @@ The vendor asserts these probabilities are calibrated. Whether that survives con
 ### mock
 
 - **Model**: requested `mock-1`, reported `mock-1`.
+- **Option descriptions**: 67 rows carried option descriptions, and this adapter does not send them, so they had no effect on its answers.
 - **Asked**: 67 choice rows asked as choice, 38 noul rows asked as choice.
   - 38 noul rows were asked as choice questions, which is a different question from the one the dataset states. Not comparable with an arm that asked them as noul.
 - Accuracy 0.7714 over 105 rows, against a chance null of 0.3416 (95th percentile 0.4190): better than chance at this sample size.

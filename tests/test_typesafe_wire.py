@@ -422,3 +422,19 @@ def test_an_endpoint_set_in_the_environment_reaches_the_cache_key(
     assert self_hosted.base_url == "http://self-hosted.example"
     assert explicit.base_url == "http://other.example"  # an argument beats the environment
     assert cache_key(hosted, "t", ["a", "b"]) != cache_key(self_hosted, "t", ["a", "b"])
+
+
+def test_option_descriptions_reach_the_request_as_criteria() -> None:
+    """They were parsed from the dataset and then sent as None for every option (#39)."""
+    adapter = an_adapter(a_response())
+    client: FakeClient = adapter._client  # type: ignore[assignment]
+    descriptions = {"billing": "charges and invoices", "sales": "buying something new"}
+
+    adapter.classify("I was charged twice", LABELS, descriptions=descriptions)
+
+    criteria = client.calls[0]["questions"][QUESTION_NAME].criteria
+    assert criteria == {
+        "billing": "charges and invoices",
+        "technical": None,
+        "sales": "buying something new",
+    }
