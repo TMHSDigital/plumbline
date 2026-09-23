@@ -402,3 +402,23 @@ def test_the_sdk_client_is_built_with_its_own_retries_off(monkeypatch: pytest.Mo
     monkeypatch.setattr(typesafe_wire, "TypeSafeClient", capture)
     typesafe_wire.TypeSafeWireAdapter(api_key="not-a-key")
     assert built["retry"].max_retries == 0
+
+
+def test_an_endpoint_set_in_the_environment_reaches_the_cache_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A self-hosted run must never be served a hosted run's cached answers (#40)."""
+    from plumbline.adapters import typesafe_wire
+    from plumbline.runner.cache import cache_key
+
+    monkeypatch.setattr(typesafe_wire, "TypeSafeClient", lambda **_: object())
+    monkeypatch.delenv("TYPESAFE_BASE_URL", raising=False)
+    hosted = typesafe_wire.TypeSafeWireAdapter(api_key="not-a-key")
+    monkeypatch.setenv("TYPESAFE_BASE_URL", "http://self-hosted.example")
+    self_hosted = typesafe_wire.TypeSafeWireAdapter(api_key="not-a-key")
+    explicit = typesafe_wire.TypeSafeWireAdapter(api_key="k", base_url="http://other.example")
+
+    assert hosted.base_url is None
+    assert self_hosted.base_url == "http://self-hosted.example"
+    assert explicit.base_url == "http://other.example"  # an argument beats the environment
+    assert cache_key(hosted, "t", ["a", "b"]) != cache_key(self_hosted, "t", ["a", "b"])

@@ -272,3 +272,20 @@ def test_the_sdk_client_is_built_with_its_own_retries_off(monkeypatch: pytest.Mo
     adapter = generative.GenerativeAdapter(api_key="not-a-key")
     assert adapter.client is not None
     assert built["max_retries"] == 0
+
+
+def test_an_endpoint_set_in_the_environment_reaches_the_cache_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A proxied run must never be served a direct run's cached answers (#40)."""
+    from plumbline.adapters import generative
+    from plumbline.runner.cache import cache_key
+
+    monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+    direct = generative.GenerativeAdapter(api_key="not-a-key")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://proxy.example")
+    proxied = generative.GenerativeAdapter(api_key="not-a-key")
+
+    assert direct.base_url is None
+    assert proxied.base_url == "http://proxy.example"
+    assert cache_key(direct, "t", ["a", "b"]) != cache_key(proxied, "t", ["a", "b"])

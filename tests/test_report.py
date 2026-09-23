@@ -385,3 +385,16 @@ def test_the_cascade_is_not_reported_for_an_arm_with_no_probability() -> None:
     )
 
     assert "not reported" in body.lower()
+
+
+def test_the_artifact_and_the_report_name_a_non_default_endpoint() -> None:
+    """Which server answered is part of what was measured (#40)."""
+    cases = make_cases(40, labels=LABELS)
+    adapter = MockAdapter(gold_by_text(cases), seed=5, accuracy=0.8)
+    adapter.base_url = "http://self-hosted.example"  # type: ignore[attr-defined]
+    result = execute.run(adapter, cases, workers=1)
+
+    assert result.config["endpoint"] == "http://self-hosted.example"
+    assert "endpoint `http://self-hosted.example`" in render(result)
+    # The vendor's default endpoint is the ordinary case and says nothing.
+    assert "endpoint `" not in render(a_run(n_cases=40))

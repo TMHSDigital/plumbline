@@ -442,6 +442,7 @@ def _provenance(result: RunResult, options: ReportOptions) -> list[str]:
     line = (
         f"- **Model**: requested `{result.model_requested}`, reported `{reported}`"
         + (f", revision `{result.revision}`" if result.revision else "")
+        + (f", endpoint `{endpoint}`" if (endpoint := result.config.get("endpoint")) else "")
         + "."
     )
     hits = result.cache_stats.get("hits", 0)
