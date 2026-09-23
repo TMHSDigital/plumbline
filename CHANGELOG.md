@@ -89,6 +89,12 @@ different event from one that moved because it was wrong.
   multiclass Brier floor raised `IndexError` on a distribution summing to a
   little under 1, which `Prediction` allows (#31); it now draws from the
   distribution as reported, and one that sums to 1 draws exactly as before.
+- An accuracy or AUROC far below its null was reported as INCONCLUSIVE with the
+  advice to collect more rows, so an inverted score over 300 rows (AUROC 0.0)
+  read as a sample-size problem (#33). Both nulls now carry a 5th percentile,
+  and a value below it gets its own verdict: accuracy "worse than chance", AUROC
+  "ranks incorrect above correct", each with the likely reason. Values above or
+  inside the null read exactly as before.
 - The pricing template priced every call at $0, so a copy used unedited let
   any run past `--max-cost-usd` (#28). Its prices are now null and its `as_of`
   a `YYYY-MM-DD` placeholder that the loader refuses, and any entry pricing

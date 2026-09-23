@@ -191,6 +191,15 @@ own mix of option widths, which is not 1/n for any single n once the widths
 differ. AUROC is read against a permutation null that keeps the observed ties and
 class balance.
 
+Both of those nulls are read in both directions. Above the 95th percentile is a
+result (better than chance, or a score that separates right from wrong). Below
+the 5th percentile is a result too, of the opposite kind: accuracy worse than
+guessing means the answers are systematically wrong, usually a misalignment of
+labels and options, and AUROC below its null means the score is inverted. Only a
+value between the two is INCONCLUSIVE, and only there is "collect more rows" the
+right advice. The calibration floors are one-sided, because calibration error has
+no "better than perfect" to fall into.
+
 Nothing prints as a bare number. A figure whose null cannot be built (MCE when
 no bin holds enough rows, AUROC when every case is correct or every case is wrong)
 is reported as not reported with the reason, rather than as a number standing
