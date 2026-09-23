@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>plumbline: the ECE floor</title>
 <meta name="description" content="A perfectly calibrated model does not score an ECE of zero on a finite sample. Enter your row count and see the floor your number has to clear.">
@@ -30,24 +31,31 @@
 <a class="skip" href="#argument">Skip to the argument</a>
 <!-- site:header -->
 
-<main>
-<div class="intro">
+<main class="explainer">
+<div class="intro hero">
   <h1>A calibration claim has a floor</h1>
   <p class="lede">A perfectly calibrated model does not score an Expected Calibration Error of zero.
   On a finite sample it scores something above zero, and on a few hundred rows that something is
   often larger than the differences people report. Below a certain row count, a calibration claim
   is not measurable at all. This page lets you check where your own numbers sit, without installing
   anything.</p>
-  <nav aria-label="On this page">
-    <ul>
-      <li><a href="#argument">The argument</a></li>
-      <li><a href="#calculator">Floor calculator</a></li>
-      <li><a href="#example">Worked example</a></li>
-      <li><a href="#planner">Sample-size planner</a></li>
-      <li><a href="#provenance">What computes this</a></li>
-    </ul>
-  </nav>
+  <!-- site:example-card -->
+  <p class="cta">
+    <a class="button" href="#calculator">Check your numbers</a>
+    <a class="button secondary" href="docs/methodology.html">Read the methodology</a>
+  </p>
 </div>
+
+<nav class="rail" aria-label="On this page">
+  <p class="rail-label">On this page</p>
+  <ul>
+    <li><a href="#argument">The argument</a></li>
+    <li><a href="#calculator">Floor calculator</a></li>
+    <li><a href="#example">Worked example</a></li>
+    <li><a href="#planner">Sample-size planner</a></li>
+    <li><a href="#provenance">What computes this</a></li>
+  </ul>
+</nav>
 
   <section id="argument" aria-labelledby="argument-h">
     <h2 id="argument-h">The argument</h2>
@@ -90,12 +98,13 @@
       </div>
       <div class="actions">
         <button id="calc-go" type="submit">Compute floor</button>
+        <button id="calc-cancel" type="button" class="secondary" hidden>Cancel</button>
         <progress id="calc-progress" max="1" value="0" hidden aria-label="Calculator progress"></progress>
         <span id="calc-status" role="status" aria-live="polite"></span>
       </div>
     </form>
 
-    <div id="calc-result" class="result" hidden aria-live="polite">
+    <div id="calc-result" class="result" hidden>
       <h3>Calibrated-model floor</h3>
       <dl>
         <dt>Mean</dt><dd id="calc-mean"></dd>
@@ -104,6 +113,10 @@
       </dl>
       <p id="calc-read"></p>
       <div id="calc-verdict" class="verdict" hidden></div>
+      <p class="share">
+        <button id="calc-copy-link" type="button" class="secondary small-button">Copy link</button>
+        <button id="calc-copy-result" type="button" class="secondary small-button">Copy result</button>
+      </p>
       <p class="small muted">This is an estimate from summary numbers. Your real predictions can
       give a different floor at the same row count; the <a href="#example">worked example</a>
       shows why.</p>
@@ -204,14 +217,19 @@
       </div>
       <div class="actions">
         <button id="plan-go" type="submit">Plan</button>
+        <button id="plan-cancel" type="button" class="secondary" hidden>Cancel</button>
         <progress id="plan-progress" max="1" value="0" hidden aria-label="Planner progress"></progress>
         <span id="plan-status" role="status" aria-live="polite"></span>
       </div>
     </form>
 
-    <div id="plan-result" class="result" hidden aria-live="polite">
+    <div id="plan-result" class="result" hidden>
       <p class="big" id="plan-rows"></p>
       <p id="plan-read"></p>
+      <p class="share">
+        <button id="plan-copy-link" type="button" class="secondary small-button">Copy link</button>
+        <button id="plan-copy-result" type="button" class="secondary small-button">Copy result</button>
+      </p>
       <h3>Floors computed on the way</h3>
       <ul class="trace" id="plan-trace"></ul>
     </div>

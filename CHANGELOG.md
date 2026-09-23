@@ -49,6 +49,16 @@ different event from one that moved because it was wrong.
   ranking (`site/search.js`) runs in the browser with no library.
   `scripts/check_search.mjs` holds the ranking to its cases and every index
   entry to a page and id that exist.
+- The explainer opens with the example report's result drawn as a card (the
+  measured ECE against its floor's 95th percentile, and the verdict), written
+  at build time from the report's own line so it reads the same with scripts
+  off, and keeps its contents in a rail beside the text on wide screens.
+- The calculator and planner each run in their own worker and can be
+  cancelled; their inputs are kept in the address, so a link reproduces a
+  result, and each result has "Copy link" and "Copy result" buttons.
+- Every page carries a Content-Security-Policy that allows nothing but the
+  site's own files (no inline script or style), and `check_site_links.mjs`
+  fails a page that lacks it or carries anything it would block.
 
 ### Changed
 
@@ -59,6 +69,17 @@ different event from one that moved because it was wrong.
 
 ### Fixed
 
+- Every validation message on the site's calculator and planner read
+  "[object Object]" (#25). Messages now say what is wrong, mark the field
+  invalid, and are tied to it for screen readers; a result is announced as one
+  line rather than the whole result block (#53).
+- A failure to draw the worked example was reported as the example being
+  missing; the page now says which happened. `floor.js` turned a bin count of 0
+  into 10 where the Python refuses it, and now refuses it too. The parity
+  check holds the worked example's floor to 1e-9, not only to the four
+  decimals the report prints (#55).
+- A link to a later section of the explainer (`#planner`) stopped short of it,
+  because the worked example grows the page after it loads.
 - The inconclusive verdict read as a pass. "Not distinguishable from a
   perfectly calibrated model at this sample size" is what the arithmetic
   establishes and close to the opposite of what it means, and readers took it

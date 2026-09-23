@@ -104,17 +104,42 @@ def test_header_marks_the_current_link(site: ModuleType) -> None:
     assert 'class="search-open" hidden' in html and 'class="theme-toggle" hidden' in html
 
 
-def test_explainer_needs_exactly_one_header_slot(site: ModuleType) -> None:
-    page = site.explainer_page(f"<body>{site.HEADER_SLOT}<main></main></body>")
+REPORT = {
+    "ece": 0.074,
+    "floor_p95": 0.1109,
+    "n": 105,
+    "ece_line": "ECE 0.0740 over 105 rows ...: INCONCLUSIVE at this sample size.",
+}
+
+
+def test_explainer_fills_both_slots_and_needs_the_policy(site: ModuleType) -> None:
+    good = f"{site.CSP_META}<body>{site.HEADER_SLOT}<main>{site.CARD_SLOT}</main></body>"
+    page = site.explainer_page(good, REPORT)
     assert site.HEADER_SLOT not in page and 'class="site-header"' in page
-    for broken in ("<body></body>", site.HEADER_SLOT * 2):
+    assert site.CARD_SLOT not in page and 'class="hero-card"' in page
+    broken = (
+        good.replace(site.HEADER_SLOT, ""),
+        good + site.HEADER_SLOT,
+        good.replace(site.CARD_SLOT, ""),
+        good.replace(site.CSP_META, ""),
+    )
+    for source in broken:
         with pytest.raises(site.BuildError):
-            site.explainer_page(broken)
+            site.explainer_page(source, REPORT)
 
 
-def test_the_committed_explainer_has_its_slot(site: ModuleType) -> None:
+def test_the_committed_explainer_has_its_slots_and_policy(site: ModuleType) -> None:
     source = (site.SITE / "index.html").read_text(encoding="utf-8")
-    assert source.count(site.HEADER_SLOT) == 1
+    for slot in (site.HEADER_SLOT, site.CARD_SLOT, site.CSP_META):
+        assert source.count(slot) == 1
+
+
+def test_example_card_says_what_the_report_says(site: ModuleType) -> None:
+    card = site.example_card(REPORT)
+    assert '<span class="v">0.0740</span>' in card and '<span class="v">0.1109</span>' in card
+    assert "INCONCLUSIVE" in card and "105 rows" in card
+    clear = site.example_card({**REPORT, "ece": 0.2, "ece_line": "ECE 0.2000 ...: distinguishable"})
+    assert "INCONCLUSIVE" not in clear and "Distinguishable" in clear
 
 
 def fake_rendered(site: ModuleType) -> dict[str, dict[str, object]]:

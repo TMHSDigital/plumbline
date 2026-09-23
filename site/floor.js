@@ -280,7 +280,7 @@
    * and accuracy. For display; ece() below does the same sums in the same order.
    */
   function reliability(probabilities, correct, nBins) {
-    nBins = nBins || DEFAULT_N_BINS;
+    if (nBins == null) nBins = DEFAULT_N_BINS; // 0 is refused below, as the Python refuses it
     checkBins(nBins);
     var index = binIndices(probabilities, nBins);
     var counts = new Float64Array(nBins);
@@ -313,7 +313,7 @@
    * ECE of observed rows: the count-weighted mean per-bin gap, as ece() computes it.
    */
   function ece(probabilities, correct, nBins) {
-    nBins = nBins || DEFAULT_N_BINS;
+    if (nBins == null) nBins = DEFAULT_N_BINS; // 0 is refused below, as the Python refuses it
     checkBins(nBins);
     var n = probabilities.length;
     if (!n || n !== correct.length) throw new Error("probabilities and outcomes must be non-empty and the same length");
@@ -392,7 +392,7 @@
    */
   function calibrationFloor(probabilities, nBins, options) {
     options = options || {};
-    nBins = nBins || DEFAULT_N_BINS;
+    if (nBins == null) nBins = DEFAULT_N_BINS; // 0 is refused below, as the Python refuses it
     checkBins(nBins);
     if (!probabilities.length) throw new Error("no predictions to build a floor from");
     return bootstrapFloor(Float64Array.from(probabilities), nBins, {
@@ -416,7 +416,7 @@
   function syntheticFloor(n, nBins, accuracy, options) {
     options = options || {};
     var concentration = options.concentration || DEFAULT_CONCENTRATION;
-    nBins = nBins || DEFAULT_N_BINS;
+    if (nBins == null) nBins = DEFAULT_N_BINS; // 0 is refused below, as the Python refuses it
 
     if (!(Number.isInteger(n) && n >= 1)) throw new Error("n must be a whole number of rows, at least 1");
     checkBins(nBins);

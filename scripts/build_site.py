@@ -56,7 +56,7 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 from plumbline.cli import app
-from plumbline.metrics.calibration import synthetic_floor
+from plumbline.metrics.calibration import calibration_floor, synthetic_floor
 from plumbline.runner.execute import RunResult
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -292,6 +292,7 @@ def build_example() -> dict[str, Any]:
     n_bins = int(ece_match["bins"])
     accuracy = sum(outcomes) / len(outcomes)
     summary = synthetic_floor(len(probabilities), n_bins=n_bins, accuracy=accuracy)["ece"]
+    real = calibration_floor(run.probabilities(), n_bins=n_bins)["ece"]
 
     return {
         "about": (
@@ -317,6 +318,10 @@ def build_example() -> dict[str, Any]:
         "python": {
             "accuracy": accuracy,
             "summary_floor": {"mean": summary.mean, "p95": summary.p95},
+            # The floor from the rows themselves, unrounded, so the page's
+            # calibrationFloor is held to 1e-9 and not only to the 4 decimals
+            # the report prints.
+            "calibration_floor": {"mean": real.mean, "p95": real.p95},
         },
     }
 
@@ -572,10 +577,22 @@ def social_meta(title: str, description: str, url: str) -> str:
     )
 
 
+#: The Content Security Policy every page carries. Everything the site loads is
+#: its own: no inline script or style, no other origin, and data: only for the
+#: inline favicon. ``site/index.html`` carries the same tag, which the build
+#: requires, and ``scripts/check_site_links.mjs`` checks every page for it.
+CSP = (
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+    "font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; "
+    "object-src 'none'; base-uri 'none'; form-action 'none'"
+)
+CSP_META = f'<meta http-equiv="Content-Security-Policy" content="{CSP}">'
+
 PAGE = """<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
+{csp}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title} | plumbline</title>
 <meta name="description" content="{description}">
@@ -622,6 +639,7 @@ def _page(
 ) -> str:
     """One doc-shaped page: header, docs sidebar, the body, and its contents list."""
     return PAGE.format(
+        csp=CSP_META,
         title=html.escape(title),
         description=html.escape(description, quote=True),
         meta=meta,
@@ -702,11 +720,71 @@ def write_404(out: Path) -> None:
 HEADER_SLOT = "<!-- site:header -->"
 
 
-def explainer_page(source: str) -> str:
-    """The explainer as written, with the shared header in its slot."""
-    if source.count(HEADER_SLOT) != 1:
-        raise BuildError(f"site/index.html must contain {HEADER_SLOT} exactly once")
-    return source.replace(HEADER_SLOT, site_header("", "calculator"))
+#: Where the example's result card goes, in the explainer's opening block.
+CARD_SLOT = "<!-- site:example-card -->"
+
+
+def example_card(report: dict[str, Any]) -> str:
+    """The example report's headline result, drawn at build time.
+
+    ``report`` is the ``report`` block of ``example-run.json``: the figures parsed
+    from the report's own ECE line, so the card says exactly what the report
+    says, and says it with scripts off. The gauge puts the measured ECE against
+    the calibrated-model floor's 95th percentile on one scale.
+    """
+    ece, p95, n = float(report["ece"]), float(report["floor_p95"]), int(report["n"])
+    inconclusive = "INCONCLUSIVE" in report["ece_line"]
+    width, scale = 320.0, max(ece, p95) * 1.3
+    x_ece, x_p95 = width * ece / scale, width * p95 / scale
+    anchor = "start" if x_ece < 60 else "end" if x_ece > width - 60 else "middle"
+    gauge = (
+        f'<svg class="gauge" viewBox="0 0 {width:.0f} 58" role="img" '
+        f'aria-label="Measured ECE {ece:.4f} against a calibrated-model floor whose 95th '
+        f'percentile is {p95:.4f}">'
+        f'<rect class="track" x="0" y="22" width="{width:.0f}" height="10" rx="5"/>'
+        f'<rect class="band" x="0" y="22" width="{x_p95:.1f}" height="10" rx="5"/>'
+        f'<line class="marker" x1="{x_ece:.1f}" x2="{x_ece:.1f}" y1="14" y2="40"/>'
+        f'<text class="marker-label" x="{x_ece:.1f}" y="10" text-anchor="{anchor}">'
+        f"measured {ece:.4f}</text>"
+        f'<text class="band-label" x="{x_p95:.1f}" y="54" text-anchor="end">'
+        f"floor, 95th percentile {p95:.4f}</text></svg>"
+    )
+    if inconclusive:
+        chip = '<span class="chip inconclusive">INCONCLUSIVE</span>'
+        says = (
+            f"The measured figure sits inside what a perfectly calibrated model scores on "
+            f"{n} rows, so this dataset establishes nothing either way."
+        )
+    else:
+        chip = '<span class="chip distinguishable">Distinguishable</span>'
+        says = (
+            f"The measured figure is above what a perfectly calibrated model scores on {n} "
+            "rows nineteen times in twenty."
+        )
+    return (
+        '<figure class="hero-card">\n'
+        f'  <figcaption class="card-label">The example report, {n} rows</figcaption>\n'
+        '  <div class="figures">\n'
+        f'    <p><span class="k">Measured ECE</span> <span class="v">{ece:.4f}</span></p>\n'
+        '    <p><span class="k">Calibrated-model floor, 95th percentile</span> '
+        f'<span class="v">{p95:.4f}</span></p>\n'
+        "  </div>\n"
+        f"  {gauge}\n"
+        f'  <p class="card-verdict">{chip} {says} '
+        '<a href="#example">See it derived from the rows</a>.</p>\n'
+        "</figure>"
+    )
+
+
+def explainer_page(source: str, report: dict[str, Any]) -> str:
+    """The explainer as written, with the shared header and the example card in their slots."""
+    for slot in (HEADER_SLOT, CARD_SLOT):
+        if source.count(slot) != 1:
+            raise BuildError(f"site/index.html must contain {slot} exactly once")
+    if source.count(CSP_META) != 1:
+        raise BuildError("site/index.html must carry the site's Content-Security-Policy tag")
+    page = source.replace(HEADER_SLOT, site_header("", "calculator"))
+    return page.replace(CARD_SLOT, example_card(report))
 
 
 #: The explainer's name in search results.
@@ -789,7 +867,7 @@ def main() -> int:
         prov = provenance()
         rendered = render_docs(prov)
         source = (SITE / "index.html").read_text(encoding="utf-8")
-        explainer = explainer_page(source)
+        explainer = explainer_page(source, example["report"])
         index = search_index(rendered, source)
     except BuildError as problem:
         print(f"site build refused: {problem}", file=sys.stderr)

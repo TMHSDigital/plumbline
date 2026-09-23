@@ -52,3 +52,51 @@ svg.hist text.p95-label { fill: var(--mark-p95); }
 ol.steps { padding-left: 1.25rem; }
 ol.steps > li { margin-bottom: 1.25rem; }
 .trace { font: 0.85rem var(--mono); color: var(--muted); padding-left: 1.25rem; margin: 0 0 1rem; }
+
+/* ---- layout: the text, and the contents rail beside it from 64rem ------- */
+
+.explainer .rail ul { list-style: none; padding: 0; margin: 0 0 2rem; display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
+.explainer .rail a { font-size: 0.95rem; }
+.explainer .rail .rail-label { display: none; }
+@media (min-width: 64rem) {
+  main.explainer { max-width: 64rem; display: grid; grid-template-columns: minmax(0, 46rem) 12rem; column-gap: 3rem; justify-content: center; }
+  main.explainer > * { grid-column: 1; }
+  main.explainer > .rail { grid-column: 2; grid-row: 1 / span 10; position: sticky; top: calc(var(--header-h) + 2.5rem); align-self: start; padding-top: 2.5rem; }
+  .explainer .rail ul { display: block; margin: 0; }
+  .explainer .rail .rail-label { display: block; font: 600 0.72rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 0.5rem 0.6rem; }
+  .explainer .rail a { display: block; padding: 0.2rem 0.6rem; border-left: 2px solid transparent; color: var(--muted); text-decoration: none; font-size: 0.9rem; }
+  .explainer .rail a:hover { color: var(--fg); text-decoration: underline; }
+  .explainer .rail a[aria-current] { color: var(--fg); font-weight: 600; border-left-color: var(--accent); }
+}
+
+/* ---- the opening block ---------------------------------------------------- */
+
+.hero h1 { font-size: clamp(1.9rem, 4.5vw, 2.6rem); letter-spacing: -0.01em; margin-bottom: 1rem; }
+.hero .lede { font-size: 1.1rem; max-width: 42rem; }
+.hero-card { margin: 1.5rem 0; padding: 1rem 1.25rem; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.card-label { font: 600 0.72rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 0.75rem; }
+.hero-card .figures { display: flex; flex-wrap: wrap; gap: 0.5rem 2.5rem; }
+.hero-card .figures p { margin: 0; }
+.hero-card .k { display: block; font-size: 0.85rem; color: var(--muted); }
+.hero-card .v { display: block; font: 600 1.6rem var(--mono); }
+svg.gauge { display: block; width: 100%; max-width: 24rem; height: auto; margin: 0.75rem 0; }
+svg.gauge .track { fill: var(--bg); stroke: var(--line); }
+svg.gauge .band { fill: var(--bar); }
+svg.gauge .marker { stroke: var(--mark-measured); stroke-width: 2.5; }
+svg.gauge text { font: 10px var(--mono); fill: var(--muted); }
+svg.gauge .marker-label { fill: var(--mark-measured); }
+.card-verdict { margin: 0; font-size: 0.95rem; }
+.chip { display: inline-block; font: 600 0.75rem var(--mono); letter-spacing: 0.04em; padding: 0.1rem 0.45rem; border-radius: 3px; margin-right: 0.35rem; }
+.chip.inconclusive { color: var(--warn-fg); background: var(--warn-bg); }
+.chip.distinguishable { color: var(--ok-fg); background: var(--ok-bg); }
+.cta { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0 0 2rem; }
+
+/* Links that look like buttons, and the quieter button. */
+a.button { display: inline-block; font: 600 1rem var(--sans); padding: 0.55rem 1.1rem; color: var(--bg); background: var(--fg); border: 1px solid var(--fg); border-radius: 4px; text-decoration: none; }
+a.button:hover { opacity: 0.9; }
+a.button.secondary, button.secondary { color: var(--fg); background: var(--bg); border: 1px solid var(--control); }
+a.button.secondary:hover, button.secondary:hover { border-color: var(--fg); }
+button.small-button { font-size: 0.85rem; font-weight: 400; padding: 0.3rem 0.7rem; }
+.share { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1rem; }
+input[aria-invalid="true"] { border-color: var(--error); outline: 1px solid var(--error); }
+@media print { .rail, .cta, .share, .actions { display: none !important; } }

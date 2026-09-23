@@ -13,6 +13,9 @@
 // - a page loads anything (script, stylesheet, image, frame) from another origin,
 // - a page lacks its canonical, Open Graph, or Twitter card tags, or its
 //   canonical and og:url do not name the page itself,
+// - a page does not carry exactly the site's Content-Security-Policy tag, or
+//   has an inline script, an inline style block, or a style attribute (which
+//   that policy would block, so the page would silently break),
 // - og.png is not a 1200x630 PNG,
 // - the 404 page is missing, links anywhere that does not resolve, or (live)
 //   a missing path is not answered with it and a 404 status.
@@ -22,6 +25,13 @@ import path from "node:path";
 
 const SITE_URL = "https://tmhsdigital.github.io/plumbline/";
 const SITE_PATH = new URL(SITE_URL).pathname; // "/plumbline/"
+
+// Stated here rather than read from build_site.py, so a change to the policy
+// is a change to what this check requires.
+const CSP =
+  "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; " +
+  "font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; " +
+  "object-src 'none'; base-uri 'none'; form-action 'none'";
 
 const target = process.argv[2];
 if (!target) {
@@ -119,6 +129,15 @@ function checkSocial(sitePath, html) {
   }
 }
 
+function checkPolicy(where, html) {
+  const tags = [...html.matchAll(/<meta http-equiv="Content-Security-Policy" content="([^"]*)">/g)];
+  if (tags.length !== 1) problems.push(`${where}: ${tags.length} Content-Security-Policy tags, expected 1`);
+  else if (tags[0][1] !== CSP) problems.push(`${where}: Content-Security-Policy is not the site's policy`);
+  if (/<script\b(?![^>]*\bsrc=)[^>]*>/i.test(html)) problems.push(`${where}: an inline <script>, which the policy blocks`);
+  if (/<style\b/i.test(html)) problems.push(`${where}: an inline <style>, which the policy blocks`);
+  if (/<[a-z][^>]*\sstyle="/i.test(html)) problems.push(`${where}: a style attribute, which the policy blocks`);
+}
+
 // Check one page's references; queue the internal HTML pages it links to.
 async function crawl(sitePath, { social = true, servedAs = sitePath } = {}) {
   if (checked.has(sitePath)) return;
@@ -129,6 +148,7 @@ async function crawl(sitePath, { social = true, servedAs = sitePath } = {}) {
     return;
   }
   if (social) checkSocial(sitePath, html);
+  checkPolicy(servedAs, html);
   const queue = [];
   for (const [tag, , value, rel] of references(html)) {
     const where = `${servedAs}: <${tag}> ${value}`;
@@ -192,4 +212,4 @@ if (problems.length) {
   console.error(`${problems.length} problem(s) on ${live ? base : target}:\n  ${problems.join("\n  ")}`);
   process.exit(1);
 }
-console.log(`${htmlPages} pages checked on ${live ? base : target}: every link, anchor, and meta tag resolves; nothing loads from another origin.`);
+console.log(`${htmlPages} pages checked on ${live ? base : target}: every link, anchor, and meta tag resolves; nothing loads from another origin; every page carries the CSP.`);

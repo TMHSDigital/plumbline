@@ -72,6 +72,10 @@ if (examplePath) {
   for (const key of ["mean", "p95"]) {
     const gap = Math.abs(summary[key] - example.python.summary_floor[key]);
     if (!(gap <= tolerance)) failures.push(`worked example: summary floor ${key} off by ${gap}`);
+    // The line above agrees to 4 decimals; this holds the floor from the rows
+    // to the same 1e-9 as every other case.
+    const real = Math.abs(band[key] - example.python.calibration_floor[key]);
+    if (!(real <= tolerance)) failures.push(`worked example: calibration floor ${key} off by ${real}`);
   }
   console.log(`worked example: ${derived.slice(0, 110)}...`);
 }

@@ -22,34 +22,17 @@
     return lower.toFixed(digits) + "-" + upper.toFixed(digits);
   }
 
-  /* ---- worker ---------------------------------------------------------- */
+  /* ---- workers --------------------------------------------------------- */
 
-  // A worker keeps the page responsive on large n. Where the browser refuses
-  // one (a page opened from disk, for example), the same code runs here.
-  var worker = null;
-  var pending = {};
+  // Each tool gets its own worker, so the planner's long search never queues
+  // the calculator behind it, and Cancel can end one without the other. Where
+  // the browser refuses a worker (a page opened from disk, for example), the
+  // same code runs here, and there is nothing to cancel.
   var nextId = 0;
-  try {
-    worker = new Worker("floor-worker.js");
-    worker.onmessage = function (event) {
-      var m = event.data;
-      var job = pending[m.id];
-      if (!job) return;
-      if (m.progress !== undefined) job.onProgress(m.progress);
-      else if (m.step !== undefined) job.onStep(m.step);
-      else {
-        delete pending[m.id];
-        if (m.error) job.reject(new Error(m.error));
-        else job.resolve(m.result);
-      }
-    };
-    worker.onerror = function (event) {
-      event.preventDefault();
-      worker = null;
-      Object.keys(pending).forEach(function (id) { runHere(pending[id]); delete pending[id]; });
-    };
-  } catch (e) {
-    worker = null;
+  function cancelled() {
+    var error = new Error("Cancelled.");
+    error.cancelled = true;
+    return error;
   }
 
   function runHere(job) {
@@ -64,45 +47,186 @@
     }, 20);
   }
 
-  function submit(message, onProgress, onStep) {
-    return new Promise(function (resolve, reject) {
-      var job = { message: message, resolve: resolve, reject: reject, onProgress: onProgress || function () {}, onStep: onStep || function () {} };
-      if (!worker) { runHere(job); return; }
-      message.id = ++nextId;
-      pending[message.id] = job;
-      worker.postMessage(message);
-    });
+  function makeRunner() {
+    var worker = null;
+    var usable = typeof Worker === "function";
+    var job = null;
+    function spawn() {
+      if (worker || !usable) return worker;
+      try {
+        worker = new Worker("floor-worker.js");
+      } catch (e) {
+        usable = false;
+        return null;
+      }
+      worker.onmessage = function (event) {
+        var m = event.data;
+        if (!job || m.id !== job.id) return;
+        if (m.progress !== undefined) job.onProgress(m.progress);
+        else if (m.step !== undefined) job.onStep(m.step);
+        else {
+          var done = job;
+          job = null;
+          if (m.error) done.reject(new Error(m.error));
+          else done.resolve(m.result);
+        }
+      };
+      worker.onerror = function (event) {
+        event.preventDefault();
+        usable = false;
+        worker = null;
+        if (job) {
+          var orphan = job;
+          job = null;
+          runHere(orphan);
+        }
+      };
+      return worker;
+    }
+    return {
+      run: function (message, onProgress, onStep) {
+        return new Promise(function (resolve, reject) {
+          var noop = function () {};
+          var next = { id: ++nextId, message: message, resolve: resolve, reject: reject, onProgress: onProgress || noop, onStep: onStep || noop };
+          var w = spawn();
+          if (!w) { runHere(next); return; }
+          job = next;
+          message.id = next.id;
+          w.postMessage(message);
+        });
+      },
+      // Only a job running in a worker can be stopped part way.
+      cancellable: function () { return !!(worker && job); },
+      cancel: function () {
+        if (!job) return;
+        var stopped = job;
+        job = null;
+        worker.terminate();
+        worker = null; // a fresh one starts on the next run
+        stopped.reject(cancelled());
+      },
+    };
   }
+  var runners = { calc: makeRunner(), plan: makeRunner() };
+
+  /* ---- forms ------------------------------------------------------------ */
 
   function number(input, check, message) {
     var value = Number(input.value);
-    return check(value) ? { value: value } : { error: message, field: input };
+    return check(value) ? { value: value } : { message: message, field: input };
   }
 
   function busy(prefix, on, statusText) {
     $(prefix + "-go").disabled = on;
     $(prefix + "-progress").hidden = !on;
     $(prefix + "-progress").value = 0;
+    $(prefix + "-cancel").hidden = !(on && runners[prefix].cancellable());
     var status = $(prefix + "-status");
     status.classList.remove("error");
     status.textContent = statusText || "";
   }
 
+  // A problem is said once, in the status line, and tied to the field it is
+  // about, so a screen reader on that field hears why.
   function fail(prefix, error) {
     var status = $(prefix + "-status");
     status.textContent = error.message || String(error);
-    status.classList.add("error");
-    if (error.field) error.field.focus();
+    status.classList.toggle("error", !error.cancelled);
+    if (error.field) {
+      error.field.setAttribute("aria-invalid", "true");
+      error.field.setAttribute("aria-describedby", prefix + "-status");
+      error.field.focus();
+    }
+  }
+
+  function clearInvalid(form) {
+    Array.prototype.forEach.call(form.querySelectorAll("input"), function (input) {
+      input.removeAttribute("aria-invalid");
+      input.removeAttribute("aria-describedby");
+    });
   }
 
   var isWhole = function (lo, hi) { return function (v) { return Number.isInteger(v) && v >= lo && v <= hi; }; };
   var isOpenUnit = function (v) { return v > 0 && v < 1; };
+
+  /* ---- sharing: inputs in the address, results on the clipboard --------- */
+
+  // The query string carries each tool's inputs, so a link reproduces a
+  // result. Each tool writes only its own names and leaves the other's alone.
+  var PARAMS = {
+    calc: { n: "n", bins: "bins", accuracy: "accuracy", measured: "measured" },
+    plan: { target: "target", bins: "plan_bins", accuracy: "plan_accuracy" },
+  };
+  var SECTION = { calc: "calculator", plan: "planner" };
+
+  function remember(prefix, form) {
+    if (!window.history || !history.replaceState) return;
+    var params = new URLSearchParams(location.search);
+    var names = PARAMS[prefix];
+    Object.keys(names).forEach(function (field) {
+      var value = form[field].value.trim();
+      if (value === "") params.delete(names[field]);
+      else params.set(names[field], value);
+    });
+    history.replaceState(null, "", "?" + params.toString() + "#" + SECTION[prefix]);
+  }
+
+  // Fills a tool's form from the address; says whether there was anything.
+  function recall(prefix, form) {
+    var params = new URLSearchParams(location.search);
+    var names = PARAMS[prefix];
+    var found = false;
+    Object.keys(names).forEach(function (field) {
+      if (params.has(names[field])) {
+        form[field].value = params.get(names[field]);
+        found = true;
+      }
+    });
+    return found;
+  }
+
+  function linkFor(prefix) {
+    return location.origin + location.pathname + location.search + "#" + SECTION[prefix];
+  }
+
+  function copy(value) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(value);
+    return new Promise(function (resolve, reject) {
+      var area = document.createElement("textarea");
+      area.value = value;
+      area.setAttribute("readonly", "");
+      area.className = "offscreen";
+      document.body.appendChild(area);
+      area.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      area.remove();
+      if (ok) resolve(); else reject(new Error("copy refused"));
+    });
+  }
+
+  var lastResult = { calc: "", plan: "" };
+  ["calc", "plan"].forEach(function (prefix) {
+    function copyButton(id, what, valueOf) {
+      $(id).addEventListener("click", function () {
+        var status = $(prefix + "-status");
+        copy(valueOf()).then(
+          function () { status.classList.remove("error"); status.textContent = what + " copied."; },
+          function () { status.textContent = "Could not copy; select the text instead."; }
+        );
+      });
+    }
+    copyButton(prefix + "-copy-link", "Link", function () { return linkFor(prefix); });
+    copyButton(prefix + "-copy-result", "Result", function () { return lastResult[prefix]; });
+    $(prefix + "-cancel").addEventListener("click", function () { runners[prefix].cancel(); });
+  });
 
   /* ---- calculator ------------------------------------------------------ */
 
   $("calc").addEventListener("submit", function (event) {
     event.preventDefault();
     var form = event.target;
+    clearInvalid(form);
     var fields = [
       number(form.n, isWhole(1, 100000), "Rows must be a whole number from 1 to 100,000."),
       number(form.bins, isWhole(1, 1000), "Bins must be a whole number from 1 to 1,000."),
@@ -116,16 +240,22 @@
       measured = m.value;
     }
     for (var i = 0; i < fields.length; i++) {
-      if (fields[i].error) { busy("calc", false); fail("calc", fields[i]); return; }
+      if (fields[i].message) { busy("calc", false); fail("calc", fields[i]); return; }
     }
     var input = { n: fields[0].value, nBins: fields[1].value, accuracy: fields[2].value, measured: measured };
+    var running = runners.calc.run({ kind: "synthetic", n: input.n, nBins: input.nBins, accuracy: input.accuracy },
+      function (f) { $("calc-progress").value = f; });
     busy("calc", true, "Running 2,000 bootstrap resamples...");
-    submit({ kind: "synthetic", n: input.n, nBins: input.nBins, accuracy: input.accuracy },
-      function (f) { $("calc-progress").value = f; })
-      .then(function (band) { showCalc(band, input); busy("calc", false, "Done."); })
+    running
+      .then(function (band) {
+        var summary = showCalc(band, input);
+        busy("calc", false, summary);
+        remember("calc", form);
+      })
       .catch(function (error) { busy("calc", false); fail("calc", error); });
   });
 
+  // Draws the result, and returns the one line the status reads out.
   function showCalc(band, input) {
     text("calc-mean", fmt(band.mean));
     text("calc-p95", fmt(band.p95));
@@ -133,19 +263,26 @@
     text("calc-read", "A perfectly calibrated model scores " + fmt(band.mean) + " on average at this size, and above " +
       fmt(band.p95) + " one time in twenty. A measured ECE at or below " + fmt(band.p95) +
       " cannot be told apart from calibrated on this many rows.");
+    var summary = "Floor mean " + fmt(band.mean) + ", 95th percentile " + fmt(band.p95) + ".";
     var verdict = $("calc-verdict");
     if (input.measured === null) {
       verdict.hidden = true;
+      lastResult.calc = "Calibrated-model floor at " + band.n + " rows, " + band.nBins + " bins, accuracy " +
+        input.accuracy + ": mean " + fmt(band.mean) + ", 95th percentile " + fmt(band.p95) + ".";
     } else {
       var clears = F.isDistinguishable(input.measured, band);
+      var statement = F.statement(input.measured, band);
       verdict.className = "verdict " + (clears ? "distinguishable" : "inconclusive");
       verdict.replaceChildren(
         el("strong", clears ? "Distinguishable from sampling noise" : "Inconclusive, which is not a pass"),
-        el("span", F.statement(input.measured, band))
+        el("span", statement)
       );
       verdict.hidden = false;
+      lastResult.calc = statement;
+      summary += clears ? " The measured ECE clears it." : " The measured ECE is inconclusive.";
     }
     $("calc-result").hidden = false;
+    return summary;
   }
 
   /* ---- worked example -------------------------------------------------- */
@@ -188,14 +325,23 @@
     });
   }
 
+  // A missing file and a failure to draw it are different problems, and the
+  // page says which one happened.
   function loadExample() {
-    fetch("example-run.json", { cache: "no-cache" })
+    return fetch("example-run.json", { cache: "no-cache" })
       .then(function (response) {
         if (!response.ok) throw new Error("HTTP " + response.status);
         return response.json();
       })
-      .then(showExample)
-      .catch(function () {
+      .then(function (ex) {
+        try {
+          showExample(ex);
+        } catch (error) {
+          console.error(error);
+          $("ex-report-line").replaceChildren(el("p", "The example's rows loaded, but drawing them failed: " +
+            (error.message || String(error)) + ". Please open an issue.", "error"));
+        }
+      }, function () {
         $("ex-report-line").replaceChildren(el("p", "The example is not available in this copy of the page.", "muted"));
         $("ex-missing").hidden = false;
       });
@@ -259,30 +405,34 @@
     $("ex-lesson").hidden = false;
   }
 
-  loadExample();
-
   /* ---- planner --------------------------------------------------------- */
 
   $("plan").addEventListener("submit", function (event) {
     event.preventDefault();
     var form = event.target;
+    clearInvalid(form);
     var fields = [
       number(form.target, isOpenUnit, "The ECE to detect must lie strictly between 0 and 1."),
       number(form.bins, isWhole(1, 1000), "Bins must be a whole number from 1 to 1,000."),
       number(form.accuracy, isOpenUnit, "Accuracy must lie strictly between 0 and 1."),
     ];
     for (var i = 0; i < fields.length; i++) {
-      if (fields[i].error) { busy("plan", false); fail("plan", fields[i]); return; }
+      if (fields[i].message) { busy("plan", false); fail("plan", fields[i]); return; }
     }
     var target = fields[0].value, nBins = fields[1].value, accuracy = fields[2].value;
     var trace = $("plan-trace");
     trace.replaceChildren();
     $("plan-result").hidden = true;
-    busy("plan", true, "Searching. Large row counts take several seconds each...");
-    submit({ kind: "plan", target: target, nBins: nBins, accuracy: accuracy },
+    var running = runners.plan.run({ kind: "plan", target: target, nBins: nBins, accuracy: accuracy },
       function (f) { $("plan-progress").value = f; },
-      function (steps) { showTrace(steps); })
-      .then(function (plan) { showPlan(plan, target, nBins, accuracy); busy("plan", false, "Done."); })
+      function (steps) { showTrace(steps); });
+    busy("plan", true, "Searching. Large row counts take several seconds each...");
+    running
+      .then(function (plan) {
+        var summary = showPlan(plan, target, nBins, accuracy);
+        busy("plan", false, summary);
+        remember("plan", form);
+      })
       .catch(function (error) { busy("plan", false); fail("plan", error); });
   });
 
@@ -294,19 +444,49 @@
     });
   }
 
+  // Draws the plan, and returns the one line the status reads out.
   function showPlan(plan, target, nBins, accuracy) {
     showTrace(plan.evaluations);
+    var headline, reading;
     if (plan.exceeds) {
-      text("plan-rows", "More than " + plan.maxRows.toLocaleString("en-US") + " rows");
-      text("plan-read", "At " + plan.maxRows.toLocaleString("en-US") + " rows the summary floor's 95th percentile is " +
+      headline = "More than " + plan.maxRows.toLocaleString("en-US") + " rows";
+      reading = "At " + plan.maxRows.toLocaleString("en-US") + " rows the summary floor's 95th percentile is " +
         fmt(plan.band.p95) + ", still above " + target + ". Extrapolating at one over the square root of n suggests roughly " +
-        plan.extrapolated.toLocaleString("en-US") + " rows; this page does not compute floors that large.");
+        plan.extrapolated.toLocaleString("en-US") + " rows; this page does not compute floors that large.";
     } else {
-      text("plan-rows", "About " + plan.rows.toLocaleString("en-US") + " rows");
-      text("plan-read", "At " + plan.rows.toLocaleString("en-US") + " rows, " + nBins + " bins, and accuracy " + accuracy +
+      headline = "About " + plan.rows.toLocaleString("en-US") + " rows";
+      reading = "At " + plan.rows.toLocaleString("en-US") + " rows, " + nBins + " bins, and accuracy " + accuracy +
         ", the summary floor has mean " + fmt(plan.band.mean) + " and 95th percentile " + fmt(plan.band.p95) +
-        ", so a measured ECE of " + target + " would clear it. On materially fewer rows, the same measurement would read as INCONCLUSIVE.");
+        ", so a measured ECE of " + target + " would clear it. On materially fewer rows, the same measurement would read as INCONCLUSIVE.";
     }
+    text("plan-rows", headline);
+    text("plan-read", reading);
+    lastResult.plan = "To detect an ECE of " + target + " (" + nBins + " bins, accuracy " + accuracy + "): " +
+      headline.toLowerCase() + ". " + reading;
     $("plan-result").hidden = false;
+    return headline + " to detect an ECE of " + target + ".";
   }
+
+  /* ---- start ------------------------------------------------------------ */
+
+  // The worked example grows the page after it loads, which leaves a link to
+  // a later section (#planner, say) short of its target. Once it is drawn,
+  // land on the target again, unless the reader has already moved.
+  var moved = false;
+  ["wheel", "touchmove", "keydown", "mousedown"].forEach(function (type) {
+    window.addEventListener(type, function () { moved = true; }, { once: true, passive: true });
+  });
+  loadExample().then(function () {
+    var target = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (target && !moved) target.scrollIntoView();
+  });
+
+  // A link that carries a tool's inputs runs that tool as the page opens.
+  ["calc", "plan"].forEach(function (prefix) {
+    var form = $(prefix);
+    if (recall(prefix, form)) {
+      if (form.requestSubmit) form.requestSubmit();
+      else form.dispatchEvent(new Event("submit", { cancelable: true }));
+    }
+  });
 })();
