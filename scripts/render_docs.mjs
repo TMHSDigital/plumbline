@@ -92,6 +92,17 @@ function inlineText(token) {
     .join("");
 }
 
+// As inlineText, but a line break inside a paragraph is a space, as it is to a
+// reader. Headings never wrap, so their slugs keep using inlineText.
+function readableText(token) {
+  return (token.children ?? [])
+    .map((child) => {
+      if (child.type === "text" || child.type === "code_inline") return child.content;
+      return child.type === "softbreak" || child.type === "hardbreak" ? " " : "";
+    })
+    .join("");
+}
+
 // Raw HTML is emitted verbatim, so this validates rather than sanitizes: every
 // "<" in it must open one of the exact allowed tags, or the build fails.
 function checkHtml(content, where, problems) {
@@ -125,7 +136,7 @@ function sectionsOf(tokens) {
       current = { id: token.attrGet("id"), heading: inlineText(tokens[i + 1]), level: Number(token.tag.slice(1)), parts: [] };
       i += 1; // the heading's own inline token is its title, not its body
     } else if (token.type === "inline") {
-      current.parts.push(inlineText(token));
+      current.parts.push(readableText(token));
     } else if (token.type === "fence" || token.type === "code_block") {
       current.parts.push(token.content);
     }
@@ -294,6 +305,8 @@ function selfTest() {
   expect(!html("# T\n").includes('class="anchor"'), "no anchor on h1");
   const table = html("| a | b |\n|:-:|--:|\n| 1 | 2 |\n");
   expect(!table.includes("style=") && table.includes('class="align-right"'), "table alignment as a class");
+  const wrapped = render(job("# T\n\nfirst\nsecond\n")).a.sections[0].text;
+  expect(wrapped === "first second", `a wrapped line keeps its space (got ${JSON.stringify(wrapped)})`);
   const out = render(job("# Top\n\nlead `x`\n\n## One\n\nbody\n\n```\ncode\n```\n\n#### Deep\n\nmore\n")).a;
   expect(
     JSON.stringify(out.headings.map((h) => [h.level, h.id])) === '[[1,"top"],[2,"one"],[4,"deep"]]',
@@ -301,7 +314,7 @@ function selfTest() {
   );
   const sections = out.sections.map((s) => [s.id, s.text]);
   expect(JSON.stringify(sections) === '[["top","lead x"],["one","body code Deep more"]]', `sections ${JSON.stringify(sections)}`);
-  console.log("render_docs self-test: 20 cases pass");
+  console.log("render_docs self-test: 21 cases pass");
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
