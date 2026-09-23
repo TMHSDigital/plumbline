@@ -1,10 +1,49 @@
 /* The doc pages: markdown rendered at build time by scripts/render_docs.mjs. */
+
+/* ---- layout: sidebar, text, contents ------------------------------------
+   Below 64rem everything stacks and the sidebar and contents are collapsible.
+   From 64rem the sidebar sits to the left; from 80rem the contents list sits
+   to the right. site.js opens and folds them to match (see its breakpoints). */
+.docs-layout { max-width: 80rem; margin: 0 auto; padding: 1.5rem 1rem 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "nav" "toc" "main"; }
+.docs-layout main { grid-area: main; max-width: 46rem; width: 100%; margin: 0 auto; padding: 0; min-width: 0; }
+.docs-nav { grid-area: nav; }
+.toc { grid-area: toc; }
+@media (min-width: 64rem) {
+  .docs-layout { grid-template-columns: 13rem minmax(0, 46rem); grid-template-areas: "nav toc" "nav main"; grid-template-rows: auto 1fr; justify-content: center; column-gap: 3rem; }
+  .docs-layout main { margin: 0; }
+  .docs-nav { position: sticky; top: calc(var(--header-h) + 1.5rem); align-self: start; max-height: calc(100vh - var(--header-h) - 3rem); overflow-y: auto; }
+  .docs-nav.collapsible { border: 0; background: none; padding: 0; margin: 0; }
+  .docs-nav > summary { display: none; }
+}
+@media (min-width: 80rem) {
+  .docs-layout { grid-template-columns: 13rem minmax(0, 46rem) 13rem; grid-template-areas: "nav main toc"; grid-template-rows: auto; }
+  .toc { position: sticky; top: calc(var(--header-h) + 1.5rem); align-self: start; max-height: calc(100vh - var(--header-h) - 3rem); overflow-y: auto; }
+  .toc.collapsible { border: 0; background: none; padding: 0; margin: 0; }
+  .toc > summary { display: none; }
+  .docs-layout .toc .label { display: block; }
+}
+
+.collapsible { border: 1px solid var(--line); border-radius: 6px; background: var(--panel); padding: 0.5rem 0.75rem; margin: 0 0 1rem; }
+.collapsible > summary { cursor: pointer; font-weight: 600; font-size: 0.95rem; }
+.collapsible[open] > summary { margin-bottom: 0.5rem; }
+.side ul { list-style: none; margin: 0; padding: 0; }
+.side p { margin: 0 0 0.5rem; }
+.side a { display: block; padding: 0.2rem 0.6rem; border-left: 2px solid transparent; color: var(--muted); text-decoration: none; font-size: 0.9rem; line-height: 1.4; }
+.side a:hover { color: var(--fg); text-decoration: underline; }
+.side a[aria-current] { color: var(--fg); font-weight: 600; border-left-color: var(--accent); }
+.side .group { font: 600 0.72rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 1.1rem 0 0.35rem 0.6rem; }
+.toc ul ul a { padding-left: 1.4rem; font-size: 0.85rem; }
+.toc-top { margin: 0.75rem 0 0; }
+.toc-top a { font-size: 0.85rem; }
+.toc .label { display: none; font: 600 0.72rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 0.5rem 0.6rem; }
+
+/* ---- the text ------------------------------------------------------------ */
+
 .provenance { font-size: 0.85rem; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0.5rem 0.75rem; margin: 0 0 2rem; overflow-wrap: anywhere; }
-.prose { padding-bottom: 2rem; overflow-wrap: break-word; }
-.prose h1 { margin-top: 0; }
+.prose { padding-bottom: 1rem; overflow-wrap: break-word; }
+.prose h1 { margin-top: 0; font-size: 2rem; }
 .prose h2 { margin-top: 2.25rem; padding-top: 1rem; border-top: 1px solid var(--line); }
 .prose h3, .prose h4 { margin-top: 1.75rem; }
-.prose h2, .prose h3, .prose h4 { scroll-margin-top: 1rem; }
 .prose ul, .prose ol { padding-left: 1.4rem; margin: 0 0 1rem; }
 .prose li { margin-bottom: 0.3rem; }
 .prose li > p { margin-bottom: 0.4rem; }
@@ -15,9 +54,36 @@
 .prose table { display: block; overflow-x: auto; border-collapse: collapse; margin: 0 0 1rem; font-size: 0.9rem; max-width: 100%; }
 .prose th, .prose td { padding: 0.35rem 0.6rem; border: 1px solid var(--line); text-align: left; vertical-align: top; }
 .prose th { background: var(--panel); font-weight: 600; }
+.prose .align-right { text-align: right; }
+.prose .align-center { text-align: center; }
 .prose details { border: 1px solid var(--line); border-radius: 4px; padding: 0.5rem 0.75rem; margin: 0 0 1rem; }
 .prose summary { cursor: pointer; }
 .prose details[open] > summary { margin-bottom: 0.5rem; }
 .doc-list { padding-left: 0; list-style: none; }
 .doc-list li { margin-bottom: 1rem; }
 .doc-list a { font-weight: 600; }
+
+/* A section's own link, shown on hover or focus. */
+.anchor { margin-left: 0.2rem; color: var(--muted); font-weight: 400; text-decoration: none; opacity: 0; }
+h2:hover > .anchor, h3:hover > .anchor, .anchor:focus-visible { opacity: 1; }
+@media (hover: none) { .anchor { opacity: 0.55; } }
+
+/* Code blocks get a copy button from site.js. */
+.code-block { position: relative; }
+.code-block .copy { position: absolute; top: 0.4rem; right: 0.4rem; font: 0.75rem var(--sans); color: var(--fg); background: var(--bg); border: 1px solid var(--control); border-radius: 4px; padding: 0.15rem 0.5rem; cursor: pointer; opacity: 0; }
+.code-block:hover .copy, .code-block .copy:focus-visible { opacity: 1; }
+@media (hover: none) { .code-block .copy { opacity: 1; } }
+
+/* ---- previous and next --------------------------------------------------- */
+
+.pager { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1rem 0 2rem; }
+.pager a { flex: 1 1 14rem; border: 1px solid var(--line); border-radius: 6px; padding: 0.7rem 1rem; font-weight: 600; text-decoration: none; }
+.pager a:hover { border-color: var(--accent); }
+.pager span { display: block; font: 400 0.8rem var(--sans); color: var(--muted); }
+.pager .next { text-align: right; }
+.pager .next:only-child { margin-left: auto; flex-grow: 0; }
+
+@media print {
+  .side, .pager, .copy, .anchor { display: none !important; }
+  .docs-layout { display: block; max-width: none; padding: 0; }
+}

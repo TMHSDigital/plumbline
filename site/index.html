@@ -22,6 +22,7 @@
 <meta name="twitter:image:alt" content="A calibration claim has a floor: ECE 0.074 on 105 rows sits below the floor&#x27;s 95th percentile of 0.111, so the result is inconclusive.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1v9' stroke='%23555' stroke-width='1.5'/%3E%3Cpath d='M5 10h6l-3 5z' fill='%23555'/%3E%3C/svg%3E">
+<script src="theme.js"></script>
 <link rel="stylesheet" href="base.css">
 <style>
   section { padding: 2rem 0; border-top: 1px solid var(--line); }
@@ -31,7 +32,7 @@
   form { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 1rem; margin: 1.25rem 0 1rem; }
   label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.25rem; }
   .hint { display: block; font-size: 0.8rem; font-weight: 400; color: var(--muted); }
-  input { width: 100%; font: 1rem var(--mono); padding: 0.5rem 0.6rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; }
+  input { width: 100%; font: 1rem var(--mono); padding: 0.5rem 0.6rem; color: var(--fg); background: var(--bg); border: 1px solid var(--control); border-radius: 4px; }
   .actions { grid-column: 1 / -1; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
   button { font: 600 1rem var(--sans); padding: 0.55rem 1.1rem; color: var(--bg); background: var(--fg); border: 0; border-radius: 4px; cursor: pointer; }
   button[disabled] { opacity: 0.55; cursor: progress; }
@@ -81,8 +82,10 @@
 </head>
 <body>
 <a class="skip" href="#argument">Skip to the argument</a>
-<header>
-  <p class="kicker">plumbline</p>
+<!-- site:header -->
+
+<main>
+<div class="intro">
   <h1>A calibration claim has a floor</h1>
   <p class="lede">A perfectly calibrated model does not score an Expected Calibration Error of zero.
   On a finite sample it scores something above zero, and on a few hundred rows that something is
@@ -96,13 +99,10 @@
       <li><a href="#example">Worked example</a></li>
       <li><a href="#planner">Sample-size planner</a></li>
       <li><a href="#provenance">What computes this</a></li>
-      <li><a href="docs/">Documentation</a></li>
-      <li><a href="https://github.com/TMHSDigital/plumbline">Repository</a></li>
     </ul>
   </nav>
-</header>
+</div>
 
-<main>
   <section id="argument" aria-labelledby="argument-h">
     <h2 id="argument-h">The argument</h2>
     <p>ECE sorts predictions into bins by the probability the model gave, and in each bin compares
@@ -306,6 +306,7 @@
   No analytics, no trackers, no external requests.</p>
 </footer>
 
+<script src="site.js" defer></script>
 <script src="floor.js"></script>
 <script>
 (function () {

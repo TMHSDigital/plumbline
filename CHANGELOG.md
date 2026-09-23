@@ -35,6 +35,14 @@ different event from one that moved because it was wrong.
   carries a canonical URL and Open Graph and Twitter card tags; the card image
   (`site/og.png`) is rendered from `scripts/og_image.html`. Missing paths get a
   404 page that links back.
+- The site has a header on every page (calculator, docs, example report,
+  GitHub), and the doc pages have a grouped docs sidebar, an "On this page"
+  contents list that follows the section in view, a link on every h2 and h3
+  that copies itself, previous and next links, an "Edit on GitHub" link, and
+  copy buttons on code blocks. All of the navigation is HTML written at build
+  time, so it works with scripts off; `site/site.js` adds only the conveniences
+  and a light, dark, or automatic theme that is remembered between visits.
+  Form borders and the histogram's bars now meet 3:1 contrast in both themes.
 
 ### Changed
 

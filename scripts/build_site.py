@@ -48,7 +48,7 @@ import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from plumbline.cli import app
 from plumbline.metrics.calibration import synthetic_floor
@@ -70,51 +70,92 @@ class Doc:
     slug: str  # docs/<slug>.html and docs/<slug>.md on the site
     label: str  # its name in the navigation
     blurb: str  # one line on the docs index
+    group: str  # its heading in the docs sidebar, one of GROUPS
 
 
-#: The docs the site hosts, in navigation order. A relative link between two of
-#: these becomes a link between their pages; a link to any other file goes to
-#: GitHub at the commit being built.
+USING, PROJECT = "Using plumbline", "Project"
+
+#: The docs the site hosts, in navigation order: the sidebar lists them top to
+#: bottom under their group, and previous and next follow the same order. A
+#: relative link between two of these becomes a link between their pages; a
+#: link to any other file goes to GitHub at the commit being built.
 DOCS = (
     Doc(
         "README.md",
         "readme",
         "README",
         "What plumbline is, how to run it, and what it does not do.",
+        USING,
     ),
     Doc(
         "METHODOLOGY.md",
         "methodology",
         "Methodology",
         "How each figure is computed, and the floor each is reported against.",
+        USING,
     ),
     Doc(
         "docs/example-report.md",
         "example-report",
         "Example report",
         "One seeded mock run, rechecked against its command on every build.",
-    ),
-    Doc("docs/PLAN.md", "plan", "Plan", "What is built, what is deliberately not, and why."),
-    Doc("CHANGELOG.md", "changelog", "Changelog", "Notable changes per release."),
-    Doc(
-        "CONTRIBUTING.md",
-        "contributing",
-        "Contributing",
-        "How to work on the code and what CI checks.",
-    ),
-    Doc(
-        "SECURITY.md",
-        "security",
-        "Security",
-        "How to report a vulnerability, and what the scanners cover.",
+        USING,
     ),
     Doc(
         "datasets/public/README.md",
         "dataset",
         "Dataset",
         "The vendored JevBench fixture: where it comes from and its license.",
+        USING,
+    ),
+    Doc(
+        "docs/PLAN.md",
+        "plan",
+        "Plan",
+        "What is built, what is deliberately not, and why.",
+        PROJECT,
+    ),
+    Doc("CHANGELOG.md", "changelog", "Changelog", "Notable changes per release.", PROJECT),
+    Doc(
+        "CONTRIBUTING.md",
+        "contributing",
+        "Contributing",
+        "How to work on the code and what CI checks.",
+        PROJECT,
+    ),
+    Doc(
+        "SECURITY.md",
+        "security",
+        "Security",
+        "How to report a vulnerability, and what the scanners cover.",
+        PROJECT,
     ),
 )
+
+#: The docs sidebar's groups, in order.
+GROUPS = (USING, PROJECT)
+
+
+class Heading(TypedDict):
+    level: int
+    id: str
+    text: str
+
+
+class Section(TypedDict):
+    id: str | None  # None for text before the first heading
+    heading: str
+    level: int
+    text: str
+
+
+class Rendered(TypedDict):
+    """What ``scripts/render_docs.mjs`` returns for one doc."""
+
+    html: str
+    headings: list[Heading]
+    sections: list[Section]
+
 
 ECE_LINE = re.compile(
     r"^- (ECE (?P<ece>\d\.\d{4}) over (?P<n>\d+) rows \((?P<bins>\d+) equal width bins\), "
@@ -306,7 +347,8 @@ class Provenance:
         return (
             f'Rendered from <a href="{source}"><code>{html.escape(doc.source)}</code></a> '
             f'at commit <a href="{commit}"><code>{short}</code></a>{dirty}, built {at}. '
-            f'<a href="{doc.slug}.md">Markdown source</a>.'
+            f'<a href="{doc.slug}.md">Markdown source</a>. '
+            f'<a href="https://github.com/{REPO}/edit/main/{doc.source}">Edit on GitHub</a>.'
         )
 
 
@@ -320,7 +362,7 @@ def provenance() -> Provenance:
     return Provenance(sha, built, modified)
 
 
-def render_docs(prov: Provenance) -> dict[str, dict[str, str]]:
+def render_docs(prov: Provenance) -> dict[str, Rendered]:
     """Markdown to HTML fragments, by the vendored renderer under the runner's Node."""
     job = {
         "repo": REPO,
@@ -347,18 +389,134 @@ def render_docs(prov: Provenance) -> dict[str, dict[str, str]]:
         raise BuildError(f"could not run node to render the docs: {missing}") from missing
     if done.returncode != 0:
         raise BuildError(f"the docs did not render:\n{done.stderr.strip()}")
-    rendered: dict[str, dict[str, str]] = json.loads(done.stdout)
+    rendered: dict[str, Rendered] = json.loads(done.stdout)
     return rendered
 
 
-def _nav(current: str | None, up: str, docs: str = "") -> str:
-    """Links to the explainer (``up``) and every doc (``docs`` + slug)."""
-    items = [f'<li><a href="{up}">The ECE floor</a></li>']
-    for doc in DOCS:
-        mark = ' aria-current="page"' if doc.slug == current else ""
-        items.append(f'<li><a href="{docs}{doc.slug}.html"{mark}>{html.escape(doc.label)}</a></li>')
-    joined = "\n    ".join(items)
-    return f'<nav aria-label="Documentation">\n  <ul>\n    {joined}\n  </ul>\n</nav>'
+# The plumb-bob mark, drawn inline so the header makes no request for it.
+MARK = (
+    '<svg class="mark" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" '
+    'focusable="false"><path d="M8 1v9" stroke="currentColor" stroke-width="1.5"/>'
+    '<path d="M5 10h6l-3 5z" fill="currentColor"/></svg>'
+)
+
+
+def site_header(root: str, current: str | None) -> str:
+    """The bar at the top of every page.
+
+    ``root`` is the site's root relative to the page ("", "../", or the absolute
+    path on the 404 page). ``current`` is "calculator", "docs", or a doc slug,
+    and marks the matching link. The search and theme buttons are hidden until
+    ``site.js`` runs, so a reader without scripts never sees a dead control.
+    """
+    links = (
+        ("calculator", root, "Calculator"),
+        ("docs", f"{root}docs/", "Docs"),
+        ("example-report", f"{root}docs/example-report.html", "Example report"),
+    )
+    items = []
+    for key, href, label in links:
+        mark = ' aria-current="page"' if key == current else ""
+        items.append(f'<li><a href="{href}"{mark}>{label}</a></li>')
+    items.append(f'<li><a href="https://github.com/{REPO}">GitHub</a></li>')
+    joined = "\n        ".join(items)
+    return f"""<header class="site-header">
+  <div class="bar">
+    <a class="brand" href="{root}">{MARK}<span>plumbline</span></a>
+    <nav class="primary" aria-label="Site">
+      <ul>
+        {joined}
+      </ul>
+    </nav>
+    <div class="tools">
+      <button type="button" class="search-open" hidden aria-haspopup="dialog">
+        Search <kbd>/</kbd>
+      </button>
+      <button type="button" class="theme-toggle" hidden>Theme: auto</button>
+    </div>
+  </div>
+</header>"""
+
+
+def docs_sidebar(current: str | None, prefix: str = "") -> str:
+    """Every hosted doc, by group, with the current one marked.
+
+    ``prefix`` is the docs directory relative to the page: empty on a doc page,
+    absolute on the 404 page.
+    """
+    groups = []
+    for group in GROUPS:
+        items = []
+        for doc in DOCS:
+            if doc.group != group:
+                continue
+            mark = ' aria-current="page"' if doc.slug == current else ""
+            items.append(
+                f'<li><a href="{prefix}{doc.slug}.html"{mark}>{html.escape(doc.label)}</a></li>'
+            )
+        joined = "\n      ".join(items)
+        groups.append(
+            f'<p class="group">{html.escape(group)}</p>\n    <ul>\n      {joined}\n    </ul>'
+        )
+    body = "\n    ".join(groups)
+    return (
+        '<details class="collapsible side docs-nav" open>\n'
+        "  <summary>Documentation</summary>\n"
+        f'  <nav aria-label="Documentation">\n    <p><a href="{prefix or "./"}">All docs</a></p>\n'
+        f"    {body}\n  </nav>\n</details>"
+    )
+
+
+def page_toc(headings: list[Heading]) -> str:
+    """The page's h2 and h3 headings, h3 nested under its h2.
+
+    Empty for a page with fewer than two h2s, where a contents list would only
+    repeat the page's one heading.
+    """
+    groups: list[tuple[Heading, list[Heading]]] = []
+    for heading in headings:
+        if heading["level"] == 2:
+            groups.append((heading, []))
+        elif heading["level"] == 3 and groups:
+            groups[-1][1].append(heading)
+    if len(groups) < 2:
+        return ""
+
+    def link(heading: Heading) -> str:
+        return f'<a href="#{heading["id"]}">{html.escape(heading["text"])}</a>'
+
+    items = []
+    for h2, h3s in groups:
+        nested = "".join(f"<li>{link(h3)}</li>" for h3 in h3s)
+        items.append(f"<li>{link(h2)}" + (f"<ul>{nested}</ul>" if nested else "") + "</li>")
+    return (
+        '<details class="collapsible side toc" open>\n'
+        "  <summary>On this page</summary>\n"
+        '  <nav aria-label="On this page">\n'
+        '    <p class="label">On this page</p>\n'
+        f"    <ul>{''.join(items)}</ul>\n"
+        '    <p class="toc-top"><a href="#doc">Back to top</a></p>\n'
+        "  </nav>\n</details>"
+    )
+
+
+def prev_next(slug: str) -> str:
+    """Links to the docs either side of this one, in sidebar order."""
+    at = next(i for i, doc in enumerate(DOCS) if doc.slug == slug)
+    links = []
+    if at > 0:
+        before = DOCS[at - 1]
+        links.append(
+            f'<a class="prev" href="{before.slug}.html"><span>Previous</span>'
+            f"{html.escape(before.label)}</a>"
+        )
+    if at < len(DOCS) - 1:
+        after = DOCS[at + 1]
+        links.append(
+            f'<a class="next" href="{after.slug}.html"><span>Next</span>'
+            f"{html.escape(after.label)}</a>"
+        )
+    return '<nav class="pager" aria-label="Previous and next">\n' + "\n".join(links) + "\n</nav>"
 
 
 # The explainer's plumb-bob icon, inline so the page makes no request for it.
@@ -419,71 +577,97 @@ PAGE = """<!doctype html>
 {meta}
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="{icon}">
+<script src="{root}theme.js"></script>
 <link rel="stylesheet" href="{root}base.css">
 <link rel="stylesheet" href="{root}docs.css">
 </head>
 <body>
 <a class="skip" href="#doc">Skip to the document</a>
-<header>
-<p class="kicker"><a href="{root}">plumbline</a></p>
-{nav}
-</header>
+{header}
+<div class="docs-layout">
+{sidebar}
 <main id="doc">
 {body}
 </main>
+{toc}
+</div>
 <footer>
 <p>Every page here is rendered from the repository at deploy time; none is edited by hand.
 <a href="https://github.com/{repo}">Source on GitHub</a>, Apache-2.0 licensed.
 No analytics, no trackers, no external requests.</p>
 </footer>
+<script src="{root}site.js" defer></script>
 </body>
 </html>
 """
 
 
-def _page(title: str, description: str, meta: str, root: str, nav: str, body: str) -> str:
+def _page(
+    title: str,
+    description: str,
+    meta: str,
+    root: str,
+    *,
+    body: str,
+    doc: str | None = None,
+    header: str | None = "docs",
+    docs_prefix: str = "",
+    toc: str = "",
+) -> str:
+    """One doc-shaped page: header, docs sidebar, the body, and its contents list."""
     return PAGE.format(
         title=html.escape(title),
         description=html.escape(description, quote=True),
         meta=meta,
         icon=ICON,
         root=root,
-        nav=nav,
+        header=site_header(root, header),
+        sidebar=docs_sidebar(doc, docs_prefix),
         body=body,
+        toc=toc,
         repo=REPO,
     )
 
 
-def write_docs(out: Path, prov: Provenance, rendered: dict[str, dict[str, str]]) -> None:
+def write_docs(out: Path, prov: Provenance, rendered: dict[str, Rendered]) -> None:
     docs = out / "docs"
     docs.mkdir()
     for doc in DOCS:
         shutil.copyfile(ROOT / doc.source, docs / f"{doc.slug}.md")
         body = (
             f'<p class="provenance">{prov.line(doc)}</p>\n'
-            f'<article class="prose">\n{rendered[doc.slug]["html"]}</article>'
+            f'<article class="prose">\n{rendered[doc.slug]["html"]}</article>\n'
+            f"{prev_next(doc.slug)}"
         )
         meta = social_meta(f"{doc.label} | plumbline", doc.blurb, f"{SITE_URL}docs/{doc.slug}.html")
-        page = _page(doc.label, doc.blurb, meta, "../", _nav(doc.slug, "../"), body)
+        toc = page_toc(rendered[doc.slug]["headings"])
+        # The example report has its own link in the header; every other doc is "Docs".
+        header = "example-report" if doc.slug == "example-report" else "docs"
+        page = _page(
+            doc.label, doc.blurb, meta, "../", body=body, doc=doc.slug, header=header, toc=toc
+        )
         (docs / f"{doc.slug}.html").write_text(page, encoding="utf-8")
 
-    listing = "\n".join(
-        f'  <li><a href="{doc.slug}.html">{html.escape(doc.label)}</a> '
-        f'<span class="muted small">{html.escape(doc.source)}</span><br>'
-        f"{html.escape(doc.blurb)}</li>"
-        for doc in DOCS
-    )
+    listing = []
+    for group in GROUPS:
+        items = "\n".join(
+            f'  <li><a href="{doc.slug}.html">{html.escape(doc.label)}</a> '
+            f'<span class="muted small">{html.escape(doc.source)}</span><br>'
+            f"{html.escape(doc.blurb)}</li>"
+            for doc in DOCS
+            if doc.group == group
+        )
+        listing.append(f'<h2>{html.escape(group)}</h2>\n<ul class="doc-list">\n{items}\n</ul>')
     at = prov.built.strftime("%Y-%m-%d %H:%M UTC")
     index = (
         '<article class="prose">\n<h1>Documentation</h1>\n'
         "<p>The repository's own markdown, rendered from commit "
         f'<a href="https://github.com/{REPO}/commit/{prov.sha}"><code>{prov.sha[:7]}</code></a> '
-        f"at {at}.</p>\n"
-        f'<ul class="doc-list">\n{listing}\n</ul>\n</article>'
+        f"at {at}.</p>\n" + "\n".join(listing) + "\n</article>"
     )
     description = "plumbline's documentation, rendered from the repository."
     meta = social_meta("Documentation | plumbline", description, f"{SITE_URL}docs/")
-    page = _page("Documentation", description, meta, "../", _nav(None, "../"), index)
+    page = _page("Documentation", description, meta, "../", body=index)
     (docs / "index.html").write_text(page, encoding="utf-8")
 
 
@@ -495,10 +679,28 @@ def write_404(out: Path) -> None:
         f'<p><a href="{SITE_PATH}">Go to the explainer</a>, or '
         f'<a href="{SITE_PATH}docs/">browse the documentation</a>.</p>\n</article>'
     )
-    nav = _nav(None, SITE_PATH, f"{SITE_PATH}docs/")
     meta = '<meta name="robots" content="noindex">'
-    page = _page("Not found", "No page at this address.", meta, SITE_PATH, nav, body)
+    page = _page(
+        "Not found",
+        "No page at this address.",
+        meta,
+        SITE_PATH,
+        body=body,
+        header=None,
+        docs_prefix=f"{SITE_PATH}docs/",
+    )
     (out / "404.html").write_text(page, encoding="utf-8")
+
+
+#: Where the shared header goes in ``site/index.html``, which is written by hand.
+HEADER_SLOT = "<!-- site:header -->"
+
+
+def explainer_page(source: str) -> str:
+    """The explainer as written, with the shared header in its slot."""
+    if source.count(HEADER_SLOT) != 1:
+        raise BuildError(f"site/index.html must contain {HEADER_SLOT} exactly once")
+    return source.replace(HEADER_SLOT, site_header("", "calculator"))
 
 
 def main() -> int:
@@ -516,6 +718,7 @@ def main() -> int:
         example = build_example()
         prov = provenance()
         rendered = render_docs(prov)
+        explainer = explainer_page((SITE / "index.html").read_text(encoding="utf-8"))
     except BuildError as problem:
         print(f"site build refused: {problem}", file=sys.stderr)
         return 1
@@ -523,9 +726,10 @@ def main() -> int:
     if out.exists():
         shutil.rmtree(out)
     # vendor/ holds the markdown renderer, which runs here at build time; the
-    # pages it produces need no script, so it is not shipped.
+    # pages it produces are finished HTML, so it is not shipped.
     shutil.copytree(SITE, out, ignore=shutil.ignore_patterns("vendor"))
     (out / "example-run.json").write_text(json.dumps(example, indent=1) + "\n", encoding="utf-8")
+    (out / "index.html").write_text(explainer, encoding="utf-8")
     write_docs(out, prov, rendered)
     write_404(out)
     print(f"site assembled in {out}")
