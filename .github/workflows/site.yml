@@ -103,6 +103,13 @@ jobs:
           tar -xf artifact/artifact.tar -C site-as-published
           node scripts/check_site_links.mjs site-as-published
 
+      # The runner's own Chrome, driven over the DevTools protocol by the
+      # runner's own Node; nothing is installed. It fails on a broken flow (the
+      # calculator, a shared link, search) and on any console error or CSP
+      # violation, on every page.
+      - name: The pages work in a real browser
+        run: node scripts/smoke_site.mjs site-as-published
+
   deploy:
     name: deploy to GitHub Pages
     needs: [parity, docs]
@@ -123,3 +130,21 @@ jobs:
       - name: Publish the checked site
         id: deployment
         uses: actions/deploy-pages@v5
+
+  live:
+    name: the live site resolves as the checked one did
+    needs: deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # What Pages actually serves, including a real 404 for a missing path,
+      # which only a request to the live site can show. The CDN can take a
+      # moment to serve the new build, so a failure is retried once.
+      - name: Every link, anchor, meta tag, and policy resolves on the live site
+        run: |
+          node scripts/check_site_links.mjs https://tmhsdigital.github.io/plumbline/ || {
+            sleep 60
+            node scripts/check_site_links.mjs https://tmhsdigital.github.io/plumbline/
+          }

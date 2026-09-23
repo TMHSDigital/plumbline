@@ -124,11 +124,15 @@ jobs:
                    --results results 2>&1)"
           set -e
           echo "$out" | grep -q "requires" || { echo "expected a named refusal, got:"; echo "$out"; exit 1; }
-          echo "$out" | grep -qv "Traceback" || { echo "traceback leaked"; exit 1; }
+          if echo "$out" | grep -q "Traceback"; then echo "traceback leaked"; echo "$out"; exit 1; fi
 
   # The house style has no em dashes, and the report's own strings are prose a
-  # reader sees. datasets/public/ is excluded because it holds vendored
-  # third-party rows that are reproduced as published.
+  # reader sees, as are the site's pages and the issue templates. Besides the
+  # character itself it catches the spellings that render as one in HTML or JS
+  # (the named and numeric HTML entities, and the JS unicode escape); each is
+  # written in the pattern with a bracketed character so this file does not
+  # match itself. datasets/public/ holds vendored third-party rows reproduced as
+  # published, and site/vendor/ a vendored library, so both are excluded.
   prose:
     name: no em dashes in the docs or the report strings
     runs-on: ubuntu-latest
@@ -136,9 +140,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Tracked markdown and src/ contain no em dash
+      - name: Tracked prose, source, site, and templates contain no em dash
         run: |
-          if git grep -n -P '\x{2014}' -- '*.md' 'src/' ':!datasets/public/'; then
+          pattern='\x{2014}|&m[d]ash;|&#821[2];|&#x201[4];|\\u201[4]'
+          if git grep -n -i -P "$pattern" -- '*.md' 'src/' 'site/' 'scripts/' '.github/' \
+              ':!datasets/public/' ':!site/vendor/'; then
             echo "::error::em dash found above; use a comma, colon, parentheses, or a new sentence"
             exit 1
           fi
