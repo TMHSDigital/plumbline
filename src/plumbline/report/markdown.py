@@ -367,6 +367,21 @@ def _cascade_section(
     assert escalation is not None and error is not None
     best = cascade.optimal_threshold(series, chosen_outcomes, escalation, error)
     all_escalated = rows * escalation
+    caveat = (
+        "- Escalated traffic is assumed to answer correctly, so this is the optimistic "
+        "bound: whatever you escalate to has its own error rate and this number does not "
+        "know it. The cheap arm's own per-case cost is excluded, because it is paid at "
+        "every threshold and cannot move the optimum."
+    )
+    if best.covered == 0:
+        return [
+            *lines,
+            f"- Escalating every case is cheapest: at these costs, keeping any of the {rows} "
+            f"rows on the cheap arm costs more in errors than escalating it. Expected cost "
+            f"${best.total_cost_usd:.2f} over {rows} rows "
+            f"(${best.cost_per_case_usd:.4f} per case).",
+            caveat,
+        ]
 
     return [
         *lines,
@@ -378,10 +393,7 @@ def _cascade_section(
         f"- {best.escalated} of {rows} rows escalate. Of the {best.covered} covered rows, "
         f"{best.errors_covered} are wrong, so covered accuracy is "
         f"{(best.accuracy_covered or 0.0):.3f}.",
-        "- Escalated traffic is assumed to answer correctly, so this is the optimistic "
-        "bound: whatever you escalate to has its own error rate and this number does not "
-        "know it. The cheap arm's own per-case cost is excluded, because it is paid at "
-        "every threshold and cannot move the optimum.",
+        caveat,
     ]
 
 
