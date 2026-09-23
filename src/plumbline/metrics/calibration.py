@@ -146,17 +146,36 @@ def bin_assignments(
         return indices, edges
 
     if binning == "equal_count":
-        quantiles = np.linspace(0.0, 1.0, n_bins + 1)
-        edges = np.quantile(probabilities, quantiles)
-        edges[0], edges[-1] = 0.0, 1.0
-        # Rows are split by rank, so ties that straddle a boundary land together
-        # in whichever bin the sort puts them. Counts are then near-equal rather
-        # than exactly equal, which is the honest behavior for tied predictions.
+        # Cut the sorted rows into near-equal runs, but never inside a tie: a
+        # cut that would separate equal probabilities moves forward past them.
+        # Splitting a tie put rows with the same prediction in different bins
+        # depending on input order, so the same rows gave a different ECE when
+        # shuffled. Ties are common, because vendor probabilities arrive on a
+        # coarse grid. Bins are then only near-equal, and a heavy tie can leave
+        # fewer than n_bins populated; the unpopulated ones are empty.
         order = np.argsort(probabilities, kind="stable")
-        indices = np.empty(len(probabilities), dtype=np.intp)
-        chunks = np.array_split(order, n_bins)
-        for position, chunk in enumerate(chunks):
-            indices[chunk] = position
+        ordered = probabilities[order]
+        n = len(ordered)
+        sizes = [len(chunk) for chunk in np.array_split(np.arange(n), n_bins)]
+        cuts: list[int] = []
+        for cut in np.cumsum(sizes)[:-1]:
+            position = int(cut)
+            while 0 < position < n and ordered[position] == ordered[position - 1]:
+                position += 1
+            if 0 < position < n and (not cuts or position > cuts[-1]):
+                cuts.append(position)
+
+        indices = np.empty(n, dtype=np.intp)
+        start = 0
+        for position, end in enumerate([*cuts, n]):
+            indices[order[start:end]] = position
+            start = end
+        # Edges come from the rows actually assigned: halfway between the last
+        # row of one bin and the first of the next.
+        edges = np.ones(n_bins + 1, dtype=np.float64)
+        edges[0] = 0.0
+        for position, cut in enumerate(cuts, start=1):
+            edges[position] = (ordered[cut - 1] + ordered[cut]) / 2.0
         return indices, edges
 
     raise ValueError(f"binning must be 'equal_width' or 'equal_count', got {binning!r}")

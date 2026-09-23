@@ -393,3 +393,48 @@ def test_the_brier_floor_accepts_a_distribution_a_little_under_one() -> None:
     """Prediction allows a sum within 1e-3 of 1; the floor must not index past it (#31)."""
     floor = calibration.multiclass_brier_floor([{"a": 0.4995, "b": 0.5}] * 50, n_boot=500)
     assert 0.0 <= floor.mean <= 2.0
+
+
+def tied_rows() -> tuple[list[float], list[bool]]:
+    """Ten rows on a two-decimal grid, where an equal-count cut at five lands inside a tie."""
+    probabilities = [0.7] * 6 + [0.8] * 4
+    outcomes = [True, False, True, False, True, True, True, True, False, True]
+    return probabilities, outcomes
+
+
+def a_probability_series(values: list[float]) -> ProbabilitySeries:
+    return ProbabilitySeries(values=tuple(values), semantics="calibrated_claim")
+
+
+def test_equal_count_ece_does_not_depend_on_row_order_when_predictions_tie() -> None:
+    """Which tied rows land in which bin used to follow input order (#38)."""
+    import random
+
+    probabilities, outcomes = tied_rows()
+    reference = calibration.ece(
+        a_probability_series(probabilities), outcomes, n_bins=2, binning="equal_count"
+    )
+    rng = random.Random(3)
+    for _ in range(20):
+        order = list(range(len(probabilities)))
+        rng.shuffle(order)
+        shuffled = calibration.ece(
+            a_probability_series([probabilities[i] for i in order]),
+            [outcomes[i] for i in order],
+            n_bins=2,
+            binning="equal_count",
+        )
+        assert shuffled == pytest.approx(reference)
+
+
+def test_equal_count_bins_never_split_a_tie_and_their_edges_match_their_rows() -> None:
+    import numpy as np
+
+    probabilities, _ = tied_rows()
+    indices, edges = calibration.bin_assignments(np.asarray(probabilities), 2, "equal_count")
+
+    for value in set(probabilities):
+        assert len({int(indices[i]) for i, p in enumerate(probabilities) if p == value}) == 1
+    for index in set(indices.tolist()):
+        members = [p for i, p in enumerate(probabilities) if indices[i] == index]
+        assert edges[index] <= min(members) and max(members) <= edges[index + 1]

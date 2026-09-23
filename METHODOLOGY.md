@@ -430,7 +430,9 @@ as a hit, contributing to neither cost nor latency, because it measures disk.
 ECE is the count-weighted mean gap between predicted probability and observed
 accuracy, over ten equal-width bins by default. Equal-count binning is available
 and moves the number, which is one reason the bin count and scheme print beside
-every figure.
+every figure. Equal-count bins never split a tie: rows with the same predicted
+probability always share a bin, so the figure does not depend on the order the
+rows arrived in, and with heavy ties the bins are near-equal rather than equal.
 
 ### Why the floor is not zero
 
