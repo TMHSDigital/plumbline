@@ -382,6 +382,28 @@ def test_the_cascade_needs_the_two_numbers_no_benchmark_can_know() -> None:
     assert "stays on the cheap arm" not in body
 
 
+def test_without_a_temperature_the_threshold_is_still_scored_on_held_out_rows() -> None:
+    """A threshold chosen and scored on the same rows is in-sample, whatever it says (#30).
+
+    A calibrated arm gets no temperature, so there is no recalibrated scale; the
+    threshold must still be picked on one half and reported on the other, and
+    the 200-row minimum counts the held-out half. 300 rows leave 150 held out.
+    """
+    body = section(markdown.render([a_run(n_cases=300)], options=with_costs()), "Cascade")
+
+    assert "not reported" in body.lower()
+    assert "held-out" in body
+    assert "stays on the cheap arm" not in body
+
+
+def test_the_cascade_says_where_its_threshold_was_chosen_and_where_it_was_scored() -> None:
+    body = section(markdown.render([a_run(n_cases=600)], options=with_costs()), "Cascade")
+
+    assert "stays on the cheap arm" in body
+    assert "chosen on 300 rows" in body
+    assert "300 held-out rows" in body
+
+
 def test_a_threshold_is_refused_on_an_evaluation_set_too_small_to_support_one() -> None:
     body = section(markdown.render([a_run(n_cases=40)], options=with_costs()), "Cascade")
 

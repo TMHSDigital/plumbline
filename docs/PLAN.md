@@ -98,8 +98,11 @@ Settled during the build. Reopen one only with a reason, not from scratch.
   second, so a repeated name gets a suffix rather than replacing user records.
 - A refused recalibration prints no number: the verdict, the split sizes, and
   nothing that could be lifted into production code.
-- The cascade threshold is chosen on held-out rows, on the recalibrated scale
-  when a temperature was recommended, because a threshold set against a raw
+- The cascade threshold is chosen on the fit half of the rows and its cost and
+  coverage are reported on the held-out half, which neither the threshold nor
+  any temperature has seen; a threshold chosen and scored on the same rows
+  would report its best case. Both halves are on the recalibrated scale when a
+  temperature was recommended, because a threshold set against a raw
   overconfident probability sits in the wrong place.
 - Escalation cost and error cost are supplied by the caller and never defaulted.
   No benchmark can know them, and a made-up default would decide the threshold.
