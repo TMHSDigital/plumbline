@@ -450,11 +450,21 @@ def redact(config: Mapping[str, Any]) -> dict[str, Any]:
     for key, value in config.items():
         if any(marker in key.lower() for marker in _SECRET_MARKERS):
             cleaned[key] = "[redacted]"
-        elif isinstance(value, Mapping):
-            cleaned[key] = redact(value)
         else:
-            cleaned[key] = value
+            cleaned[key] = _redacted(value)
     return cleaned
+
+
+def _redacted(value: Any) -> Any:
+    """A value with every mapping inside it redacted, through lists and tuples too.
+
+    A key inside a list of endpoints is as much a secret as one at the top level.
+    """
+    if isinstance(value, Mapping):
+        return redact(value)
+    if isinstance(value, list | tuple):
+        return [_redacted(item) for item in value]
+    return value
 
 
 def estimate_run_cost(

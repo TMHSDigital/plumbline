@@ -13,6 +13,7 @@ records. Where they land is the caller's decision, not the shell's.
 
 from __future__ import annotations
 
+import dataclasses
 import sys
 from collections.abc import Callable
 from functools import partial
@@ -107,7 +108,7 @@ def run(
     # so a mistake costs nothing.
     if report is not None and report.is_dir():
         _fail(f"--report {report} is a directory; give it a file path, such as {report}/report.md")
-    load = _load(dataset, data_format)
+    load = dataclasses.replace(_load(dataset, data_format), source=_shown(dataset))
     _status(load.statement())
     for refusal in load.refusals:
         _status(f"  refused {refusal}")
@@ -135,7 +136,7 @@ def run(
             guard=execute.CostGuard(max_cost_usd=max_cost_usd, max_cases=max_cases),
             pricing_table=_pricing(pricing),
             workers=workers,
-            extra_config={"dataset": str(dataset), "format": data_format},
+            extra_config={"dataset": _shown(dataset), "format": data_format},
         )
     )
 
@@ -178,16 +179,26 @@ def report(
         float | None, typer.Option("--error-cost", help="What one wrong answer costs, in USD.")
     ] = None,
     n_boot: Annotated[int, typer.Option("--boot", min=1, help="Bootstrap draws per null.")] = 2000,
+    allow_mixed: Annotated[
+        bool,
+        typer.Option(
+            "--allow-mixed",
+            help="Allow runs over different datasets in one document; each arm names its own.",
+        ),
+    ] = False,
 ) -> None:
     """Render one document from runs that already happened."""
     results = [_guard(partial(execute.RunResult.read, path)) for path in artifacts]
-    document = markdown.render(
-        results,
-        options=markdown.ReportOptions(
-            n_boot=n_boot,
-            cost_escalation_usd=escalation_cost,
-            cost_error_usd=error_cost,
-        ),
+    document = _guard(
+        lambda: markdown.render(
+            results,
+            options=markdown.ReportOptions(
+                n_boot=n_boot,
+                cost_escalation_usd=escalation_cost,
+                cost_error_usd=error_cost,
+                allow_mixed_datasets=allow_mixed,
+            ),
+        )
     )
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -213,6 +224,20 @@ _EXTRAS = {"local_logits": ("torch", "transformers")}
 def version() -> None:
     """Print the plumbline version."""
     typer.echo(__version__)
+
+
+def _shown(dataset: Path) -> str:
+    """The dataset as a report or an artifact names it.
+
+    Relative to the working directory when it is inside it, as the caller most
+    likely typed it; otherwise the file name alone. An absolute path in a report
+    that gets shared names the user and their directory layout, and the dataset
+    hash already says which rows these were.
+    """
+    try:
+        return str(dataset.resolve().relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return dataset.name
 
 
 def _load(dataset: Path, data_format: str) -> loader.LoadReport:
