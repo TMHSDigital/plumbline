@@ -83,6 +83,13 @@ different event from one that moved because it was wrong.
 
 ### Fixed
 
+- The cascade's threshold was chosen and scored on the same rows, so the
+  coverage and cost it printed were its best case rather than what it would
+  do; with no temperature recommended it used every row and still called them
+  held-out (#30). It is now chosen on the fit half and reported on the
+  held-out half, and the 200-row minimum counts the held-out half, so a run
+  needs at least 400 scored rows for a threshold. **This changes which runs
+  print a threshold, and the cost and coverage printed with it.**
 - The cascade never considered escalating every case, because the highest
   observed score always kept the rows that reached it covered; with every
   case wrong and errors dear it chose a threshold costing $201 where

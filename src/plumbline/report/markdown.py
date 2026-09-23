@@ -348,16 +348,17 @@ def _cascade_section(
             "states where to set the threshold and what it buys.",
         ]
 
-    scored, scale = _cascade_rows(fit, successes, outcomes, semantics)
+    scored, scale = _cascade_rows(fit, successes, outcomes, semantics, options)
     if scored is None:
         return [*lines, "- Not reported. This arm reports no probability to threshold on."]
 
-    series, chosen_outcomes = scored
-    rows = len(chosen_outcomes)
+    (fit_series, fit_outcomes), (held_series, held_outcomes) = scored
+    chosen_on, rows = len(fit_outcomes), len(held_outcomes)
     if rows < options.min_threshold_rows:
         return [
             *lines,
-            f"- Not reported. A threshold picked on {rows} rows is fitted to noise; "
+            f"- Not reported. A threshold is chosen on one part of the rows and judged on "
+            f"rows it has not seen, and this arm leaves {rows} held-out rows; "
             f"{options.min_threshold_rows} held-out rows are the minimum before one is "
             "worth acting on. No threshold is given.",
         ]
@@ -365,36 +366,46 @@ def _cascade_section(
     escalation = options.cost_escalation_usd
     error = options.cost_error_usd
     assert escalation is not None and error is not None
-    best = cascade.optimal_threshold(series, chosen_outcomes, escalation, error)
+    # Chosen on the fit rows, then scored on the held-out rows: a threshold
+    # picked and reported on the same rows is fitted to them, and its cost
+    # there is the best case rather than what it will do.
+    chosen = cascade.optimal_threshold(fit_series, fit_outcomes, escalation, error)
+    best = cascade.cascade_sweep(
+        held_series, held_outcomes, escalation, error, thresholds=[chosen.threshold]
+    )[0]
     all_escalated = rows * escalation
+    where = f"chosen on {chosen_on} rows and scored on {rows} held-out rows"
     caveat = (
         "- Escalated traffic is assumed to answer correctly, so this is the optimistic "
         "bound: whatever you escalate to has its own error rate and this number does not "
         "know it. The cheap arm's own per-case cost is excluded, because it is paid at "
         "every threshold and cannot move the optimum."
     )
-    if best.covered == 0:
+    if chosen.covered == 0:
         return [
             *lines,
-            f"- Escalating every case is cheapest: at these costs, keeping any of the {rows} "
-            f"rows on the cheap arm costs more in errors than escalating it. Expected cost "
-            f"${best.total_cost_usd:.2f} over {rows} rows "
+            f"- Escalating every case is cheapest ({where}): at these costs, keeping rows "
+            f"on the cheap arm costs more in errors than escalating them. Expected cost "
+            f"${best.total_cost_usd:.2f} over the {rows} held-out rows "
             f"(${best.cost_per_case_usd:.4f} per case).",
             caveat,
         ]
 
     return [
         *lines,
-        f"- At a threshold of {best.threshold:.3f} on the {scale} probability, "
+        f"- At a threshold of {chosen.threshold:.3f} on the {scale} probability ({where}), "
         f"{best.coverage * 100:.0f} percent of traffic stays on the cheap arm and the "
-        f"expected cost is ${best.total_cost_usd:.2f} over {rows} rows "
+        f"expected cost is ${best.total_cost_usd:.2f} over those {rows} rows "
         f"(${best.cost_per_case_usd:.4f} per case), versus ${all_escalated:.2f} if every "
         "case went to the expensive arm.",
-        f"- {best.escalated} of {rows} rows escalate. Of the {best.covered} covered rows, "
-        f"{best.errors_covered} are wrong, so covered accuracy is "
+        f"- {best.escalated} of {rows} held-out rows escalate. Of the {best.covered} covered "
+        f"rows, {best.errors_covered} are wrong, so covered accuracy is "
         f"{(best.accuracy_covered or 0.0):.3f}.",
         caveat,
     ]
+
+
+_Rows = tuple[ProbabilitySeries, list[bool]]
 
 
 def _cascade_rows(
@@ -402,38 +413,53 @@ def _cascade_rows(
     successes: Sequence[CaseRecord],
     outcomes: Sequence[bool],
     semantics: str,
-) -> tuple[tuple[ProbabilitySeries, list[bool]] | None, str]:
-    """The rows a threshold is chosen on, and what scale they are on.
+    options: ReportOptions,
+) -> tuple[tuple[_Rows, _Rows] | None, str]:
+    """The rows a threshold is chosen on, the rows it is scored on, and their scale.
 
-    A threshold set against a raw overconfident probability sits in the wrong
-    place, because 0.9 from an overconfident model is not 0.9. So when a
-    temperature was recommended, the threshold is chosen on the held-out rows
-    with that temperature applied: the same rows the temperature was judged
-    on, never the rows it was fitted on.
+    Always two disjoint halves: the recalibration split when there is one, or a
+    split made the same way when recalibration produced nothing. A threshold
+    set against a raw overconfident probability sits in the wrong place,
+    because 0.9 from an overconfident model is not 0.9, so when a temperature
+    was recommended both halves are on the recalibrated scale. The held-out
+    half is then unseen by the temperature and the threshold alike.
     """
     predictions = [record.prediction for record in successes if record.prediction]
     result = fit.result
+    split = (
+        result.split
+        if result is not None
+        else recalibration.make_split(len(predictions), options.fit_fraction, options.seed)
+    )
 
     if result is not None and result.temperature_to_use is not None:
         temperature = result.temperature_to_use
-        indices = result.split.eval_indices
-        values = tuple(_scaled(predictions[index], temperature) for index in indices)
-        chosen = [bool(outcomes[index]) for index in indices]
-        return (
-            ProbabilitySeries(values=values, semantics=semantics),  # type: ignore[arg-type]
-            chosen,
-        ), "recalibrated"
 
-    raw = [prediction.prob_selected for prediction in predictions]
-    if any(value is None for value in raw):
-        return None, "raw"
-    return (
-        ProbabilitySeries(
-            values=tuple(value for value in raw if value is not None),
-            semantics=semantics,  # type: ignore[arg-type]
-        ),
-        [bool(outcome) for outcome in outcomes],
-    ), "raw"
+        def value(index: int) -> float:
+            return _scaled(predictions[index], temperature)
+
+        scale = "recalibrated"
+    else:
+        if any(prediction.prob_selected is None for prediction in predictions):
+            return None, "raw"
+
+        def value(index: int) -> float:
+            probability = predictions[index].prob_selected
+            assert probability is not None
+            return probability
+
+        scale = "raw"
+
+    def half(indices: Sequence[int]) -> _Rows:
+        return (
+            ProbabilitySeries(
+                values=tuple(value(index) for index in indices),
+                semantics=semantics,  # type: ignore[arg-type]
+            ),
+            [bool(outcomes[index]) for index in indices],
+        )
+
+    return (half(split.fit_indices), half(split.eval_indices)), scale
 
 
 def _scaled(prediction: Prediction, temperature: float) -> float:
