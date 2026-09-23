@@ -185,6 +185,19 @@ different event from one that moved because it was wrong.
 
 ### Documentation
 
+- A new page, [Your own data](docs/datasets.md), gives the row format, what
+  the loader refuses and why, and the commands a user needs next: a local
+  checkpoint with its pinned revision, the cascade's two costs, and
+  `plumbline report` for runs that already happened (#61). A test holds its
+  example rows to the loader.
+- The README's hosted-vendor command used `--max-cases 40` against 105 rows,
+  which refuses rather than truncates, so it sent nothing (#29); it uses
+  `--limit 40`, and `--max-cases` says in its help that it is a guard.
+- The README said `pip install plumbline` "will not work"; it installs an
+  unrelated project of the same name (#60). It now says so and gives pip
+  commands that install this one, and the missing-extra error no longer points
+  at the PyPI package.
+
 - `docs/example-report.md` is now checked line for line against its recorded
   command on every site build, not only its ECE line, and the README says that
   instead of calling it "unedited".

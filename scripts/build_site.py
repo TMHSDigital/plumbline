@@ -93,6 +93,13 @@ DOCS = (
         USING,
     ),
     Doc(
+        "docs/datasets.md",
+        "your-data",
+        "Your own data",
+        "The row format, what is refused and why, and the commands to run next.",
+        USING,
+    ),
+    Doc(
         "METHODOLOGY.md",
         "methodology",
         "Methodology",

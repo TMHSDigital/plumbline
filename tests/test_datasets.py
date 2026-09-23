@@ -322,3 +322,22 @@ def test_an_unknown_question_type_is_refused_rather_than_assumed_to_be_a_choice(
 
     assert report.cases == ()
     assert "question_type" in report.refusals[0].reason
+
+
+def test_the_example_in_the_dataset_docs_loads_as_documented(tmp_path) -> None:
+    """docs/datasets.md shows the format; the format it shows must be the one the loader reads."""
+    import re
+    from pathlib import Path
+
+    doc = Path(__file__).resolve().parent.parent / "docs" / "datasets.md"
+    block = re.search(r"```jsonl\n(.*?)```", doc.read_text(encoding="utf-8"), re.S)
+    assert block is not None, "docs/datasets.md has no jsonl example"
+    path = tmp_path / "example.jsonl"
+    path.write_text(block.group(1), encoding="utf-8")
+
+    report = loader.load_jsonl(path)
+
+    assert not report.refusals
+    kinds = sorted(case.question_type for case in report.cases)
+    assert kinds == ["choice", "choice", "choice", "noul", "score"]
+    assert len(report.scoreable) == 4  # the score row loads and is held back

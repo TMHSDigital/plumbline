@@ -311,7 +311,10 @@ class TransformersReadout:
         except ImportError as missing:  # pragma: no cover - exercised by installing extras
             raise PlumblineError(
                 "the local_logits arm needs torch and transformers, which are an optional "
-                "dependency. Install them with: pip install 'plumbline[local]'"
+                "dependency. Install them with: uv sync --extra local (with pip, install "
+                "from the repository: pip install "
+                '"plumbline[local] @ git+https://github.com/TMHSDigital/plumbline"; the '
+                "plumbline on PyPI is an unrelated project)"
             ) from missing
 
         self._torch = torch
