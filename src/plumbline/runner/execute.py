@@ -94,6 +94,66 @@ class RetryPolicy:
         return self.backoff_seconds * (2 ** (attempt - 2)) if attempt > 1 else 0.0
 
 
+#: HTTP statuses a second attempt can fix: the request timed out, conflicted,
+#: came too early, or was rate limited. Any 5xx joins them. Every other status
+#: is the service saying no, and asking again only pays for the same answer.
+_RETRYABLE_STATUSES = frozenset({408, 409, 425, 429})
+
+#: The longest a Retry-After header is allowed to hold a case, in seconds.
+MAX_RETRY_AFTER_SECONDS = 60.0
+
+
+def _status_of(error: BaseException) -> int | None:
+    """The HTTP status an SDK error carries, whichever attribute it uses."""
+    for attribute in ("status_code", "status"):
+        value = getattr(error, attribute, None)
+        if isinstance(value, int) and not isinstance(value, bool):
+            return value
+    return None
+
+
+def is_transient(error: BaseException) -> bool:
+    """Whether a second attempt could succeed where this one failed.
+
+    Only transport failures are: a connection that dropped, a timeout, a rate
+    limit, a server error. Everything plumbline raises on purpose is permanent
+    (the service answered a different question, the checkpoint was not the one
+    pinned, an optional dependency is missing), as is a 4xx and any error the
+    runner does not recognise, because every retry is another billed call. The
+    checks are by shape rather than by SDK class, so the runner imports no SDK.
+    """
+    if isinstance(error, PlumblineError):
+        return False
+    status = _status_of(error)
+    if status is not None:
+        return status in _RETRYABLE_STATUSES or 500 <= status < 600
+    if isinstance(error, TimeoutError | ConnectionError):
+        return True
+    # SDKs that do not subclass the builtins still name their transport errors
+    # this way (Anthropic's APIConnectionError and APITimeoutError).
+    return any(
+        cls.__name__.endswith(("ConnectionError", "TimeoutError")) for cls in type(error).__mro__
+    )
+
+
+def retry_after(error: BaseException) -> float | None:
+    """Seconds a Retry-After header on the error asks for, capped, or None."""
+    headers = getattr(error, "headers", None)
+    if headers is None:
+        headers = getattr(getattr(error, "response", None), "headers", None)
+    if headers is None:
+        return None
+    try:
+        value = headers.get("retry-after") or headers.get("Retry-After")
+    except AttributeError:
+        return None
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return None  # an HTTP-date, or garbage: fall back to the backoff schedule
+    return min(max(seconds, 0.0), MAX_RETRY_AFTER_SECONDS)
+
+
 @dataclass(frozen=True)
 class CostGuard:
     """Limits checked before the run, not discovered during it."""
@@ -548,10 +608,14 @@ def _one_case(
             )
 
     last_error: Exception | None = None
+    attempts = 0
     for attempt in range(1, retry.max_attempts + 1):
         delay = retry.delay_before(attempt)
+        if last_error is not None:
+            delay = max(delay, retry_after(last_error) or 0.0)
         if delay:
             retry.sleep(delay)
+        attempts = attempt
         try:
             prediction = adapter.classify(case.text, labels, question_type=case.question_type)
         except CaseRefusedError as refusal:
@@ -573,7 +637,10 @@ def _one_case(
             )
         except Exception as error:  # an adapter may raise anything; record it as a failure
             last_error = error
-            continue
+            if is_transient(error):
+                continue
+            # No retry fixes it, and each one would be another billed call.
+            break
 
         if cache is not None and key is not None:
             cache.put(key, prediction)
@@ -594,7 +661,7 @@ def _one_case(
         prediction=None,
         cost_usd=None,
         from_cache=False,
-        attempts=retry.max_attempts,
+        attempts=attempts,
         error=f"{type(last_error).__name__}: {last_error}",
         question_type=case.question_type,
         asked_as="failed",

@@ -36,6 +36,7 @@ from typesafe_sdk import (
     ChoiceAnswer,
     Noul,
     NoulAnswer,
+    RetryPolicy,
     SystemOneResponse,
     TypeSafeClient,
 )
@@ -132,8 +133,15 @@ class TypeSafeWireAdapter(Adapter):
         self.base_url = base_url
         self.timeout = timeout
         self._owns_client = client is None
+        # The SDK's own retries are off: the runner retries transport failures
+        # itself, and a second layer underneath would multiply every billed
+        # call and leave the artifact's attempt count wrong.
         self._client = client or TypeSafeClient(
-            api_key=api_key, model=model_requested, base_url=base_url, timeout=timeout
+            api_key=api_key,
+            model=model_requested,
+            base_url=base_url,
+            timeout=timeout,
+            retry=RetryPolicy(max_retries=0),
         )
 
     @property

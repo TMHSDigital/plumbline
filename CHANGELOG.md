@@ -87,6 +87,14 @@ different event from one that moved because it was wrong.
   any run past `--max-cost-usd` (#28). Its prices are now null and its `as_of`
   a `YYYY-MM-DD` placeholder that the loader refuses, and any entry pricing
   both input and output at 0 is refused unless it says `"free": true`.
+- A failure no retry can fix was retried anyway, and each retry was another
+  billed call (#26). The runner retried every error but a refusal, including a
+  wire-contract error, a checkpoint mismatch, a missing optional dependency and
+  a 401, and both SDKs retried again underneath, so one case could make nine
+  calls. Now only transport failures are retried (a dropped connection, a
+  timeout, 408, 409, 425, 429 and 5xx), `Retry-After` is honoured up to 60
+  seconds, the SDKs' own retries are off, and a failed case records the
+  attempts it actually made.
 - Every validation message on the site's calculator and planner read
   "[object Object]" (#25). Messages now say what is wrong, mark the field
   invalid, and are tied to it for screen readers; a result is announced as one
