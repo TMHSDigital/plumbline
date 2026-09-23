@@ -90,6 +90,11 @@ different event from one that moved because it was wrong.
   held-out half, and the 200-row minimum counts the held-out half, so a run
   needs at least 400 scored rows for a threshold. **This changes which runs
   print a threshold, and the cost and coverage printed with it.**
+- Equal-count binning split tied predictions across a bin boundary by input
+  order, so the same rows gave an ECE of 0.3 in one order and 0.2 in another,
+  and bins holding the same values were labelled with different ranges (#38).
+  A cut now never falls inside a tie, and each bin's edges come from the rows
+  it holds. Equal-width binning, the default, is unchanged.
 - The cascade never considered escalating every case, because the highest
   observed score always kept the rows that reached it covered; with every
   case wrong and errors dear it chose a threshold costing $201 where
