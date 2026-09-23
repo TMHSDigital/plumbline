@@ -1,0 +1,54 @@
+/* The explainer (index.html): its calculator, worked example, and planner. */
+section { padding: 2rem 0; border-top: 1px solid var(--line); }
+.lede { font-size: 1.05rem; }
+.label { display: inline-block; font: 600 0.75rem var(--mono); text-transform: uppercase; letter-spacing: 0.05em; color: var(--warn-fg); background: var(--warn-bg); padding: 0.1rem 0.4rem; border-radius: 3px; margin-bottom: 0.5rem; }
+
+form { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 1rem; margin: 1.25rem 0 1rem; }
+label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.25rem; }
+.hint { display: block; font-size: 0.8rem; font-weight: 400; color: var(--muted); }
+input { width: 100%; font: 1rem var(--mono); padding: 0.5rem 0.6rem; color: var(--fg); background: var(--bg); border: 1px solid var(--control); border-radius: 4px; }
+.actions { grid-column: 1 / -1; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+button { font: 600 1rem var(--sans); padding: 0.55rem 1.1rem; color: var(--bg); background: var(--fg); border: 0; border-radius: 4px; cursor: pointer; }
+button[disabled] { opacity: 0.55; cursor: progress; }
+progress { flex: 1 1 8rem; height: 0.5rem; }
+.error { color: var(--error); }
+
+.result { border: 1px solid var(--line); border-radius: 6px; padding: 1rem; background: var(--panel); }
+.result[hidden], [hidden] { display: none !important; }
+.result h3:first-child { margin-top: 0; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1rem; margin: 0 0 1rem; }
+dt { color: var(--muted); }
+dd { margin: 0; font-family: var(--mono); overflow-wrap: anywhere; }
+.verdict { padding: 0.75rem; border-radius: 4px; margin: 0 0 1rem; }
+.verdict.inconclusive { background: var(--warn-bg); color: var(--warn-fg); }
+.verdict.distinguishable { background: var(--ok-bg); color: var(--ok-fg); }
+.verdict strong { display: block; margin-bottom: 0.25rem; }
+.big { font: 600 1.6rem var(--mono); margin: 0 0 0.5rem; }
+
+.table-wrap { overflow-x: auto; margin: 0 0 1rem; }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+caption { text-align: left; color: var(--muted); font-size: 0.85rem; padding-bottom: 0.4rem; }
+th, td { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--line); text-align: right; font-family: var(--mono); white-space: nowrap; }
+th { font-family: var(--sans); font-weight: 600; color: var(--muted); }
+th:first-child, td:first-child { text-align: left; }
+tfoot td { border-bottom: 0; font-weight: 600; }
+@media (max-width: 30rem) {
+  table { font-size: 0.8rem; }
+  th, td { padding: 0.3rem 0.25rem; }
+  th { white-space: normal; }
+}
+
+figure { margin: 0 0 1rem; }
+figcaption { font-size: 0.85rem; color: var(--muted); margin-top: 0.25rem; }
+svg.hist { width: 100%; height: auto; display: block; }
+svg.hist .bar { fill: var(--bar); }
+svg.hist .axis { stroke: var(--line); }
+svg.hist text { fill: var(--muted); font: 13px var(--mono); }
+svg.hist .measured { stroke: var(--mark-measured); stroke-width: 2; }
+svg.hist .p95 { stroke: var(--mark-p95); stroke-width: 2; stroke-dasharray: 5 3; }
+svg.hist text.measured-label { fill: var(--mark-measured); }
+svg.hist text.p95-label { fill: var(--mark-p95); }
+
+ol.steps { padding-left: 1.25rem; }
+ol.steps > li { margin-bottom: 1.25rem; }
+.trace { font: 0.85rem var(--mono); color: var(--muted); padding-left: 1.25rem; margin: 0 0 1rem; }
