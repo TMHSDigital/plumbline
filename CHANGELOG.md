@@ -83,6 +83,20 @@ different event from one that moved because it was wrong.
 
 ### Fixed
 
+- The CLI accepted options that misbehaved or crashed (#41): `--limit 0` ran
+  every row and a negative limit sliced from the end, `--boot 0` failed with a
+  traceback after the run had been paid for, an option the adapter does not
+  take and a missing API key each printed a traceback, and a `--report` path
+  that was a directory crashed after the run. Counts must now be positive, and
+  each of the rest is one line, before anything is sent.
+- `plumbline run` exited 0 when every case failed, and printed its status and
+  its errors on stdout, so `run > report.md` captured them and a script could
+  not tell a run with no figures from a good one (#42). Status and errors now
+  go to stderr, stdout carries only the report, and a run with no figures
+  exits 1 after writing the artifact and the report.
+- When every case failed for the same reason (usually a missing extra or key),
+  the report said only that the failures were in the artifact (#15). It now
+  prints that reason, once; different reasons are still left to the artifact.
 - The cascade's threshold was chosen and scored on the same rows, so the
   coverage and cost it printed were its best case rather than what it would
   do; with no temperature recommended it used every row and still called them

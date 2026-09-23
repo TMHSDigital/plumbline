@@ -157,6 +157,13 @@ artifact: results/20260921T222053+0000-mock-c18e9496.json
 report: results/report.md
 ```
 
+Those lines go to stderr. Without `--report`, the report itself is the only
+thing on stdout, so `plumbline run ... > report.md` captures just the report.
+The exit code is 0 when the run produced figures and 1 when it could not start
+(a bad option, a missing key, an unreadable file) or when every case failed; in
+that last case the artifact and the report are still written, and the reason is
+printed when all the cases share one.
+
 ```
 uv run plumbline adapters   # what this install can run
 uv run plumbline version
