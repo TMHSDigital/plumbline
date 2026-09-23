@@ -95,6 +95,12 @@ different event from one that moved because it was wrong.
   timeout, 408, 409, 425, 429 and 5xx), `Retry-After` is honoured up to 60
   seconds, the SDKs' own retries are off, and a failed case records the
   attempts it actually made.
+- Two workers answering cases with the same text wrote the same cache entry
+  through one shared temporary file; on Windows the loser raised
+  `PermissionError` and aborted the run, losing every call already paid for
+  (#27). Each write now has a temporary file of its own, a write that still
+  fails is counted in the cache stats (`write_errors`) instead of raised, and
+  cases sharing a key are answered once per run, the rest from the cache.
 - Every validation message on the site's calculator and planner read
   "[object Object]" (#25). Messages now say what is wrong, mark the field
   invalid, and are tied to it for screen readers; a result is announced as one

@@ -12,13 +12,21 @@ them are asked to pick from a set.
 
 A hit is recorded as a hit. It does not count toward cost or latency, because it
 measures disk rather than the model.
+
+Cases that share a key within one run are answered once: the runner holds a lock
+per key across look up, call, and store, so the second waits and then hits. A
+write that fails is counted and dropped rather than raised, because the answer
+it was storing is already paid for.
 """
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import hashlib
 import json
+import os
+import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -94,6 +102,7 @@ class Cache:
         self.hits = 0
         self.misses = 0
         self.writes = 0
+        self.write_errors = 0
 
     def path_for(self, key: str) -> Path:
         return self.directory / key[:2] / f"{key}.json"
@@ -117,19 +126,48 @@ class Cache:
         return prediction
 
     def put(self, key: str, prediction: Prediction) -> None:
+        """Store an answer, or count the failure to; never raise.
+
+        Each write goes through a temporary file of its own, so two writers of
+        one key cannot collide on a shared name. A write that still fails (a
+        virus scanner holding the file on Windows, a full disk) is counted in
+        ``stats`` and dropped: the answer is already in hand and paid for, and a
+        missing entry costs one more call on a later run, not this run.
+        """
         if not self.enabled:
             return
         path = self.path_for(key)
-        path.parent.mkdir(parents=True, exist_ok=True)
         payload = {"version": CACHE_FORMAT_VERSION, "prediction": to_jsonable(prediction)}
-        temporary = path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(payload, sort_keys=True, default=str), encoding="utf-8")
-        temporary.replace(path)
+        temporary: Path | None = None
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                dir=path.parent,
+                prefix=f"{key}.",
+                suffix=".tmp",
+                delete=False,
+            ) as handle:
+                temporary = Path(handle.name)
+                handle.write(json.dumps(payload, sort_keys=True, default=str))
+            os.replace(temporary, path)
+        except OSError:
+            self.write_errors += 1
+            if temporary is not None:
+                with contextlib.suppress(OSError):
+                    temporary.unlink()
+            return
         self.writes += 1
 
     @property
     def stats(self) -> dict[str, int]:
-        return {"hits": self.hits, "misses": self.misses, "writes": self.writes}
+        return {
+            "hits": self.hits,
+            "misses": self.misses,
+            "writes": self.writes,
+            "write_errors": self.write_errors,
+        }
 
 
 def to_jsonable(prediction: Prediction) -> dict[str, Any]:

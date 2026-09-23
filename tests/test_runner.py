@@ -172,11 +172,74 @@ def test_reordering_labels_does_not_invalidate_the_cache() -> None:
     assert forward == backward
 
 
+class CountingAdapter(Adapter):
+    """Answers through the mock, counting calls across threads, a little slowly."""
+
+    def __init__(self, inner: Adapter) -> None:
+        import threading
+
+        self.inner = inner
+        self.name = inner.name
+        self.model_requested = inner.model_requested
+        self.revision = inner.revision
+        self.probability_semantics = inner.probability_semantics
+        self.calls = 0
+        self._lock = threading.Lock()
+
+    @property
+    def call_params(self):  # type: ignore[override]
+        return self.inner.call_params
+
+    def classify(self, text: str, labels: list[str], **asked: object) -> Prediction:
+        import time
+
+        with self._lock:
+            self.calls += 1
+        time.sleep(0.02)  # long enough for every worker to arrive at once
+        return self.inner.classify(text, labels, **asked)  # type: ignore[arg-type]
+
+
+def test_identical_cases_under_many_workers_are_answered_once(tmp_path: Path) -> None:
+    """One key is one billed call, and duplicates writing it at once do not crash (#27)."""
+    import dataclasses
+
+    base = make_cases(1, labels=LABELS)[0]
+    cases = [dataclasses.replace(base, id=f"dup-{i}") for i in range(16)]
+    adapter = CountingAdapter(an_adapter(cases))
+    cache = Cache(tmp_path)
+
+    result = execute.run(adapter, cases, cache=cache, workers=16)
+
+    assert adapter.calls == 1
+    assert all(record.ok for record in result.records)
+    assert sum(record.from_cache for record in result.records) == 15
+
+
+def test_a_cache_write_that_fails_does_not_end_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The answer is already paid for; losing the cache entry must not lose the run."""
+    from plumbline.runner import cache as cache_module
+
+    def refuse(*_: object) -> None:
+        raise PermissionError(32, "The process cannot access the file")
+
+    monkeypatch.setattr(cache_module.os, "replace", refuse)
+    cases = make_cases(5, labels=LABELS)
+    cache = Cache(tmp_path)
+
+    result = execute.run(an_adapter(cases), cases, cache=cache, workers=4)
+
+    assert all(record.ok for record in result.records)
+    assert cache.stats["write_errors"] == 5
+    assert not list(tmp_path.rglob("*.tmp"))
+
+
 def test_a_disabled_cache_never_reads_or_writes(tmp_path: Path) -> None:
     cases = make_cases(20, labels=LABELS)
     cache = Cache(tmp_path / "cache", enabled=False)
     execute.run(an_adapter(cases), cases, cache=cache, workers=2)
-    assert cache.stats == {"hits": 0, "misses": 0, "writes": 0}
+    assert cache.stats == {"hits": 0, "misses": 0, "writes": 0, "write_errors": 0}
     assert not (tmp_path / "cache").exists()
 
 
