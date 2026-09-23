@@ -20,6 +20,8 @@ the same reason a shipped one must.
 from __future__ import annotations
 
 import json
+import math
+import re
 from collections.abc import Mapping
 from datetime import date
 from pathlib import Path
@@ -122,6 +124,8 @@ _PRICING_FIELDS = frozenset(
 #: carries it has not been filled in, so it is refused rather than priced.
 TEMPLATE_AS_OF = "YYYY-MM-DD"
 
+_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
 
 def load_pricing_file(path: Path | str) -> PricingTable:
     """Read a pricing table the operator wrote, requiring provenance on every entry.
@@ -138,7 +142,7 @@ def load_pricing_file(path: Path | str) -> PricingTable:
     """
     path = Path(path)
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError:
         raise PricingConfigError(
             f"no pricing file at {path}. plumbline never guesses a pricing file "
@@ -245,6 +249,15 @@ def _price(name: str, value: Mapping[str, Any], field: str, path: Path) -> float
             "or null. Use null where the vendor publishes no price; null and 0 are "
             "different claims and plumbline keeps them apart."
         )
+    if not math.isfinite(number):
+        raise PricingConfigError(
+            f"entry {name!r} in {path} has {field}={number!r}; a price must be finite, "
+            "or every row it prices becomes NaN or infinite."
+        )
+    if number < 0:
+        raise PricingConfigError(
+            f"entry {name!r} in {path} has {field}={number!r}; a price cannot be negative."
+        )
     return float(number)
 
 
@@ -256,11 +269,26 @@ def _as_of(name: str, value: Any, path: Path) -> date:
             "them; an unedited copy of docs/pricing.example.json is refused rather than "
             "used to price a run."
         )
+    # fromisoformat also accepts 20260901 and week dates such as 2026-W36-1,
+    # which nobody writes meaning a date, so the shape is checked first.
+    if not (isinstance(value, str) and _ISO_DATE.fullmatch(value)):
+        raise PricingConfigError(
+            f"entry {name!r} in {path} has as_of={value!r}, which is not an ISO date "
+            "written YYYY-MM-DD. The date a price was read is what lets the report say the price "
+            "may be out of date, so it is not optional and not free-form."
+        )
     try:
-        return date.fromisoformat(str(value))
+        read_on = date.fromisoformat(value)
     except ValueError:
         raise PricingConfigError(
             f"entry {name!r} in {path} has as_of={value!r}, which is not an ISO date "
             "(YYYY-MM-DD). The date a price was read is what lets the report say the "
             "price may be out of date, so it is not optional and not free-form."
         ) from None
+    if read_on > date.today():
+        raise PricingConfigError(
+            f"entry {name!r} in {path} has as_of={value!r}, which is in the future. A "
+            "price cannot have been read on a day that has not happened, and a future date "
+            "would keep the report from ever calling it out of date."
+        )
+    return read_on

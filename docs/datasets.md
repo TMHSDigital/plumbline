@@ -7,8 +7,8 @@ for exactly this, so a clone never commits it.
 
 ## The format
 
-One JSON object per line (JSONL), UTF-8. Blank lines are skipped. Every other
-line is one case.
+One JSON object per line (JSONL), UTF-8, with or without a byte order mark.
+Blank lines are skipped. Every other line is one case.
 
 | field | required | what it is |
 |---|---|---|
@@ -46,7 +46,11 @@ A row that cannot be scored honestly is refused with its line number, and the
 rest of the file still runs. `--strict` refuses the whole run instead.
 
 - A missing required field, an empty `id` or `text`, or `labels` that is not a
-  list of at least two distinct entries.
+  list of at least two distinct, non-empty strings. A label written as `null`,
+  `true` or a number is refused rather than turned into the text `"None"`,
+  `"True"` or `"1"`.
+- A `label_descriptions` entry for something that is not one of the row's
+  options, or a description that is not a non-empty string.
 - A `gold_label` that is not one of the row's own `labels`. Scoring it would
   mark every model wrong on that row, which reads as a model failure and is a
   data error.
@@ -55,8 +59,9 @@ rest of the file still runs. `--strict` refuses the whole run instead.
 - An `id` already used earlier in the file.
 - A line that is not a JSON object.
 
-A file with no rows at all, or a path that does not exist, is an error rather
-than an empty run.
+A file with no rows at all, a path that does not exist, or a file that is not
+UTF-8 is an error rather than an empty run; the last names the line with the
+byte that is not.
 
 ## Running it
 
