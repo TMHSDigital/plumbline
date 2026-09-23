@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
@@ -524,9 +525,10 @@ def run(
     estimate = check_guard(cases, guard, pricing)
 
     records: list[CaseRecord | None] = [None] * len(cases)
+    locks = _KeyLocks() if cache is not None and cache.enabled else None
 
     def handle(index: int) -> None:
-        records[index] = _one_case(cases[index], adapter, cache, retry, table)
+        records[index] = _one_case(cases[index], adapter, cache, retry, table, locks)
 
     if workers == 1:
         for index in range(len(cases)):
@@ -585,16 +587,51 @@ def run(
     )
 
 
+class _KeyLocks:
+    """One lock per cache key, handed out on demand to the worker threads.
+
+    Two cases with the same text share a key. Without a lock both miss the
+    cache, both call the adapter, and the same answer is billed twice. Holding
+    the key's lock across look up, call, and store makes the second one wait
+    and then find the first one's answer. Different keys never wait on each
+    other.
+    """
+
+    def __init__(self) -> None:
+        self._guard = threading.Lock()
+        self._locks: dict[str, threading.Lock] = {}
+
+    def for_key(self, key: str) -> threading.Lock:
+        with self._guard:
+            return self._locks.setdefault(key, threading.Lock())
+
+
 def _one_case(
     case: Case,
     adapter: Adapter,
     cache: Cache | None,
     retry: RetryPolicy,
     table: PricingTable,
+    locks: _KeyLocks | None = None,
 ) -> CaseRecord:
     labels = list(case.labels)
     key = cache_key(adapter, case.text, labels, case.question_type) if cache is not None else None
+    if key is not None and locks is not None:
+        with locks.for_key(key):
+            return _answer(case, labels, key, adapter, cache, retry, table)
+    return _answer(case, labels, key, adapter, cache, retry, table)
 
+
+def _answer(
+    case: Case,
+    labels: list[str],
+    key: str | None,
+    adapter: Adapter,
+    cache: Cache | None,
+    retry: RetryPolicy,
+    table: PricingTable,
+) -> CaseRecord:
+    """From the cache if it holds the answer, otherwise from the adapter, with retries."""
     if cache is not None and key is not None:
         hit = cache.get(key)
         if hit is not None:
