@@ -43,6 +43,12 @@ different event from one that moved because it was wrong.
   time, so it works with scripts off; `site/site.js` adds only the conveniences
   and a light, dark, or automatic theme that is remembered between visits.
   Form borders and the histogram's bars now meet 3:1 contrast in both themes.
+- Search across the explainer and every doc, from the header or with `/` or
+  Ctrl+K. The index (`search-index.json`) is written at build time from the
+  rendered sections and fetched from the site only when search opens; the
+  ranking (`site/search.js`) runs in the browser with no library.
+  `scripts/check_search.mjs` holds the ranking to its cases and every index
+  entry to a page and id that exist.
 
 ### Changed
 

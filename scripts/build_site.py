@@ -20,6 +20,11 @@ its worked example from:
     came from. Nothing is written by hand and nothing is fetched at runtime, so
     the pages cannot drift from ``main``: a deploy re-renders them.
 
+``search-index.json``
+    Every section of the explainer and the docs as plain text, for the site's
+    search (``site/search.js``). A reader's browser fetches it only when they
+    open search, from the site itself.
+
 The example is regenerated from the **mock** adapter and nothing else. The
 command is read from the report, and anything other than ``--adapter mock`` is
 refused, so a vendor run can never be published through this path. The run
@@ -596,6 +601,7 @@ PAGE = """<!doctype html>
 <a href="https://github.com/{repo}">Source on GitHub</a>, Apache-2.0 licensed.
 No analytics, no trackers, no external requests.</p>
 </footer>
+<script src="{root}search.js" defer></script>
 <script src="{root}site.js" defer></script>
 </body>
 </html>
@@ -703,6 +709,70 @@ def explainer_page(source: str) -> str:
     return source.replace(HEADER_SLOT, site_header("", "calculator"))
 
 
+#: The explainer's name in search results.
+EXPLAINER_LABEL = "The ECE floor"
+#: Longest body text kept per search entry. Enough to match on and quote from;
+#: the index is fetched only when a reader opens search.
+SEARCH_TEXT_LIMIT = 4000
+
+_SECTION = re.compile(r'<section id="(?P<id>[^"]+)"[^>]*>(?P<body>.*?)</section>', re.S)
+_H2 = re.compile(r"<h2\b[^>]*>(?P<text>.*?)</h2>", re.S)
+_LEDE = re.compile(r'<p class="lede">(?P<text>.*?)</p>', re.S)
+_H1 = re.compile(r"<h1\b[^>]*>(?P<text>.*?)</h1>", re.S)
+
+
+def _plain(fragment: str) -> str:
+    """HTML to the words a reader sees: tags dropped, entities decoded."""
+    text = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", fragment)))
+    # A tag becomes a space, so text that ran up to one ("<em>text</em>.") gains
+    # a space before its punctuation; take it back out.
+    return re.sub(r" ([.,;:!?)])", r"\1", text).strip()
+
+
+def _entry(label: str, heading: str, url: str, text: str) -> dict[str, str]:
+    return {"t": label, "h": heading, "u": url, "x": text[:SEARCH_TEXT_LIMIT]}
+
+
+def search_index(rendered: dict[str, Rendered], explainer: str) -> list[dict[str, str]]:
+    """One entry per section, for ``site/search.js``.
+
+    ``t`` is the page's name, ``h`` the section heading, ``u`` its address
+    relative to the site root, and ``x`` its plain text. A doc's h1, and any
+    text before it, is the entry for the page itself, with no fragment.
+    ``explainer`` is ``site/index.html`` as written.
+    """
+    entries: list[dict[str, str]] = []
+
+    title = _H1.search(explainer)
+    lede = _LEDE.search(explainer)
+    if title is None or lede is None:
+        raise BuildError("site/index.html has no <h1> or lede paragraph to index")
+    entries.append(_entry(EXPLAINER_LABEL, _plain(title["text"]), "./", _plain(lede["text"])))
+    for match in _SECTION.finditer(explainer):
+        heading = _H2.search(match["body"])
+        if heading is None:
+            raise BuildError(f"site/index.html section #{match['id']} has no <h2>")
+        body = _plain(match["body"][heading.end() :])
+        entries.append(_entry(EXPLAINER_LABEL, _plain(heading["text"]), f"./#{match['id']}", body))
+
+    for doc in DOCS:
+        page = f"docs/{doc.slug}.html"
+        start = len(entries)
+        top: list[str] = []
+        top_heading = doc.label
+        for section in rendered[doc.slug]["sections"]:
+            if section["id"] is None or section["level"] == 1:
+                if section["level"] == 1:
+                    top_heading = section["heading"]
+                top.append(section["text"])
+                continue
+            url = f"{page}#{section['id']}"
+            entries.append(_entry(doc.label, section["heading"], url, section["text"]))
+        # The page itself leads its sections.
+        entries.insert(start, _entry(doc.label, top_heading, page, " ".join(top)))
+    return entries
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", type=Path, default=ROOT / "_site", help="output directory")
@@ -718,7 +788,9 @@ def main() -> int:
         example = build_example()
         prov = provenance()
         rendered = render_docs(prov)
-        explainer = explainer_page((SITE / "index.html").read_text(encoding="utf-8"))
+        source = (SITE / "index.html").read_text(encoding="utf-8")
+        explainer = explainer_page(source)
+        index = search_index(rendered, source)
     except BuildError as problem:
         print(f"site build refused: {problem}", file=sys.stderr)
         return 1
@@ -730,6 +802,9 @@ def main() -> int:
     shutil.copytree(SITE, out, ignore=shutil.ignore_patterns("vendor"))
     (out / "example-run.json").write_text(json.dumps(example, indent=1) + "\n", encoding="utf-8")
     (out / "index.html").write_text(explainer, encoding="utf-8")
+    (out / "search-index.json").write_text(
+        json.dumps(index, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8"
+    )
     write_docs(out, prov, rendered)
     write_404(out)
     print(f"site assembled in {out}")

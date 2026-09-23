@@ -63,6 +63,12 @@ jobs:
           node --version
           node scripts/check_floor_parity.mjs _site/example-run.json
 
+      # search.js against cases that say what a reader should find first, and
+      # every search-index.json entry against the page and id it names. Also
+      # the files the page scripts fetch, which the link check cannot see.
+      - name: Search ranks as it should, and every index entry resolves
+        run: node scripts/check_search.mjs _site
+
       # The exact bytes the deploy job publishes. On a pull request this is
       # also a downloadable preview of the site.
       - name: Keep the assembled site

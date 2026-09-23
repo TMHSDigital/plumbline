@@ -119,3 +119,23 @@ kbd { font: 0.75rem var(--mono); border: 1px solid var(--control); border-radius
   body { background: #fff; color: #000; }
   a { color: inherit; }
 }
+
+/* ---- search: a dialog built by site.js --------------------------------- */
+
+dialog.search { width: min(40rem, calc(100vw - 2rem)); max-height: min(36rem, calc(100vh - 4rem)); margin: 4rem auto auto; padding: 0; color: var(--fg); background: var(--bg); border: 1px solid var(--control); border-radius: 8px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25); overflow: hidden; }
+dialog.search[open] { display: flex; flex-direction: column; }
+dialog.search::backdrop { background: rgba(0, 0, 0, 0.4); }
+.search-bar { display: flex; gap: 0.5rem; padding: 0.75rem; border-bottom: 1px solid var(--line); }
+.search-bar input { flex: 1; min-width: 0; font: 1rem var(--sans); padding: 0.5rem 0.6rem; color: var(--fg); background: var(--bg); border: 1px solid var(--control); border-radius: 4px; }
+.search-close { font: 0.85rem var(--sans); color: var(--fg); background: var(--panel); border: 1px solid var(--control); border-radius: 4px; padding: 0 0.7rem; cursor: pointer; }
+.search-note { margin: 0; padding: 0.5rem 1rem 0; font-size: 0.85rem; color: var(--muted); }
+.search-note:empty { display: none; }
+.search-results { list-style: none; margin: 0; padding: 0.5rem; overflow-y: auto; flex: 1; }
+.search-results a { display: block; padding: 0.55rem 0.7rem; border-radius: 6px; text-decoration: none; color: var(--fg); }
+.search-results a:hover, .search-results a:focus-visible { background: var(--panel); outline-offset: -2px; }
+.search-results .where { display: block; font-weight: 600; color: var(--accent); font-size: 0.95rem; }
+.search-results .quote { display: block; font-size: 0.85rem; color: var(--muted); line-height: 1.45; margin-top: 0.15rem; }
+.search-results mark { background: var(--warn-bg); color: var(--warn-fg); border-radius: 2px; padding: 0 0.1rem; }
+.search-hint { margin: 0; padding: 0.45rem 1rem; border-top: 1px solid var(--line); font-size: 0.78rem; color: var(--muted); }
+@media (hover: none) { .search-hint { display: none; } }
+@media print { dialog.search { display: none !important; } }

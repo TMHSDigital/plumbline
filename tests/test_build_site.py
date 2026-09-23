@@ -115,3 +115,47 @@ def test_explainer_needs_exactly_one_header_slot(site: ModuleType) -> None:
 def test_the_committed_explainer_has_its_slot(site: ModuleType) -> None:
     source = (site.SITE / "index.html").read_text(encoding="utf-8")
     assert source.count(site.HEADER_SLOT) == 1
+
+
+def fake_rendered(site: ModuleType) -> dict[str, dict[str, object]]:
+    def sections(label: str) -> list[dict[str, object]]:
+        return [
+            {"id": None, "heading": "", "level": 0, "text": "before"},
+            {"id": "top", "heading": label, "level": 1, "text": "lead"},
+            {"id": "one", "heading": "One", "level": 2, "text": "body one"},
+        ]
+
+    return {
+        doc.slug: {"html": "", "headings": [], "sections": sections(doc.label)} for doc in site.DOCS
+    }
+
+
+EXPLAINER = """<h1>A &amp; B</h1><p class="lede">Lede <em>text</em>.</p>
+<section id="argument" aria-labelledby="a"><h2 id="a">The argument</h2><p>Zero is
+not <b>reachable</b>.</p></section>"""
+
+
+def test_search_index_lists_each_page_then_its_sections(site: ModuleType) -> None:
+    index = site.search_index(fake_rendered(site), EXPLAINER)
+    assert index[0] == {"t": site.EXPLAINER_LABEL, "h": "A & B", "u": "./", "x": "Lede text."}
+    assert index[1]["u"] == "./#argument" and index[1]["x"] == "Zero is not reachable."
+    first = site.DOCS[0]
+    page = {"t": first.label, "h": first.label, "u": f"docs/{first.slug}.html", "x": "before lead"}
+    assert index[2] == page
+    assert index[3]["u"] == f"docs/{first.slug}.html#one" and index[3]["x"] == "body one"
+    assert len(index) == 2 + 2 * len(site.DOCS)
+
+
+def test_search_index_refuses_an_explainer_it_cannot_read(site: ModuleType) -> None:
+    with pytest.raises(site.BuildError):
+        site.search_index(fake_rendered(site), "<p>no heading</p>")
+    broken = EXPLAINER.replace('<h2 id="a">The argument</h2>', "")
+    with pytest.raises(site.BuildError):
+        site.search_index(fake_rendered(site), broken)
+
+
+def test_search_index_caps_long_sections(site: ModuleType) -> None:
+    rendered = fake_rendered(site)
+    rendered[site.DOCS[0].slug]["sections"][2]["text"] = "x" * 10_000
+    index = site.search_index(rendered, EXPLAINER)
+    assert max(len(entry["x"]) for entry in index) == site.SEARCH_TEXT_LIMIT
