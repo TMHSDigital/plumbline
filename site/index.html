@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>plumbline: the ECE floor</title>
 <meta name="description" content="A perfectly calibrated model does not score an ECE of zero on a finite sample. Enter your row count and see the floor your number has to clear.">
@@ -24,84 +25,37 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1v9' stroke='%23555' stroke-width='1.5'/%3E%3Cpath d='M5 10h6l-3 5z' fill='%23555'/%3E%3C/svg%3E">
 <script src="theme.js"></script>
 <link rel="stylesheet" href="base.css">
-<style>
-  section { padding: 2rem 0; border-top: 1px solid var(--line); }
-  .lede { font-size: 1.05rem; }
-  .label { display: inline-block; font: 600 0.75rem var(--mono); text-transform: uppercase; letter-spacing: 0.05em; color: var(--warn-fg); background: var(--warn-bg); padding: 0.1rem 0.4rem; border-radius: 3px; margin-bottom: 0.5rem; }
-
-  form { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 1rem; margin: 1.25rem 0 1rem; }
-  label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.25rem; }
-  .hint { display: block; font-size: 0.8rem; font-weight: 400; color: var(--muted); }
-  input { width: 100%; font: 1rem var(--mono); padding: 0.5rem 0.6rem; color: var(--fg); background: var(--bg); border: 1px solid var(--control); border-radius: 4px; }
-  .actions { grid-column: 1 / -1; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
-  button { font: 600 1rem var(--sans); padding: 0.55rem 1.1rem; color: var(--bg); background: var(--fg); border: 0; border-radius: 4px; cursor: pointer; }
-  button[disabled] { opacity: 0.55; cursor: progress; }
-  progress { flex: 1 1 8rem; height: 0.5rem; }
-  .error { color: var(--error); }
-
-  .result { border: 1px solid var(--line); border-radius: 6px; padding: 1rem; background: var(--panel); }
-  .result[hidden], [hidden] { display: none !important; }
-  .result h3:first-child { margin-top: 0; }
-  dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1rem; margin: 0 0 1rem; }
-  dt { color: var(--muted); }
-  dd { margin: 0; font-family: var(--mono); overflow-wrap: anywhere; }
-  .verdict { padding: 0.75rem; border-radius: 4px; margin: 0 0 1rem; }
-  .verdict.inconclusive { background: var(--warn-bg); color: var(--warn-fg); }
-  .verdict.distinguishable { background: var(--ok-bg); color: var(--ok-fg); }
-  .verdict strong { display: block; margin-bottom: 0.25rem; }
-  .big { font: 600 1.6rem var(--mono); margin: 0 0 0.5rem; }
-
-  .table-wrap { overflow-x: auto; margin: 0 0 1rem; }
-  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
-  caption { text-align: left; color: var(--muted); font-size: 0.85rem; padding-bottom: 0.4rem; }
-  th, td { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--line); text-align: right; font-family: var(--mono); white-space: nowrap; }
-  th { font-family: var(--sans); font-weight: 600; color: var(--muted); }
-  th:first-child, td:first-child { text-align: left; }
-  tfoot td { border-bottom: 0; font-weight: 600; }
-  @media (max-width: 30rem) {
-    table { font-size: 0.8rem; }
-    th, td { padding: 0.3rem 0.25rem; }
-    th { white-space: normal; }
-  }
-
-  figure { margin: 0 0 1rem; }
-  figcaption { font-size: 0.85rem; color: var(--muted); margin-top: 0.25rem; }
-  svg.hist { width: 100%; height: auto; display: block; }
-  svg.hist .bar { fill: var(--bar); }
-  svg.hist .axis { stroke: var(--line); }
-  svg.hist text { fill: var(--muted); font: 13px var(--mono); }
-  svg.hist .measured { stroke: var(--mark-measured); stroke-width: 2; }
-  svg.hist .p95 { stroke: var(--mark-p95); stroke-width: 2; stroke-dasharray: 5 3; }
-  svg.hist text.measured-label { fill: var(--mark-measured); }
-  svg.hist text.p95-label { fill: var(--mark-p95); }
-
-  ol.steps { padding-left: 1.25rem; }
-  ol.steps > li { margin-bottom: 1.25rem; }
-  .trace { font: 0.85rem var(--mono); color: var(--muted); padding-left: 1.25rem; margin: 0 0 1rem; }
-</style>
+<link rel="stylesheet" href="explainer.css">
 </head>
 <body>
 <a class="skip" href="#argument">Skip to the argument</a>
 <!-- site:header -->
 
-<main>
-<div class="intro">
+<main class="explainer">
+<div class="intro hero">
   <h1>A calibration claim has a floor</h1>
   <p class="lede">A perfectly calibrated model does not score an Expected Calibration Error of zero.
   On a finite sample it scores something above zero, and on a few hundred rows that something is
   often larger than the differences people report. Below a certain row count, a calibration claim
   is not measurable at all. This page lets you check where your own numbers sit, without installing
   anything.</p>
-  <nav aria-label="On this page">
-    <ul>
-      <li><a href="#argument">The argument</a></li>
-      <li><a href="#calculator">Floor calculator</a></li>
-      <li><a href="#example">Worked example</a></li>
-      <li><a href="#planner">Sample-size planner</a></li>
-      <li><a href="#provenance">What computes this</a></li>
-    </ul>
-  </nav>
+  <!-- site:example-card -->
+  <p class="cta">
+    <a class="button" href="#calculator">Check your numbers</a>
+    <a class="button secondary" href="docs/methodology.html">Read the methodology</a>
+  </p>
 </div>
+
+<nav class="rail" aria-label="On this page">
+  <p class="rail-label">On this page</p>
+  <ul>
+    <li><a href="#argument">The argument</a></li>
+    <li><a href="#calculator">Floor calculator</a></li>
+    <li><a href="#example">Worked example</a></li>
+    <li><a href="#planner">Sample-size planner</a></li>
+    <li><a href="#provenance">What computes this</a></li>
+  </ul>
+</nav>
 
   <section id="argument" aria-labelledby="argument-h">
     <h2 id="argument-h">The argument</h2>
@@ -144,12 +98,13 @@
       </div>
       <div class="actions">
         <button id="calc-go" type="submit">Compute floor</button>
+        <button id="calc-cancel" type="button" class="secondary" hidden>Cancel</button>
         <progress id="calc-progress" max="1" value="0" hidden aria-label="Calculator progress"></progress>
         <span id="calc-status" role="status" aria-live="polite"></span>
       </div>
     </form>
 
-    <div id="calc-result" class="result" hidden aria-live="polite">
+    <div id="calc-result" class="result" hidden>
       <h3>Calibrated-model floor</h3>
       <dl>
         <dt>Mean</dt><dd id="calc-mean"></dd>
@@ -158,6 +113,10 @@
       </dl>
       <p id="calc-read"></p>
       <div id="calc-verdict" class="verdict" hidden></div>
+      <p class="share">
+        <button id="calc-copy-link" type="button" class="secondary small-button">Copy link</button>
+        <button id="calc-copy-result" type="button" class="secondary small-button">Copy result</button>
+      </p>
       <p class="small muted">This is an estimate from summary numbers. Your real predictions can
       give a different floor at the same row count; the <a href="#example">worked example</a>
       shows why.</p>
@@ -258,14 +217,19 @@
       </div>
       <div class="actions">
         <button id="plan-go" type="submit">Plan</button>
+        <button id="plan-cancel" type="button" class="secondary" hidden>Cancel</button>
         <progress id="plan-progress" max="1" value="0" hidden aria-label="Planner progress"></progress>
         <span id="plan-status" role="status" aria-live="polite"></span>
       </div>
     </form>
 
-    <div id="plan-result" class="result" hidden aria-live="polite">
+    <div id="plan-result" class="result" hidden>
       <p class="big" id="plan-rows"></p>
       <p id="plan-read"></p>
+      <p class="share">
+        <button id="plan-copy-link" type="button" class="secondary small-button">Copy link</button>
+        <button id="plan-copy-result" type="button" class="secondary small-button">Copy result</button>
+      </p>
       <h3>Floors computed on the way</h3>
       <ul class="trace" id="plan-trace"></ul>
     </div>
@@ -309,317 +273,6 @@
 <script src="search.js" defer></script>
 <script src="site.js" defer></script>
 <script src="floor.js"></script>
-<script>
-(function () {
-  "use strict";
-  var F = window.PlumblineFloor;
-  var fmt = F.fixed4;
-  function $(id) { return document.getElementById(id); }
-  function text(id, value) { $(id).textContent = value; }
-  function el(tag, content, className) {
-    var node = document.createElement(tag);
-    if (content !== undefined) node.textContent = content;
-    if (className) node.className = className;
-    return node;
-  }
-  function row(cells) {
-    var tr = document.createElement("tr");
-    cells.forEach(function (cell) { tr.appendChild(el("td", cell)); });
-    return tr;
-  }
-  function binLabel(lower, upper) {
-    var digits = upper - lower < 0.1 - 1e-9 ? 2 : 1;
-    return lower.toFixed(digits) + "-" + upper.toFixed(digits);
-  }
-
-  /* ---- worker ---------------------------------------------------------- */
-
-  // A worker keeps the page responsive on large n. Where the browser refuses
-  // one (a page opened from disk, for example), the same code runs here.
-  var worker = null;
-  var pending = {};
-  var nextId = 0;
-  try {
-    worker = new Worker("floor-worker.js");
-    worker.onmessage = function (event) {
-      var m = event.data;
-      var job = pending[m.id];
-      if (!job) return;
-      if (m.progress !== undefined) job.onProgress(m.progress);
-      else if (m.step !== undefined) job.onStep(m.step);
-      else {
-        delete pending[m.id];
-        if (m.error) job.reject(new Error(m.error));
-        else job.resolve(m.result);
-      }
-    };
-    worker.onerror = function (event) {
-      event.preventDefault();
-      worker = null;
-      Object.keys(pending).forEach(function (id) { runHere(pending[id]); delete pending[id]; });
-    };
-  } catch (e) {
-    worker = null;
-  }
-
-  function runHere(job) {
-    setTimeout(function () {
-      try {
-        if (job.message.kind === "synthetic") {
-          job.resolve(F.syntheticFloor(job.message.n, job.message.nBins, job.message.accuracy));
-        } else {
-          job.resolve(F.planRows(job.message.target, job.message.nBins, job.message.accuracy, { onStep: job.onStep }));
-        }
-      } catch (error) { job.reject(error); }
-    }, 20);
-  }
-
-  function submit(message, onProgress, onStep) {
-    return new Promise(function (resolve, reject) {
-      var job = { message: message, resolve: resolve, reject: reject, onProgress: onProgress || function () {}, onStep: onStep || function () {} };
-      if (!worker) { runHere(job); return; }
-      message.id = ++nextId;
-      pending[message.id] = job;
-      worker.postMessage(message);
-    });
-  }
-
-  function number(input, check, message) {
-    var value = Number(input.value);
-    return check(value) ? { value: value } : { error: message, field: input };
-  }
-
-  function busy(prefix, on, statusText) {
-    $(prefix + "-go").disabled = on;
-    $(prefix + "-progress").hidden = !on;
-    $(prefix + "-progress").value = 0;
-    var status = $(prefix + "-status");
-    status.classList.remove("error");
-    status.textContent = statusText || "";
-  }
-
-  function fail(prefix, error) {
-    var status = $(prefix + "-status");
-    status.textContent = error.message || String(error);
-    status.classList.add("error");
-    if (error.field) error.field.focus();
-  }
-
-  var isWhole = function (lo, hi) { return function (v) { return Number.isInteger(v) && v >= lo && v <= hi; }; };
-  var isOpenUnit = function (v) { return v > 0 && v < 1; };
-
-  /* ---- calculator ------------------------------------------------------ */
-
-  $("calc").addEventListener("submit", function (event) {
-    event.preventDefault();
-    var form = event.target;
-    var fields = [
-      number(form.n, isWhole(1, 100000), "Rows must be a whole number from 1 to 100,000."),
-      number(form.bins, isWhole(1, 1000), "Bins must be a whole number from 1 to 1,000."),
-      number(form.accuracy, isOpenUnit, "Accuracy must lie strictly between 0 and 1."),
-    ];
-    var measuredText = form.measured.value.trim();
-    var measured = null;
-    if (measuredText !== "") {
-      var m = number(form.measured, function (v) { return v >= 0 && v <= 1; }, "Measured ECE must lie between 0 and 1.");
-      fields.push(m);
-      measured = m.value;
-    }
-    for (var i = 0; i < fields.length; i++) {
-      if (fields[i].error) { busy("calc", false); fail("calc", fields[i]); return; }
-    }
-    var input = { n: fields[0].value, nBins: fields[1].value, accuracy: fields[2].value, measured: measured };
-    busy("calc", true, "Running 2,000 bootstrap resamples...");
-    submit({ kind: "synthetic", n: input.n, nBins: input.nBins, accuracy: input.accuracy },
-      function (f) { $("calc-progress").value = f; })
-      .then(function (band) { showCalc(band, input); busy("calc", false, "Done."); })
-      .catch(function (error) { busy("calc", false); fail("calc", error); });
-  });
-
-  function showCalc(band, input) {
-    text("calc-mean", fmt(band.mean));
-    text("calc-p95", fmt(band.p95));
-    text("calc-config", band.n + " rows, " + band.nBins + " bins, accuracy " + input.accuracy);
-    text("calc-read", "A perfectly calibrated model scores " + fmt(band.mean) + " on average at this size, and above " +
-      fmt(band.p95) + " one time in twenty. A measured ECE at or below " + fmt(band.p95) +
-      " cannot be told apart from calibrated on this many rows.");
-    var verdict = $("calc-verdict");
-    if (input.measured === null) {
-      verdict.hidden = true;
-    } else {
-      var clears = F.isDistinguishable(input.measured, band);
-      verdict.className = "verdict " + (clears ? "distinguishable" : "inconclusive");
-      verdict.replaceChildren(
-        el("strong", clears ? "Distinguishable from sampling noise" : "Inconclusive, which is not a pass"),
-        el("span", F.statement(input.measured, band))
-      );
-      verdict.hidden = false;
-    }
-    $("calc-result").hidden = false;
-  }
-
-  /* ---- worked example -------------------------------------------------- */
-
-  function histogram(svg, draws, marks) {
-    var left = 6, right = 394, top = 40, bottom = 172;
-    var hi = Math.max.apply(null, draws.concat(marks.map(function (m) { return m.value; }))) * 1.08;
-    var nb = 40;
-    var counts = new Array(nb).fill(0);
-    draws.forEach(function (d) { counts[Math.min(nb - 1, Math.floor(d / hi * nb))]++; });
-    var peak = Math.max.apply(null, counts);
-    var x = function (v) { return left + (v / hi) * (right - left); };
-    var ns = "http://www.w3.org/2000/svg";
-    function add(tag, attrs, content) {
-      var node = document.createElementNS(ns, tag);
-      Object.keys(attrs).forEach(function (k) { node.setAttribute(k, attrs[k]); });
-      if (content !== undefined) node.textContent = content;
-      svg.appendChild(node);
-      return node;
-    }
-    svg.replaceChildren();
-    var bw = (right - left) / nb;
-    counts.forEach(function (c, i) {
-      if (!c) return;
-      var h = (c / peak) * (bottom - top);
-      add("rect", { class: "bar", x: left + i * bw + 0.5, y: bottom - h, width: Math.max(1, bw - 1), height: h });
-    });
-    add("line", { class: "axis", x1: left, x2: right, y1: bottom, y2: bottom });
-    [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3].forEach(function (t) {
-      if (t > hi) return;
-      add("line", { class: "axis", x1: x(t), x2: x(t), y1: bottom, y2: bottom + 4 });
-      add("text", { x: x(t), y: bottom + 20, "text-anchor": t === 0 ? "start" : "middle" }, t.toFixed(2));
-    });
-    marks.forEach(function (m, i) {
-      add("line", { class: m.className, x1: x(m.value), x2: x(m.value), y1: 6 + i * 17, y2: bottom });
-      // Start the label at its line when it fits to the right, else end it there.
-      var anchor = x(m.value) + 4 + m.label.length * 8 < right ? "start" : "end";
-      var dx = anchor === "end" ? -4 : 4;
-      add("text", { class: m.className + "-label", x: x(m.value) + dx, y: 16 + i * 17, "text-anchor": anchor }, m.label);
-    });
-  }
-
-  function loadExample() {
-    fetch("example-run.json", { cache: "no-cache" })
-      .then(function (response) {
-        if (!response.ok) throw new Error("HTTP " + response.status);
-        return response.json();
-      })
-      .then(showExample)
-      .catch(function () {
-        $("ex-report-line").replaceChildren(el("p", "The example is not available in this copy of the page.", "muted"));
-        $("ex-missing").hidden = false;
-      });
-  }
-
-  function showExample(ex) {
-    var p = ex.probabilities, correct = ex.correct, nBins = ex.n_bins, n = p.length;
-    $("ex-report-line").replaceChildren(el("p", ex.report.accuracy_line), el("p", ex.report.ece_line));
-
-    var right = correct.reduce(function (a, b) { return a + b; }, 0);
-    var accuracy = right / n;
-    $("ex-rows").replaceChildren(
-      document.createTextNode(n + " predictions and outcomes from the seeded mock adapter, a deterministic stand-in rather than a vendor. They were regenerated when this site was deployed, by running the command the report records: "),
-      el("code", ex.command),
-      document.createTextNode(". " + right + " of " + n + " were right, an accuracy of " + fmt(accuracy) + ".")
-    );
-
-    var bins = F.reliability(p, correct, nBins);
-    var tbody = $("ex-bins");
-    tbody.replaceChildren();
-    bins.forEach(function (b) {
-      tbody.appendChild(row([binLabel(b.lower, b.upper), String(b.count), fmt(b.meanProbability), fmt(b.accuracy), fmt(b.gap)]));
-    });
-    var measured = F.ece(p, correct, nBins);
-    text("ex-n", String(n));
-    text("ex-ece", fmt(measured));
-
-    var band = F.calibrationFloor(p, nBins, { keepDraws: true });
-    histogram($("ex-hist"), band.draws, [
-      { value: measured, label: "measured " + fmt(measured), className: "measured" },
-      { value: band.p95, label: "p95 " + fmt(band.p95), className: "p95" },
-    ]);
-    var beyond = band.draws.filter(function (d) { return d >= measured; }).length;
-    text("ex-hist-desc", "Histogram of 2,000 resampled ECEs from a perfectly calibrated model with these 105 probabilities. Mean " +
-      fmt(band.mean) + ", 95th percentile " + fmt(band.p95) + ". " + beyond + " of the 2,000 (" +
-      Math.round(beyond / 20) + "%) scored at least the measured " + fmt(measured) + ".");
-
-    var derived = F.statement(measured, band);
-    var clears = F.isDistinguishable(measured, band);
-    $("ex-verdict").className = "verdict " + (clears ? "distinguishable" : "inconclusive");
-    $("ex-verdict").replaceChildren(el("strong", clears ? "Distinguishable from sampling noise" : "Inconclusive, which is not a pass"), el("span", derived));
-    var same = derived === ex.report.ece_line;
-    text("ex-match", same
-      ? "Derived here, and identical to the line in the report, character for character."
-      : "This derivation does not match the report line. The deploy check should have prevented this; please open an issue.");
-    $("ex-steps").hidden = false;
-
-    var summary = F.syntheticFloor(n, nBins, accuracy, { keepProbabilities: true });
-    text("ex-real-floor", fmt(band.mean) + " (95th percentile " + fmt(band.p95) + ")");
-    text("ex-summary-floor", fmt(summary.mean) + " (95th percentile " + fmt(summary.p95) + ")");
-    var realCounts = new Array(nBins).fill(0);
-    var inventedCounts = new Array(nBins).fill(0);
-    bins.forEach(function (b) { realCounts[b.index] = b.count; });
-    summary.probabilities.forEach(function (q) { inventedCounts[Math.min(nBins - 1, Math.floor(q * nBins))]++; });
-    var spread = $("ex-spread");
-    spread.replaceChildren();
-    for (var k = 0; k < nBins; k++) {
-      if (!realCounts[k] && !inventedCounts[k]) continue;
-      spread.appendChild(row([binLabel(k / nBins, (k + 1) / nBins), String(realCounts[k]), String(inventedCounts[k])]));
-    }
-    $("ex-lesson").hidden = false;
-  }
-
-  loadExample();
-
-  /* ---- planner --------------------------------------------------------- */
-
-  $("plan").addEventListener("submit", function (event) {
-    event.preventDefault();
-    var form = event.target;
-    var fields = [
-      number(form.target, isOpenUnit, "The ECE to detect must lie strictly between 0 and 1."),
-      number(form.bins, isWhole(1, 1000), "Bins must be a whole number from 1 to 1,000."),
-      number(form.accuracy, isOpenUnit, "Accuracy must lie strictly between 0 and 1."),
-    ];
-    for (var i = 0; i < fields.length; i++) {
-      if (fields[i].error) { busy("plan", false); fail("plan", fields[i]); return; }
-    }
-    var target = fields[0].value, nBins = fields[1].value, accuracy = fields[2].value;
-    var trace = $("plan-trace");
-    trace.replaceChildren();
-    $("plan-result").hidden = true;
-    busy("plan", true, "Searching. Large row counts take several seconds each...");
-    submit({ kind: "plan", target: target, nBins: nBins, accuracy: accuracy },
-      function (f) { $("plan-progress").value = f; },
-      function (steps) { showTrace(steps); })
-      .then(function (plan) { showPlan(plan, target, nBins, accuracy); busy("plan", false, "Done."); })
-      .catch(function (error) { busy("plan", false); fail("plan", error); });
-  });
-
-  function showTrace(steps) {
-    var trace = $("plan-trace");
-    trace.replaceChildren();
-    steps.forEach(function (s) {
-      trace.appendChild(el("li", s.n.toLocaleString("en-US") + " rows: 95th percentile " + fmt(s.p95)));
-    });
-  }
-
-  function showPlan(plan, target, nBins, accuracy) {
-    showTrace(plan.evaluations);
-    if (plan.exceeds) {
-      text("plan-rows", "More than " + plan.maxRows.toLocaleString("en-US") + " rows");
-      text("plan-read", "At " + plan.maxRows.toLocaleString("en-US") + " rows the summary floor's 95th percentile is " +
-        fmt(plan.band.p95) + ", still above " + target + ". Extrapolating at one over the square root of n suggests roughly " +
-        plan.extrapolated.toLocaleString("en-US") + " rows; this page does not compute floors that large.");
-    } else {
-      text("plan-rows", "About " + plan.rows.toLocaleString("en-US") + " rows");
-      text("plan-read", "At " + plan.rows.toLocaleString("en-US") + " rows, " + nBins + " bins, and accuracy " + accuracy +
-        ", the summary floor has mean " + fmt(plan.band.mean) + " and 95th percentile " + fmt(plan.band.p95) +
-        ", so a measured ECE of " + target + " would clear it. On materially fewer rows, the same measurement would read as INCONCLUSIVE.");
-    }
-    $("plan-result").hidden = false;
-  }
-})();
-</script>
+<script src="explainer.js"></script>
 </body>
 </html>
