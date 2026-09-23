@@ -73,13 +73,45 @@ def test_an_underscore_key_is_a_comment_and_not_a_model(tmp_path: Path) -> None:
     assert set(table) == {"m"}
 
 
-def test_the_shipped_example_file_loads(tmp_path: Path) -> None:
-    """The file the note points operators at must actually parse."""
-    example = Path(__file__).resolve().parents[1] / "docs" / "pricing.example.json"
-    table = config.load_pricing_file(example)
+EXAMPLE = Path(__file__).resolve().parents[1] / "docs" / "pricing.example.json"
+
+
+def test_the_example_file_is_refused_until_it_is_filled_in() -> None:
+    """An unedited copy must not price anything, least of all at $0 (#28)."""
+    with pytest.raises(config.PricingConfigError, match="placeholder"):
+        config.load_pricing_file(EXAMPLE)
+
+
+def test_the_example_file_loads_once_it_is_filled_in(tmp_path: Path) -> None:
+    """The file the README points operators at must parse once they have done their part."""
+    raw = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+    for name, entry in raw.items():
+        if not name.startswith("_"):
+            entry.update(input_usd_per_million=1.0, output_usd_per_million=4.0, as_of="2026-09-01")
+    table = config.load_pricing_file(write(tmp_path, raw))
 
     assert "jev-1.13.0" in table
     assert "_comment" not in table
+    assert table["jev-1.13.0"].is_priced
+
+
+def test_both_prices_at_zero_are_refused_unless_the_entry_says_it_is_free(
+    tmp_path: Path,
+) -> None:
+    """0 and 0 is the claim that every token is free, which a placeholder also looks like."""
+    free = {**ENTRY, "input_usd_per_million": 0, "output_usd_per_million": 0.0}
+    with pytest.raises(config.PricingConfigError, match="free"):
+        config.load_pricing_file(write(tmp_path, {"m": free}))
+
+    entry = config.load_pricing_file(write(tmp_path, {"m": {**free, "free": True}}))["m"]
+    assert entry.is_priced
+    assert cost.cost_of(1_000, 1_000, entry) == 0.0
+
+
+def test_one_price_at_zero_is_an_ordinary_price(tmp_path: Path) -> None:
+    payload = {"m": {**ENTRY, "input_usd_per_million": 0}}
+    entry = config.load_pricing_file(write(tmp_path, payload))["m"]
+    assert cost.cost_of(1_000_000, 1_000_000, entry) == pytest.approx(6.0)
 
 
 @pytest.mark.parametrize(
