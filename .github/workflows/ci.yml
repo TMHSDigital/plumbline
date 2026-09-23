@@ -149,6 +149,19 @@ jobs:
             exit 1
           fi
 
+      # -- is for command lines (flags, and git's end-of-options), never a stand-in
+      # for a dash in prose. This finds a bare -- with words on both sides, or one
+      # opening a continuation line; a flag like --adapter has no space after it,
+      # and HTML comments and table rules have no word before it.
+      - name: Prose uses real punctuation, not -- as a dash
+        run: |
+          pattern='[\w,.;:)\]]\s+--\s+[A-Za-z(]|^\s*--\s+[a-z]'
+          if git grep -n -P "$pattern" -- '*.md' 'src/' 'tests/' 'examples/' 'conftest.py' \
+              'site/' 'scripts/' ':!datasets/public/' ':!site/vendor/'; then
+            echo "::error::-- used as a dash above; use a comma, colon, parentheses, or a new sentence"
+            exit 1
+          fi
+
   # Gate 6 found that the built distribution is a different artifact from the
   # source tree: the entry point, the optional extra boundary, and py.typed all
   # only exist once packaged.

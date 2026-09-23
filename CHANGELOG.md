@@ -74,6 +74,12 @@ different event from one that moved because it was wrong.
   changes report text, not any number.** The job also covers `site/`,
   `scripts/`, and `.github/`, and the HTML entity and JavaScript escape
   spellings of the character.
+- `--` is no longer used as a stand-in for a dash: METHODOLOGY, the source
+  comments and docstrings, and one report note (the ordinal-score line in the
+  load summary) now use commas, colons, or parentheses. A second check in the
+  same CI job fails on a bare `--` between words; flags, git's end-of-options
+  separator, and HTML comments are unaffected. **This changes report text, not
+  any number.**
 
 ### Fixed
 

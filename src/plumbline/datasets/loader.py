@@ -15,7 +15,7 @@ finds out before the run rather than after the bill.
 Two readers live here. ``load_jsonl`` reads plumbline's own record shape, which
 is what ``datasets/private/`` holds. ``load_jevbench`` reads the JevBench public
 file, which is a fixture for proving the pipeline composes, not a reproduction
-of anyone's benchmark -- see ``datasets/public/README.md``.
+of anyone's benchmark (see ``datasets/public/README.md``).
 """
 
 from __future__ import annotations
@@ -71,8 +71,8 @@ class LoadReport:
     def scoreable(self) -> tuple[Case, ...]:
         """The cases v0.1 is willing to turn into numbers.
 
-        An ordinal score row is loaded and kept in ``cases`` -- nothing is lost
-        quietly -- and left out of here, because flattening its levels into
+        An ordinal score row is loaded and kept in ``cases`` (nothing is lost
+        quietly) and left out of here, because flattening its levels into
         unordered options discards the ordering that makes it a score. A run
         takes this set; the count that was held back is in the notes.
         """
@@ -223,7 +223,7 @@ def load_jevbench(path: Path | str) -> LoadReport:
     if unsupported:
         notes.append(
             f"{unsupported} rows ask for an ordinal score. plumbline v0.1 has no ordinal "
-            "support -- flattening levels into unordered options discards the ordering -- "
+            "support: flattening levels into unordered options discards the ordering, "
             "so they are loaded, marked, and excluded from scored results."
         )
 

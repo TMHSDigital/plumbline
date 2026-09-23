@@ -3,8 +3,8 @@
 ``tmp_path`` is only as safe as the temp root pytest resolves. Some sandboxed
 runners hand Python the working directory as that root, so
 ``tempfile.gettempdir()`` returns the repository itself and pytest builds
-``pytest-of-<user>/`` inside the working tree. The tests are not at fault --
-they all take ``tmp_path`` and never name a relative path -- so the fix belongs
+``pytest-of-<user>/`` inside the working tree. The tests are not at fault:
+they all take ``tmp_path`` and never name a relative path, so the fix belongs
 here: pin the temp root once, before any fixture reads it, and refuse to run
 rather than scatter scratch files through the repo.
 

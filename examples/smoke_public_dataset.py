@@ -6,9 +6,9 @@ Loader, runner, metrics, report, artifact, end to end on a file somebody else
 wrote. It makes no network call and spends nothing, and the numbers it prints
 are meaningless: a seeded mock is answering, so its accuracy and its ECE are
 properties of the mock's configuration and nothing else. What it proves is that
-the pieces compose on real shapes -- structured states, options that are yes/no
+the pieces compose on real shapes (structured states, options that are yes/no
 on some rows and five-way on others, gold labels written as numbers, ordinal
-rows that v0.1 will not score -- before a live run turns mistakes into money.
+rows that v0.1 will not score) before a live run turns mistakes into money.
 
 The same run is available as ``plumbline run --format jevbench``. This file stays
 because it is the shortest readable path through the library, and because

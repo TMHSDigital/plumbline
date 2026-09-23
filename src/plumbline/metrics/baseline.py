@@ -2,8 +2,8 @@
 
 Accuracy and AUROC are read the same way ECE is: against what the number would
 be if nothing were happening, at this exact sample size. A bare 0.72 accuracy is
-unreadable -- it is excellent on eight-way options and it is nothing on two-way
-options -- and a bare AUROC of 0.58 over 100 rows is well inside what an
+unreadable (it is excellent on eight-way options and it is nothing on two-way
+options), and a bare AUROC of 0.58 over 100 rows is well inside what an
 uninformative score column produces by chance.
 
 Both nulls are simulated rather than assumed. Accuracy's null draws an answer
@@ -112,8 +112,8 @@ def chance_band(
     return NullBand(
         metric="accuracy",
         null="chance",
-        # The expectation is known exactly -- it is the mean of 1/n over the
-        # cases -- so it is computed rather than estimated. Only the spread,
+        # The expectation is known exactly (it is the mean of 1/n over the
+        # cases), so it is computed rather than estimated. Only the spread,
         # which is what the sample size controls, needs the simulation.
         mean=float(probabilities.mean()),
         p95=float(np.percentile(draws, 95)),
@@ -152,7 +152,7 @@ def auroc_band(
     """What AUROC does when the score column says nothing about the outcome.
 
     Built by permuting the outcomes against the same scores, so the band keeps
-    the observed ties and the observed class balance -- both of which move it.
+    the observed ties and the observed class balance, both of which move it.
     """
     if len(scores) != len(correct):
         raise ValueError(f"{len(scores)} scores against {len(correct)} outcomes; these must match")

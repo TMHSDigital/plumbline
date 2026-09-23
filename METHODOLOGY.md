@@ -65,8 +65,8 @@ answer meets that condition by construction.
 
 That is no longer hypothetical. plumbline now asks a yes/no row as a Noul, so
 every such row is measured as one probability with nothing behind it. Those rows
-are outside the multiclass Brier column -- the column renders as not reported for
-them, never as zero -- and the temperature that can be fitted for them is the
+are outside the multiclass Brier column (the column renders as not reported for
+them, never as zero), and the temperature that can be fitted for them is the
 one-parameter approximation in the table above, the form that left ECE at five
 times the floor on the underconfident case. The penalty is a property of the
 answer shape, not of the model that produced it, and it is the price of a wire
@@ -126,7 +126,7 @@ guard cannot bound a run it cannot cost.
 
 A Noul returns one number: the probability that the answer is yes. There is no
 distribution behind it and therefore no confidence statistic computed from one.
-That makes it the cleanest calibration target in the API -- nothing is
+That makes it the cleanest calibration target in the API: nothing is
 renormalized, nothing is derived, and `prob_selected` is exactly what the vendor
 reported.
 
@@ -156,7 +156,7 @@ not exist for an answer with no distribution.
 ## Ordinal score questions are not scored in v0.1
 
 Some datasets ask for a level rather than a label: 0, 1, 2, or 3 daily-rest
-violations. The levels are ordered, and every metric here is rank-blind -- being
+violations. The levels are ordered, and every metric here is rank-blind: being
 wrong by one level and wrong by three score identically. Flattening the levels
 into unordered options would discard exactly the structure that makes the
 question a score, so plumbline loads those rows, marks them, and leaves them out
@@ -191,9 +191,9 @@ own mix of option widths, which is not 1/n for any single n once the widths
 differ. AUROC is read against a permutation null that keeps the observed ties and
 class balance.
 
-Nothing prints as a bare number. A figure whose null cannot be built -- MCE when
-no bin holds enough rows, AUROC when every case is correct or every case is wrong
--- is reported as not reported with the reason, rather than as a number standing
+Nothing prints as a bare number. A figure whose null cannot be built (MCE when
+no bin holds enough rows, AUROC when every case is correct or every case is wrong)
+is reported as not reported with the reason, rather than as a number standing
 on its own.
 
 The row count travels with the figure in the types as well as on the page:
@@ -356,7 +356,7 @@ not comparable.
 
 A temperature is fitted on one half of the rows and reported on the other. The
 split is disjoint, the disjointness is checked rather than trusted, and the seed
-and both sizes print in the report -- including when the verdict is a refusal,
+and both sizes print in the report, including when the verdict is a refusal,
 because the procedure is part of the result.
 
 Fitting and reporting on the same rows manufactures an improvement that does not
@@ -394,12 +394,12 @@ model of the same sharpness, which is a different and more useful claim than
 
 Every case is one request. Nothing is sampled repeatedly and voted on, nothing is
 retried to get a better-looking answer, and nothing is asked twice to reduce
-variance -- because a number produced that way is not the number the system would
+variance, because a number produced that way is not the number the system would
 give in production, and it is the production number plumbline is measuring.
 
 Transport failures are retried, with backoff, because a connection reset is not
-an answer. Decisions are not. A refusal -- an option that is not a single token,
-a generator that answered off-label, a model that declined -- is recorded once
+an answer. Decisions are not. A refusal (an option that is not a single token,
+a generator that answered off-label, a model that declined) is recorded once
 and never retried, since retrying would understate exactly the failure rate the
 report is there to show. A cache hit replaces the call entirely and is recorded
 as a hit, contributing to neither cost nor latency, because it measures disk.
