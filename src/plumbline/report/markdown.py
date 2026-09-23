@@ -511,8 +511,14 @@ def _asked_as(records: Sequence[CaseRecord]) -> list[str]:
         key = (record.question_type, record.asked_as)
         pairs[key] = pairs.get(key, 0) + 1
 
+    def phrase(question_type: str, asked: str, count: int) -> str:
+        # A row that failed or was refused was not asked as anything.
+        if asked in {"failed", "refused"}:
+            return f"{count} {question_type} rows {asked}"
+        return f"{count} {question_type} rows asked as {asked}"
+
     described = ", ".join(
-        f"{count} {question_type} asked as {asked}"
+        phrase(question_type, asked, count)
         for (question_type, asked), count in sorted(pairs.items())
     )
     lines = [f"- **Asked**: {described}."]

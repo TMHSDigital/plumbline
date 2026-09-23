@@ -15,8 +15,9 @@ one of them. Adding a vendor should not add a file.
 - **Any open-weights checkpoint is a config entry for `local_logits`**, as a
   HuggingFace model id and a pinned revision. Pin the revision. A moving
   checkpoint makes every stored result unreproducible.
-- **Any chat model you want as a control arm is a model string for
-  `generative`.**
+- **Any Anthropic model you want as a control arm is a model string for
+  `generative`.** It speaks Anthropic's Messages API only, so another provider's
+  chat model is a new transport, not a config entry.
 
 A new adapter module is for a genuinely new *transport*, which is rare. If you
 are writing one, say in the issue what wire shape it speaks and why none of the
@@ -49,7 +50,7 @@ and the reason, not a value with a caveat attached.
 
 ## Before you open a pull request
 
-All three must pass:
+All four must pass:
 
 ```powershell
 uv run pytest
@@ -79,14 +80,17 @@ The flow:
 4. **Open a pull request.** No approval is required, because there is currently
    one maintainer and a rule demanding one would only demand it of them. CI is
    the gate that actually matters.
-5. **CI must be green** before merge: ruff, ruff format, mypy --strict and
-   pytest, on Python 3.12 and 3.13, on Ubuntu and Windows. All four jobs are
-   required checks.
+5. **CI must be green** before merge. The required checks are the four test
+   jobs (ruff, ruff format, mypy --strict and pytest, on Python 3.12 and 3.13,
+   on Ubuntu and Windows), the quickstart as the README documents it, the prose
+   check (no em dashes, no `--` used as a dash), the built wheel, and the site's
+   two checks (the floor agrees with the Python; every link, anchor, meta tag
+   and policy resolves, and the pages work in a real browser).
 6. **Squash on merge.** The branch is deleted automatically afterwards.
 
 **Some checks are advisory and do not gate a merge.** CodeQL and Socket
 Security both report on pull requests, and neither is a required check. The
-four CI jobs are the gate. This is deliberate, not an oversight: a
+checks listed above are the gate. This is deliberate, not an oversight: a
 supply-chain advisory is a judgement call that a human should make, and a
 scanner that can block a merge on a false positive ends up being routed around
 rather than read.
@@ -138,3 +142,29 @@ real labeled data goes.
 Run artifacts in `results/` are gitignored too. They contain per-case records
 from your own data, and on a live run, from a vendor call. Do not paste one into
 an issue without reading it first.
+
+## Working on the site
+
+The site at <https://tmhsdigital.github.io/plumbline/> is built from `site/`
+and the repository's markdown by `scripts/build_site.py`, and deployed by
+`.github/workflows/site.yml` from `main` only. It needs Node 22 or later on
+the path (for its built-in WebSocket) and, for the browser check, Chrome.
+Nothing is installed by npm.
+
+```
+uv run python scripts/build_site.py --out _site
+node scripts/check_floor_parity.mjs _site/example-run.json
+node scripts/check_site_links.mjs _site
+node scripts/check_search.mjs _site
+node scripts/smoke_site.mjs _site
+```
+
+- `site/floor.js` is a JavaScript port of the Python floor, held to it within
+  1e-9. After changing the floor in Python, run
+  `uv run python scripts/floor_golden.py` to regenerate
+  `site/floor-golden.json`, and commit both; CI refuses a stale fixture.
+- `docs/example-report.md` is checked line for line against the command it
+  records. After changing any report wording, rerun that command and replace
+  everything from `# plumbline report` down; the build refuses otherwise.
+- Every page carries a Content-Security-Policy that allows only the site's own
+  files, so no inline script, inline style block, or `style=` attribute.

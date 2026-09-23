@@ -1,0 +1,35 @@
+name: Site bug
+description: Something on tmhsdigital.github.io/plumbline looks wrong or does not work.
+labels: ["bug", "site"]
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Page address
+      description: The full address, including anything after ? or #, since the calculator keeps its inputs there.
+      placeholder: https://tmhsdigital.github.io/plumbline/?n=500&bins=10&accuracy=0.8#calculator
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What the page showed or did, and what you expected instead. The exact text of any message helps.
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device
+      placeholder: Firefox 131 on Windows 11, or Safari on iPhone
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console errors
+      description: Optional. Anything red in the browser's developer console (F12), pasted as text.
+      render: text
