@@ -1,9 +1,9 @@
 """The command line: load a dataset, run an arm over it, render the report.
 
-Three commands and no cleverness. ``run`` does one arm over one dataset and
+Four commands and no cleverness. ``run`` does one arm over one dataset and
 writes both an artifact and a report; ``report`` renders artifacts that already
-exist, so a finished run is never repeated to get a document out of it; and
-``adapters`` says what can be run at all.
+exist, so a finished run is never repeated to get a document out of it;
+``adapters`` says what can be run at all; and ``version`` says which build this is.
 
 Two defaults are deliberately absent. There is no default dataset and no default
 results directory on ``report``: a relative default resolves against whatever
@@ -53,11 +53,11 @@ def run(
     report: Annotated[Path | None, typer.Option(help="Write the report here too.")] = None,
     data_format: Annotated[str, typer.Option("--format", help="jsonl or jevbench.")] = "jsonl",
     strict: Annotated[bool, typer.Option(help="Refuse to run unless every row loaded.")] = False,
-    limit: Annotated[int | None, typer.Option(help="Run only the first N cases.")] = None,
-    workers: Annotated[int, typer.Option(help="Concurrent requests.")] = 8,
+    limit: Annotated[int | None, typer.Option(min=1, help="Run only the first N cases.")] = None,
+    workers: Annotated[int, typer.Option(min=1, help="Concurrent requests.")] = 8,
     cache_dir: Annotated[Path | None, typer.Option("--cache", help="Cache directory.")] = None,
     max_cost_usd: Annotated[float | None, typer.Option(help="Abort above this.")] = None,
-    max_cases: Annotated[int | None, typer.Option(help="Abort above this many.")] = None,
+    max_cases: Annotated[int | None, typer.Option(min=1, help="Abort above this many.")] = None,
     semantics: Annotated[
         str | None, typer.Option(help="Override probability_semantics (mock only).")
     ] = None,
@@ -74,17 +74,26 @@ def run(
         Path | None,
         typer.Option("--pricing", help="JSON pricing table to lay over the shipped one."),
     ] = None,
-    n_boot: Annotated[int, typer.Option("--boot", help="Bootstrap draws per null.")] = 2000,
+    n_boot: Annotated[int, typer.Option("--boot", min=1, help="Bootstrap draws per null.")] = 2000,
 ) -> None:
-    """Run one adapter over one dataset, and write what it found."""
+    """Run one adapter over one dataset, and write what it found.
+
+    Status lines and errors go to stderr, so stdout carries only the report when
+    no --report is given. The exit code is 1 when no case produced a prediction,
+    after the artifact and the report are written.
+    """
+    # Everything that can be checked before a call goes out is checked here,
+    # so a mistake costs nothing.
+    if report is not None and report.is_dir():
+        _fail(f"--report {report} is a directory; give it a file path, such as {report}/report.md")
     load = _load(dataset, data_format)
-    typer.echo(load.statement())
+    _status(load.statement())
     for refusal in load.refusals:
-        typer.echo(f"  refused {refusal}")
+        _status(f"  refused {refusal}")
     if strict:
         _guard(load.require_complete)
 
-    cases = list(load.scoreable)[:limit] if limit else list(load.scoreable)
+    cases = list(load.scoreable)[:limit] if limit is not None else list(load.scoreable)
     if not cases:
         _fail("no scoreable rows in this dataset, so there is nothing to run.")
 
@@ -110,7 +119,7 @@ def run(
     )
 
     artifact = result.write(results)
-    typer.echo(f"artifact: {artifact}")
+    _status(f"artifact: {artifact}")
 
     document = markdown.render(
         [result],
@@ -124,10 +133,16 @@ def run(
     if report is not None:
         report.parent.mkdir(parents=True, exist_ok=True)
         report.write_text(document, encoding="utf-8")
-        typer.echo(f"report: {report}")
+        _status(f"report: {report}")
     else:
-        typer.echo("")
         typer.echo(document)
+
+    if not result.successes:
+        # The artifact and the report are written first, since they hold the
+        # per-case errors; then the run says it produced nothing, in its exit code.
+        reasons = {record.error for record in result.records if record.error}
+        why = f" All for the same reason: {reasons.pop()}" if len(reasons) == 1 else ""
+        _fail(f"every case failed or was refused, so there is nothing to measure.{why}")
 
 
 @app.command()
@@ -141,7 +156,7 @@ def report(
     error_cost: Annotated[
         float | None, typer.Option("--error-cost", help="What one wrong answer costs, in USD.")
     ] = None,
-    n_boot: Annotated[int, typer.Option("--boot", help="Bootstrap draws per null.")] = 2000,
+    n_boot: Annotated[int, typer.Option("--boot", min=1, help="Bootstrap draws per null.")] = 2000,
 ) -> None:
     """Render one document from runs that already happened."""
     results = [_guard(partial(execute.RunResult.read, path)) for path in artifacts]
@@ -156,7 +171,7 @@ def report(
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(document, encoding="utf-8")
-        typer.echo(f"report: {out}")
+        _status(f"report: {out}")
     else:
         typer.echo(document)
 
@@ -209,7 +224,24 @@ def _build(
     elif semantics is not None:
         _fail("--semantics applies to the mock only; a real adapter declares its own.")
 
-    return _guard(lambda: registry.create(adapter, **config))
+    try:
+        return registry.create(adapter, **config)
+    except (PlumblineError, ValueError) as refused:
+        _fail(str(refused))
+    except TypeError:
+        given = [f"--{name.replace('_requested', '')}" for name in config if name in _OPTIONS]
+        _fail(f"the {adapter} adapter does not take {', '.join(given) or 'these settings'}.")
+    except Exception as unavailable:  # an SDK that cannot start, such as a missing key
+        variable = _KEY_VARIABLES.get(adapter)
+        hint = f" Set {variable} in the environment." if variable else ""
+        _fail(f"could not set up the {adapter} adapter: {unavailable}.{hint}")
+
+
+#: Settings the CLI passes to an adapter from its own options.
+_OPTIONS = ("model_requested", "revision")
+
+#: Where each hosted adapter reads its key, for the message when it is missing.
+_KEY_VARIABLES = {"typesafe_wire": "TYPESAFE_API_KEY", "generative": "ANTHROPIC_API_KEY"}
 
 
 def _semantics(value: str) -> ProbabilitySemantics:
@@ -245,8 +277,13 @@ def _guard[T](call: Callable[[], T]) -> T:
         _fail(str(refused))
 
 
+def _status(message: str) -> None:
+    """A line about the run rather than its result, so it goes to stderr."""
+    typer.echo(message, err=True)
+
+
 def _fail(message: str) -> NoReturn:
-    typer.echo(message)
+    typer.echo(message, err=True)
     raise typer.Exit(code=1)
 
 

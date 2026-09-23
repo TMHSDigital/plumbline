@@ -187,8 +187,23 @@ def _arm(result: RunResult, options: ReportOptions) -> list[str]:
     lines.extend(_asked_as(scoreable))
 
     if not successes:
-        lines.append("- **No figures**: every case failed or was refused, so there is nothing")
-        lines.append("  to measure. The failures are in the artifact.")
+        # One shared reason is almost always an install or setup step (a missing
+        # extra, a bad key), and it is the one thing the reader needs, so it is
+        # said here rather than left inside the artifact. Different reasons are
+        # a log, and a report is not a log.
+        reasons = {record.error for record in failures if record.error}
+        if failures and len(reasons) == 1:
+            lines.append(
+                f"- **No figures**: all {len(failures)} cases failed for the same reason, "
+                "so there is nothing to measure:"
+            )
+            lines.append(f"  {reasons.pop()}")
+        else:
+            lines.append("- **No figures**: every case failed or was refused, so there is nothing")
+            lines.append(
+                f"  to measure. The {len(failures)} failures, for {len(reasons)} different "
+                "reasons, are in the artifact."
+            )
         return lines
 
     outcomes = [bool(record.correct) for record in successes]

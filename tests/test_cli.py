@@ -108,8 +108,8 @@ def test_a_run_prints_what_it_loaded_and_what_it_refused(tmp_path: Path) -> None
     result = invoke("run", str(dataset), "--results", str(tmp_path / "r"), "--boot", "100")
 
     assert result.exit_code == 0
-    assert "6 loaded" in result.stdout
-    assert "1 refused" in result.stdout
+    assert "6 loaded" in result.output
+    assert "1 refused" in result.output
 
 
 def test_strict_refuses_to_run_a_dataset_with_an_unscoreable_row(tmp_path: Path) -> None:
@@ -132,7 +132,7 @@ def test_strict_refuses_to_run_a_dataset_with_an_unscoreable_row(tmp_path: Path)
     )
 
     assert result.exit_code != 0
-    assert "typo" in result.stdout
+    assert "typo" in result.output
 
 
 def test_the_jevbench_loader_is_selectable(tmp_path: Path) -> None:
@@ -150,7 +150,7 @@ def test_the_jevbench_loader_is_selectable(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0
-    assert "111 rows read" in result.stdout
+    assert "111 rows read" in result.output
 
 
 def test_a_report_can_be_rendered_from_a_stored_artifact(tmp_path: Path) -> None:
@@ -190,7 +190,7 @@ def test_a_missing_dataset_fails_with_the_path_it_looked_at(tmp_path: Path) -> N
     result = invoke("run", str(tmp_path / "nope.jsonl"), "--results", str(tmp_path / "r"))
 
     assert result.exit_code != 0
-    assert "nope.jsonl" in result.stdout
+    assert "nope.jsonl" in result.output
 
 
 def test_an_unknown_adapter_names_the_ones_that_exist(tmp_path: Path) -> None:
@@ -199,7 +199,7 @@ def test_an_unknown_adapter_names_the_ones_that_exist(tmp_path: Path) -> None:
     result = invoke("run", str(dataset), "--adapter", "telepathy", "--results", str(tmp_path / "r"))
 
     assert result.exit_code != 0
-    assert "mock" in result.stdout
+    assert "mock" in result.output
 
 
 @pytest.mark.parametrize("command", ["run", "report", "adapters", "version"])
@@ -253,3 +253,98 @@ def test_without_the_costs_the_report_says_they_are_yours_to_supply(tmp_path: Pa
 
     text = report_path.read_text(encoding="utf-8")
     assert "--escalation-cost" in text
+
+
+# Validation before anything is sent (#41), and what the exit code and the
+# streams say afterwards (#42)
+
+
+@pytest.mark.parametrize(
+    "option",
+    [["--limit", "0"], ["--limit", "-1"], ["--boot", "0"], ["--workers", "0"]],
+    ids=["limit-0", "limit-negative", "boot-0", "workers-0"],
+)
+def test_a_count_that_must_be_positive_is_refused_before_the_run(
+    tmp_path: Path, option: list[str]
+) -> None:
+    dataset = a_dataset(tmp_path / "d.jsonl", n_rows=6)
+    result = invoke("run", str(dataset), "--results", str(tmp_path / "r"), *option)
+
+    assert result.exit_code != 0
+    assert "Traceback" not in result.output
+    assert not (tmp_path / "r").exists()
+
+
+def test_an_option_the_adapter_does_not_take_is_named_not_a_traceback(tmp_path: Path) -> None:
+    dataset = a_dataset(tmp_path / "d.jsonl", n_rows=6)
+    result = runner.invoke(
+        cli.app,
+        ["run", str(dataset), "--adapter", "typesafe_wire", "--revision", "abc"],
+        env={"TYPESAFE_API_KEY": "not-a-key"},
+    )
+
+    assert result.exit_code == 1
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+    assert "revision" in result.output
+
+
+def test_a_missing_api_key_is_one_line_naming_the_variable(tmp_path: Path) -> None:
+    dataset = a_dataset(tmp_path / "d.jsonl", n_rows=6)
+    result = runner.invoke(
+        cli.app,
+        ["run", str(dataset), "--adapter", "typesafe_wire"],
+        env={"TYPESAFE_API_KEY": None},
+    )
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert "TYPESAFE_API_KEY" in result.output
+
+
+def test_a_report_path_that_is_a_directory_is_refused_before_the_run(tmp_path: Path) -> None:
+    dataset = a_dataset(tmp_path / "d.jsonl", n_rows=6)
+    (tmp_path / "out").mkdir()
+    result = invoke(
+        "run", str(dataset), "--results", str(tmp_path / "r"), "--report", str(tmp_path / "out")
+    )
+
+    assert result.exit_code != 0
+    assert "directory" in result.output
+    assert not (tmp_path / "r").exists()
+
+
+def test_status_and_errors_go_to_stderr_and_only_the_report_to_stdout(tmp_path: Path) -> None:
+    dataset = a_dataset(tmp_path / "d.jsonl", n_rows=24)
+    result = invoke("run", str(dataset), "--results", str(tmp_path / "r"), "--boot", "100")
+
+    assert result.exit_code == 0
+    assert result.stdout.lstrip().startswith("# plumbline report")
+    assert "rows read" in result.stderr and "artifact:" in result.stderr
+
+    wrong = invoke("run", str(dataset), "--format", "csv")
+    assert wrong.exit_code != 0
+    assert "--format" in wrong.stderr and wrong.stdout == ""
+
+
+def test_a_run_where_every_case_fails_exits_non_zero_and_says_why(tmp_path: Path) -> None:
+    """The mock refuses an accuracy below chance on every case: one reason, said once."""
+    dataset = a_dataset(tmp_path / "d.jsonl", n_rows=12)
+    report = tmp_path / "report.md"
+    result = invoke(
+        "run",
+        str(dataset),
+        "--results",
+        str(tmp_path / "r"),
+        "--report",
+        str(report),
+        "--accuracy",
+        "0.05",
+        "--boot",
+        "100",
+    )
+
+    assert result.exit_code == 1
+    assert list((tmp_path / "r").glob("*.json")), "the artifact is still written"
+    assert "every case failed" in result.stderr.lower()
+    assert "accuracy" in result.stderr
+    assert "for the same reason" in report.read_text(encoding="utf-8")

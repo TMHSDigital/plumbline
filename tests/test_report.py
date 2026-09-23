@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 from typesafe_sdk import NoulAnswer, SystemOneResponse, Usage
@@ -439,3 +440,34 @@ def test_the_artifact_and_the_report_name_a_non_default_endpoint() -> None:
     assert "endpoint `http://self-hosted.example`" in render(result)
     # The vendor's default endpoint is the ordinary case and says nothing.
     assert "endpoint `" not in render(a_run(n_cases=40))
+
+
+class FailingAdapter:
+    """Fails every case, with the same message or with one per case."""
+
+    name = "failing"
+    model_requested = "failing-1"
+    revision = None
+    probability_semantics = "calibrated_claim"
+    reports_tokens = False
+    call_params: ClassVar[dict[str, object]] = {}
+
+    def __init__(self, same: bool) -> None:
+        self.same = same
+
+    def classify(self, text: str, labels: list[str], **asked: object) -> object:
+        raise ValueError("the local extra is not installed" if self.same else f"broke on {text}")
+
+
+@pytest.mark.parametrize("same", [True, False], ids=["one-reason", "many-reasons"])
+def test_a_run_with_no_figures_names_a_shared_failure_reason(same: bool) -> None:
+    """One reason is the thing the reader needs; many reasons are a log (#15)."""
+    cases = make_cases(8, labels=LABELS)
+    text = render(execute.run(FailingAdapter(same), cases, workers=1))  # type: ignore[arg-type]
+
+    if same:
+        assert "all 8 cases failed for the same reason" in text
+        assert "the local extra is not installed" in text
+    else:
+        assert "8 different reasons, are in the artifact" in text
+        assert "broke on" not in text
