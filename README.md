@@ -182,7 +182,9 @@ This one spends money. Set a key, name an adapter, and cap the run.
 
 Cost needs a pricing table **you** supply, because plumbline ships no figures
 for vendors whose terms treat pricing as confidential. Copy the template and
-fill in the rates from the vendor's own page:
+fill in the rates from the vendor's own page, and the date you read them.
+plumbline refuses the copy until you have, so an unedited template can never
+price a run at nothing:
 
 ```
 cp docs/pricing.example.json my-pricing.json

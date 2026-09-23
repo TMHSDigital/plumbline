@@ -115,8 +115,12 @@ DEFAULT_PRICING_TABLE: PricingTable = {
 
 #: Fields a supplied entry may carry. Anything else is a typo worth naming.
 _PRICING_FIELDS = frozenset(
-    {"input_usd_per_million", "output_usd_per_million", "source", "as_of", "note"}
+    {"input_usd_per_million", "output_usd_per_million", "source", "as_of", "note", "free"}
 )
+
+#: The ``as_of`` that ``docs/pricing.example.json`` ships with. A copy that still
+#: carries it has not been filled in, so it is refused rather than priced.
+TEMPLATE_AS_OF = "YYYY-MM-DD"
 
 
 def load_pricing_file(path: Path | str) -> PricingTable:
@@ -197,11 +201,35 @@ def _entry(name: str, value: Any, path: Path) -> Pricing:
                 "whether that source still says it and a report can age it."
             )
 
+    as_of = _as_of(name, value["as_of"], path)
+    input_price = _price(name, value, "input_usd_per_million", path)
+    output_price = _price(name, value, "output_usd_per_million", path)
+    free = value.get("free", False)
+    if not isinstance(free, bool):
+        raise PricingConfigError(
+            f"entry {name!r} in {path} has free={free!r}; it is true or absent."
+        )
+    # Both prices at exactly zero is what an unedited template looks like, and
+    # it would let any run past --max-cost-usd. A model that really is free says
+    # so, and one that says so must not also carry a price.
+    both_zero = input_price == 0 and output_price == 0
+    if both_zero and not free:
+        raise PricingConfigError(
+            f"entry {name!r} in {path} prices input and output at 0, which claims every "
+            "token is free and would let any run past --max-cost-usd. If that is true, "
+            'add "free": true to the entry; if the price is unknown, use null.'
+        )
+    if free and not both_zero:
+        raise PricingConfigError(
+            f'entry {name!r} in {path} says "free": true but carries a price. '
+            "Set both prices to 0, or remove free."
+        )
+
     return Pricing(
-        input_usd_per_million=_price(name, value, "input_usd_per_million", path),
-        output_usd_per_million=_price(name, value, "output_usd_per_million", path),
+        input_usd_per_million=input_price,
+        output_usd_per_million=output_price,
         source=str(value["source"]),
-        as_of=_as_of(name, value["as_of"], path),
+        as_of=as_of,
         note=str(value.get("note", "")),
     )
 
@@ -221,6 +249,13 @@ def _price(name: str, value: Mapping[str, Any], field: str, path: Path) -> float
 
 
 def _as_of(name: str, value: Any, path: Path) -> date:
+    if value == TEMPLATE_AS_OF:
+        raise PricingConfigError(
+            f"entry {name!r} in {path} still has the template's placeholder "
+            f"as_of={TEMPLATE_AS_OF!r}. Fill in the prices you read and the date you read "
+            "them; an unedited copy of docs/pricing.example.json is refused rather than "
+            "used to price a run."
+        )
     try:
         return date.fromisoformat(str(value))
     except ValueError:

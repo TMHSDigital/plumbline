@@ -336,7 +336,10 @@ So:
   table and lay it over the shipped one, wired to `plumbline run --pricing`.
   Every supplied entry must carry its own `source` and `as_of`, on the same
   reasoning that applies to a shipped one.
-- `docs/pricing.example.json` is a template with placeholder figures.
+- `docs/pricing.example.json` is a template whose prices are null and whose
+  `as_of` is the placeholder `YYYY-MM-DD`, which the loader refuses, so an
+  unedited copy cannot price a run. An entry with both prices at 0 is refused
+  unless it says `"free": true`.
 - A test asserts no shipped entry for this vendor carries a numeric price, so a
   figure cannot drift back in unnoticed.
 

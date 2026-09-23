@@ -83,6 +83,10 @@ different event from one that moved because it was wrong.
 
 ### Fixed
 
+- The pricing template priced every call at $0, so a copy used unedited let
+  any run past `--max-cost-usd` (#28). Its prices are now null and its `as_of`
+  a `YYYY-MM-DD` placeholder that the loader refuses, and any entry pricing
+  both input and output at 0 is refused unless it says `"free": true`.
 - Every validation message on the site's calculator and planner read
   "[object Object]" (#25). Messages now say what is wrong, mark the field
   invalid, and are tied to it for screen readers; a result is announced as one
