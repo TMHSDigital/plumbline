@@ -31,8 +31,10 @@ DEFAULT_N_BOOT = 2000
 class NullBand:
     """What a metric does when nothing is happening, at one sample size.
 
-    ``mean`` is the expected value under the null and ``p95`` is what it exceeds
-    one time in twenty. A measurement inside the band is not a finding.
+    ``mean`` is the expected value under the null, ``p95`` is what it exceeds
+    one time in twenty, and ``p05`` is what it falls below one time in twenty.
+    A measurement between the two is not a finding. One below ``p05`` is: the
+    answers are worse than the null, not merely no better.
     """
 
     metric: str
@@ -41,6 +43,7 @@ class NullBand:
     p95: float
     n: int
     n_boot: int
+    p05: float
 
 
 #: How each metric is spelled in a report line.
@@ -57,32 +60,50 @@ class Figure:
     band: NullBand
     beats: str  # what clearing the band means, in three words
     note: str = ""
+    #: What falling below the band means, and the likeliest reason, for a value
+    #: the null would rarely produce from below.
+    below: str = "below the null"
+    below_reason: str = ""
 
     @property
     def is_distinguishable(self) -> bool:
-        """Whether the value is outside what the null produces at this size."""
+        """Whether the value is above what the null produces at this size."""
         return self.value > self.band.p95
+
+    @property
+    def is_below_null(self) -> bool:
+        """Whether the value is below what the null produces at this size."""
+        return self.value < self.band.p05
 
     def statement(self) -> str:
         # The inconclusive wording names the measurement as what failed, not
         # the model as what passed. See _judgment in metrics/calibration.py for
         # why: "not distinguishable from <null>" is read as a pass, and it
         # means nothing was established either way.
-        judgment = (
-            f"{self.beats} at this sample size."
-            if self.is_distinguishable
-            else (
-                f"INCONCLUSIVE at this sample size. {self.band.null.capitalize()} "
-                f"would often score this well on this many rows, so this dataset "
-                "cannot tell the two apart. This is not a result in either "
-                "direction. Collect more rows to make the question answerable."
-            )
-        )
         name = METRIC_NAMES.get(self.metric, self.metric.upper())
+        if self.is_below_null:
+            # Far below the null is a finding, and "collect more rows" would be
+            # the wrong advice for it: more rows would only confirm it.
+            judgment = (
+                f"{self.below} at this sample size. {self.band.null.capitalize()} would "
+                f"rarely score this badly on this many rows. {self.below_reason}"
+            ).strip()
+            percentile = f"5th percentile {self.band.p05:.4f}"
+        else:
+            judgment = (
+                f"{self.beats} at this sample size."
+                if self.is_distinguishable
+                else (
+                    f"INCONCLUSIVE at this sample size. {self.band.null.capitalize()} "
+                    f"would often score this well on this many rows, so this dataset "
+                    "cannot tell the two apart. This is not a result in either "
+                    "direction. Collect more rows to make the question answerable."
+                )
+            )
+            percentile = f"95th percentile {self.band.p95:.4f}"
         line = (
             f"{name} {self.value:.4f} over {self.n} rows, against a "
-            f"{self.band.null} null of {self.band.mean:.4f} "
-            f"(95th percentile {self.band.p95:.4f}): {judgment}"
+            f"{self.band.null} null of {self.band.mean:.4f} ({percentile}): {judgment}"
         )
         return f"{line} {self.note}".strip()
 
@@ -119,6 +140,7 @@ def chance_band(
         p95=float(np.percentile(draws, 95)),
         n=len(probabilities),
         n_boot=n_boot,
+        p05=float(np.percentile(draws, 5)),
     )
 
 
@@ -140,6 +162,11 @@ def accuracy_figure(
         n=len(correct),
         band=band,
         beats="better than chance",
+        below="worse than chance",
+        below_reason=(
+            "The answers are systematically wrong, not merely uninformative, which "
+            "usually means the gold labels and the options are misaligned."
+        ),
     )
 
 
@@ -186,6 +213,7 @@ def auroc_band(
         p95=float(np.percentile(draws, 95)),
         n=len(values),
         n_boot=n_boot,
+        p05=float(np.percentile(draws, 5)),
     )
 
 
@@ -203,6 +231,11 @@ def auroc_figure(
         n=len(values),
         band=auroc_band(values, correct, n_boot=n_boot, seed=seed),
         beats="separates correct from incorrect",
+        below="ranks incorrect above correct",
+        below_reason=(
+            "The score is inverted relative to correctness: a higher score marks an "
+            "answer more likely to be wrong."
+        ),
     )
 
 

@@ -107,3 +107,32 @@ def test_auroc_of_a_perfect_score_column_is_distinguishable() -> None:
 def test_a_figure_refuses_to_be_built_from_mismatched_columns() -> None:
     with pytest.raises(ValueError, match="must match"):
         baseline.accuracy_figure([True, False], [4], n_boot=N_BOOT)
+
+
+def test_an_inverted_score_is_called_inverted_not_inconclusive() -> None:
+    """Far below the null is a finding, not a reason to collect more rows (#33)."""
+    correct = [index % 2 == 0 for index in range(300)]
+    inverted = [0.1 if outcome else 0.9 for outcome in correct]
+    figure = baseline.auroc_figure(ConfidenceSeries(values=tuple(inverted)), correct, n_boot=500)
+
+    assert figure.value == 0.0
+    assert figure.is_below_null and not figure.is_distinguishable
+    statement = figure.statement()
+    assert "INCONCLUSIVE" not in statement and "Collect more rows" not in statement
+    assert "5th percentile" in statement and "inverted" in statement
+
+
+def test_an_accuracy_far_below_chance_says_the_answers_are_systematically_wrong() -> None:
+    figure = baseline.accuracy_figure([False] * 200, [4] * 200, n_boot=500)
+
+    assert figure.is_below_null
+    statement = figure.statement()
+    assert "worse than chance" in statement and "INCONCLUSIVE" not in statement
+
+
+def test_a_value_just_inside_the_null_is_still_inconclusive() -> None:
+    """The lower tail adds a verdict; it does not move the band's middle."""
+    figure = baseline.accuracy_figure([True] * 50 + [False] * 150, [4] * 200, n_boot=500)
+
+    assert not figure.is_below_null and not figure.is_distinguishable
+    assert "INCONCLUSIVE" in figure.statement()
