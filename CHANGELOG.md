@@ -83,6 +83,18 @@ different event from one that moved because it was wrong.
 
 ### Fixed
 
+- `plumbline report` combined artifacts from different datasets under the first
+  one's hash, as if their figures were comparable, and gave two runs of one
+  adapter identical headings (#43). Different datasets are now refused unless
+  `--allow-mixed` is passed, when every arm names its dataset and row count;
+  arms that share an adapter name are told apart by model, then by time.
+- A credential inside a list in the run config reached the artifact, because
+  redaction walked only dictionaries; it now walks lists and tuples too (#46).
+  The report and the artifact named the dataset by the path as typed, so an
+  absolute path shared a username and a directory layout; a dataset inside the
+  working directory is named relative to it and one outside by its file name,
+  and the hash still says which rows they were. A backtick in a model name no
+  longer breaks out of its code span.
 - The JevBench loader skipped the duplicate-id check the JSONL loader makes, so
   repeated ids loaded silently (#44). Both loaders now share it. The dataset
   loader read a byte order mark as part of the first row and refused it, turned

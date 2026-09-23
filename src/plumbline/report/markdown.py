@@ -91,6 +91,13 @@ class ReportOptions:
     min_threshold_rows: int = 200
     """Below this, a threshold is fitted to noise and none is printed."""
 
+    allow_mixed_datasets: bool = False
+    """Put runs over different datasets in one document, each arm naming its own.
+
+    Off by default: figures from different datasets are not comparable, and a
+    document that lays them side by side invites exactly that comparison.
+    """
+
     @property
     def has_costs(self) -> bool:
         return self.cost_escalation_usd is not None and self.cost_error_usd is not None
@@ -111,6 +118,16 @@ def render(
     if not results:
         raise ValueError("no runs to report on")
     options = options or ReportOptions()
+    datasets = sorted({result.dataset_hash for result in results})
+    if len(datasets) > 1 and not options.allow_mixed_datasets:
+        named = ", ".join(f"`{digest[:8]}`" for digest in datasets)
+        raise ValueError(
+            f"these runs are over {len(datasets)} different datasets ({named}), and figures "
+            "from different datasets are not comparable. Report them separately, or allow "
+            "mixed datasets (--allow-mixed) to put them in one document with each arm "
+            "naming its dataset."
+        )
+    headings = _headings(results, mixed=len(datasets) > 1)
 
     lines = _header(results, load, options)
     lines.extend(_how_to_read())
@@ -123,7 +140,7 @@ def render(
             continue
         lines.extend(["", "---", "", f"## {GROUP_TITLES[semantics]}", "", GROUP_NOTES[semantics]])
         for result in group:
-            lines.extend(_arm(result, options))
+            lines.extend(_arm(result, options, headings[id(result)]))
 
     return "\n".join(lines).rstrip() + "\n"
 
@@ -132,6 +149,17 @@ def _header(
     results: Sequence[RunResult], load: LoadReport | None, options: ReportOptions
 ) -> list[str]:
     first = results[0]
+    datasets = sorted({result.dataset_hash for result in results})
+    if len(datasets) > 1:
+        named = ", ".join(f"`{digest[:8]}`" for digest in datasets)
+        return [
+            "# plumbline report",
+            "",
+            f"Generated {options.clock.isoformat()} against {len(datasets)} datasets "
+            f"({named}). {len(results)} arm(s), each naming its own dataset and row "
+            "count. Figures from different datasets are not comparable.",
+            "",
+        ]
     rows = ", ".join(sorted({f"{result.dataset_rows} rows" for result in results}))
     return [
         "# plumbline report",
@@ -140,6 +168,33 @@ def _header(
         f"{rows}. {len(results)} arm(s).",
         "",
     ]
+
+
+def _headings(results: Sequence[RunResult], *, mixed: bool) -> dict[int, str]:
+    """A heading per arm that tells it apart from every other.
+
+    The adapter name alone, when it is unique; then the model; then the run's
+    time. With mixed datasets every arm also names its dataset and row count.
+    """
+
+    def label(result: RunResult, depth: int) -> str:
+        parts = [result.adapter_name]
+        if depth >= 1:
+            parts.append(result.model_requested)
+        if depth >= 2:
+            parts.append(result.timestamp)
+        return ", ".join(parts)
+
+    chosen: dict[int, str] = {}
+    for result in results:
+        for depth in range(3):
+            candidate = label(result, depth)
+            if sum(1 for other in results if label(other, depth) == candidate) == 1 or depth == 2:
+                break
+        if mixed:
+            candidate += f", dataset `{result.dataset_hash[:8]}` ({result.dataset_rows} rows)"
+        chosen[id(result)] = candidate
+    return chosen
 
 
 def _how_to_read() -> list[str]:
@@ -171,7 +226,7 @@ def _dataset_section(load: LoadReport) -> list[str]:
     return lines
 
 
-def _arm(result: RunResult, options: ReportOptions) -> list[str]:
+def _arm(result: RunResult, options: ReportOptions, heading: str) -> list[str]:
     scoreable = [
         record for record in result.records if record.question_type in SUPPORTED_QUESTION_TYPES
     ]
@@ -179,7 +234,7 @@ def _arm(result: RunResult, options: ReportOptions) -> list[str]:
     successes = [record for record in scoreable if record.prediction is not None]
     failures = [record for record in scoreable if record.prediction is None]
 
-    lines = ["", f"### {result.adapter_name}", "", *_provenance(result, options)]
+    lines = ["", f"### {heading}", "", *_provenance(result, options)]
     if excluded:
         lines.append(
             f"- **Excluded**: {excluded} rows of an unsupported question type were not scored."
@@ -492,16 +547,30 @@ def _scaled(prediction: Prediction, temperature: float) -> float:
 
 def _provenance(result: RunResult, options: ReportOptions) -> list[str]:
     reported = result.model_reported or "not reported"
+    endpoint = result.config.get("endpoint")
     line = (
-        f"- **Model**: requested `{result.model_requested}`, reported `{reported}`"
-        + (f", revision `{result.revision}`" if result.revision else "")
-        + (f", endpoint `{endpoint}`" if (endpoint := result.config.get("endpoint")) else "")
+        f"- **Model**: requested {_code(result.model_requested)}, reported {_code(reported)}"
+        + (f", revision {_code(result.revision)}" if result.revision else "")
+        + (f", endpoint {_code(str(endpoint))}" if endpoint else "")
         + "."
     )
     hits = result.cache_stats.get("hits", 0)
     if hits:
         line += f" {hits} of {len(result.records)} rows came from cache and cost nothing."
     return [line]
+
+
+def _code(value: str) -> str:
+    """A markdown code span that holds ``value`` whatever it contains.
+
+    A model string is whatever the caller passed, and a backtick inside a single
+    backtick span ends the span early. Markdown allows a longer fence: two
+    backticks with a space inside each, which a single backtick cannot close.
+    """
+    if "`" not in value:
+        return f"`{value}`"
+    fence = "``" if "``" not in value else "```"
+    return f"{fence} {value} {fence}"
 
 
 def _asked_as(records: Sequence[CaseRecord]) -> list[str]:

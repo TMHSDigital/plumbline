@@ -796,3 +796,18 @@ def test_a_second_run_never_overwrites_the_first_artifact(tmp_path: Path) -> Non
     assert len(list(directory.glob("*.json"))) == 2
     assert execute.RunResult.read(first).probability_semantics == "calibrated_claim"
     assert execute.RunResult.read(second).probability_semantics == "restricted_softmax"
+
+
+def test_a_credential_inside_a_list_is_redacted_too() -> None:
+    """redact walked dicts only, so a key inside a list of endpoints reached disk (#46)."""
+    config = {
+        "endpoints": [{"api_key": "sk-live-123", "url": "https://a"}],
+        "pair": ({"token": "t"},),
+    }
+
+    cleaned = execute.redact(config)
+
+    assert cleaned["endpoints"][0]["api_key"] == "[redacted]"
+    assert cleaned["endpoints"][0]["url"] == "https://a"
+    assert cleaned["pair"][0]["token"] == "[redacted]"
+    assert "sk-live-123" not in json.dumps(cleaned)

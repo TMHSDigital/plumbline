@@ -471,3 +471,44 @@ def test_a_run_with_no_figures_names_a_shared_failure_reason(same: bool) -> None
     else:
         assert "8 different reasons, are in the artifact" in text
         assert "broke on" not in text
+
+
+# Which runs belong in one document (#43), and what a heading or a code span can hold (#46)
+
+
+def test_artifacts_from_different_datasets_are_refused_in_one_report() -> None:
+    first, second = a_run(n_cases=40), a_run(n_cases=41)
+    assert first.dataset_hash != second.dataset_hash
+
+    with pytest.raises(ValueError, match="different datasets"):
+        render(first, second)
+
+
+def test_mixed_datasets_can_be_allowed_and_then_every_arm_names_its_own() -> None:
+    first, second = a_run(n_cases=40), a_run(n_cases=41)
+    options = markdown.ReportOptions(n_boot=200, today=date(2026, 9, 20), allow_mixed_datasets=True)
+
+    text = markdown.render([first, second], options=options)
+
+    assert "2 datasets" in text and "not comparable" in text
+    assert f"dataset `{first.dataset_hash[:8]}`" in text
+    assert f"dataset `{second.dataset_hash[:8]}`" in text
+
+
+def test_two_arms_with_one_adapter_name_get_headings_that_tell_them_apart() -> None:
+    cases = make_cases(40, labels=LABELS)
+    fast = execute.run(MockAdapter(gold_by_text(cases), seed=5, model_requested="mock-fast"), cases)
+    slow = execute.run(MockAdapter(gold_by_text(cases), seed=5, model_requested="mock-slow"), cases)
+
+    headings = [line for line in render(fast, slow).splitlines() if line.startswith("### ")]
+
+    assert len(headings) == len(set(headings)) == 2
+
+
+def test_a_backtick_in_a_model_name_cannot_break_out_of_its_code_span() -> None:
+    cases = make_cases(40, labels=LABELS)
+    odd = execute.run(MockAdapter(gold_by_text(cases), seed=5, model_requested="we`ird"), cases)
+
+    line = next(line for line in render(odd).splitlines() if line.startswith("- **Model**"))
+
+    assert "`` we`ird ``" in line

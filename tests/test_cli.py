@@ -348,3 +348,43 @@ def test_a_run_where_every_case_fails_exits_non_zero_and_says_why(tmp_path: Path
     assert "every case failed" in result.stderr.lower()
     assert "accuracy" in result.stderr
     assert "for the same reason" in report.read_text(encoding="utf-8")
+
+
+def test_a_dataset_outside_the_working_directory_is_named_not_located(tmp_path: Path) -> None:
+    """An absolute path in a shared report names the user and their layout (#46)."""
+    dataset = a_dataset(tmp_path / "d.jsonl", n_rows=12)
+    report = tmp_path / "report.md"
+    result = invoke(
+        "run",
+        str(dataset),
+        "--results",
+        str(tmp_path / "r"),
+        "--report",
+        str(report),
+        "--boot",
+        "100",
+    )
+
+    assert result.exit_code == 0
+    assert str(tmp_path) not in report.read_text(encoding="utf-8")
+    artifact = json.loads(next((tmp_path / "r").glob("*.json")).read_text(encoding="utf-8"))
+    assert artifact["config"]["dataset"] == "d.jsonl"
+
+
+def test_report_refuses_mixed_datasets_unless_allowed(tmp_path: Path) -> None:
+    for name, rows in (("a", 12), ("b", 13)):
+        invoke(
+            "run",
+            str(a_dataset(tmp_path / f"{name}.jsonl", n_rows=rows)),
+            "--results",
+            str(tmp_path / "r"),
+            "--boot",
+            "100",
+        )
+    artifacts = [str(path) for path in sorted((tmp_path / "r").glob("*.json"))]
+
+    refused = invoke("report", *artifacts, "--boot", "100")
+    allowed = invoke("report", *artifacts, "--boot", "100", "--allow-mixed")
+
+    assert refused.exit_code == 1 and "different datasets" in refused.output
+    assert allowed.exit_code == 0 and "2 datasets" in allowed.stdout
