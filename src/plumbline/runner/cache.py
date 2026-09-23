@@ -27,7 +27,7 @@ import hashlib
 import json
 import os
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +42,7 @@ def cache_key(
     text: str,
     labels: Sequence[str],
     question_type: QuestionType = "choice",
+    descriptions: Mapping[str, str] | None = None,
 ) -> str:
     """A stable fingerprint of everything that determines the answer.
 
@@ -55,10 +56,18 @@ def cache_key(
         "model_requested": adapter.model_requested,
         "revision": adapter.revision,
         "text": text,
-        "labels": sorted(labels),
+        # Sorted, so reordering the options reuses answers, unless the adapter
+        # puts them in its prompt in the order given: then order is the question.
+        "labels": list(labels)
+        if getattr(adapter, "label_order_matters", False)
+        else sorted(labels),
         "question_type": question_type,
         "call_params": _canonical(dict(adapter.call_params)),
     }
+    if getattr(adapter, "uses_label_descriptions", False) and descriptions:
+        # Only where they are sent, and only when present, so every other key is
+        # exactly what it was.
+        payload["descriptions"] = dict(sorted(descriptions.items()))
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.blake2b(encoded.encode("utf-8"), digest_size=16).hexdigest()
 

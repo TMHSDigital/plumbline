@@ -165,14 +165,22 @@ class TypeSafeWireAdapter(Adapter):
             "question_name": QUESTION_NAME,
         }
 
+    #: Option descriptions become the choice's criteria.
+    uses_label_descriptions = True
+
     def classify(
         self,
         text: str,
         labels: list[str],
         *,
         question_type: QuestionType = "choice",
+        descriptions: Mapping[str, str] | None = None,
     ) -> Prediction:
-        """Ask one question of the kind the dataset says this row is."""
+        """Ask one question of the kind the dataset says this row is.
+
+        ``descriptions`` are the dataset's words for its options, sent as the
+        choice's criteria; an option without one is sent without one.
+        """
         if not labels:
             raise ValueError("labels must not be empty")
 
@@ -186,9 +194,10 @@ class TypeSafeWireAdapter(Adapter):
                 "answered as something else."
             )
 
+        described = descriptions or {}
         question = Choice(
             instructions=self.instructions,
-            criteria=dict.fromkeys(labels),
+            criteria={label: described.get(label) for label in labels},
         )
 
         response, latency_ms = self._ask(text, question)

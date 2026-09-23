@@ -17,7 +17,7 @@ Blank lines are skipped. Every other line is one case.
 | `labels` | yes | A list of at least two distinct strings: the options it chooses between. |
 | `gold_label` | yes | The correct option. It must be one of `labels`. |
 | `question_type` | no | `choice` (the default), `noul`, or `score`. See below. |
-| `label_descriptions` | no | An object mapping an option to a sentence describing it. v0.1 loads these but does not yet send them to any adapter ([#39](https://github.com/TMHSDigital/plumbline/issues/39)). |
+| `label_descriptions` | no | An object mapping an option to a sentence describing it. `typesafe_wire` sends them as the choice's criteria; the other adapters do not use them, and the report says so when the rows carried any. |
 
 `question_type` says what the row actually asks, and plumbline asks it that way:
 

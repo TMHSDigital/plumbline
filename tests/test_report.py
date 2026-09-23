@@ -512,3 +512,17 @@ def test_a_backtick_in_a_model_name_cannot_break_out_of_its_code_span() -> None:
     line = next(line for line in render(odd).splitlines() if line.startswith("- **Model**"))
 
     assert "`` we`ird ``" in line
+
+
+def test_the_report_says_when_option_descriptions_were_not_sent() -> None:
+    """An adapter that cannot use them must not leave the reader thinking it did (#39)."""
+    import dataclasses
+
+    cases = [
+        dataclasses.replace(case, label_descriptions={"billing": "charges and invoices"})
+        for case in make_cases(40, labels=LABELS)
+    ]
+    text = render(execute.run(MockAdapter(gold_by_text(cases), seed=5), cases, workers=1))
+
+    assert "40 rows carried option descriptions" in text
+    assert "does not send them" in text

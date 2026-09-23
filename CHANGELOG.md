@@ -83,6 +83,23 @@ different event from one that moved because it was wrong.
 
 ### Fixed
 
+- A row whose response named no model was never priced, because pricing
+  looked up only the model reported; the guard, which prices the requested
+  model, and the report then disagreed about the same run (#36). Such a row is
+  now priced by the requested model, and its pricing key says so. A response
+  that names a model missing from the table is still unpriced: a newer version
+  never inherits an older rate.
+- The cache key sorted the options, but `generative` and `local_logits` list
+  them in their prompts in the order given, so a cached answer could be served
+  for a prompt that was never sent (#37). For those two the key keeps the order.
+- Option descriptions were parsed and then dropped: `typesafe_wire` sent every
+  criterion as empty, and the dataset hash ignored descriptions and question
+  types (#39). `typesafe_wire` now sends them as the choice's criteria and keys
+  its cache on them, the dataset hash covers both where a row carries them (a
+  plain choice dataset keeps its hash), and the report says when an adapter
+  did not send the descriptions its rows carried. **The public fixture's
+  dataset hash changes, from `c18e9496` to `1b96dc91`, and the example report
+  gains that note; no number changes.**
 - `plumbline report` combined artifacts from different datasets under the first
   one's hash, as if their figures were comparable, and gave two runs of one
   adapter identical headings (#43). Different datasets are now refused unless

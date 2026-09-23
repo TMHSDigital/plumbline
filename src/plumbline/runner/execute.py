@@ -424,19 +424,25 @@ def _record_from_jsonable(row: dict[str, Any]) -> CaseRecord:
 def dataset_hash(cases: Sequence[Case]) -> str:
     """Fingerprint the dataset, so a result can be tied to the rows that produced it."""
     encoded = json.dumps(
-        [
-            {
-                "id": case.id,
-                "text": case.text,
-                "labels": sorted(case.labels),
-                "gold": case.gold_label,
-            }
-            for case in cases
-        ],
-        sort_keys=True,
-        separators=(",", ":"),
+        [_fingerprint(case) for case in cases], sort_keys=True, separators=(",", ":")
     )
     return hashlib.blake2b(encoded.encode("utf-8"), digest_size=16).hexdigest()
+
+
+def _fingerprint(case: Case) -> dict[str, Any]:
+    """What identifies one row. The question type and descriptions join it only
+    when a row carries them, so a dataset of plain choice rows keeps its hash."""
+    row: dict[str, Any] = {
+        "id": case.id,
+        "text": case.text,
+        "labels": sorted(case.labels),
+        "gold": case.gold_label,
+    }
+    if case.question_type != "choice":
+        row["question_type"] = case.question_type
+    if case.label_descriptions:
+        row["descriptions"] = dict(sorted(case.label_descriptions.items()))
+    return row
 
 
 def redact(config: Mapping[str, Any]) -> dict[str, Any]:
@@ -577,6 +583,12 @@ def run(
         # The server that answered, when it is not the vendor's default. It is
         # part of what was measured: a self-hosted endpoint is a different system.
         "endpoint": getattr(adapter, "base_url", None),
+        # Whether rows carried option descriptions and whether they were sent,
+        # so the report can say when the dataset's descriptions went nowhere.
+        "label_descriptions": {
+            "rows": sum(1 for case in cases if case.label_descriptions),
+            "sent": getattr(adapter, "uses_label_descriptions", False),
+        },
         "pricing_table": {name: price.provenance(today) for name, price in table.items()},
         **dict(extra_config or {}),
     }
@@ -628,7 +640,11 @@ def _one_case(
     locks: _KeyLocks | None = None,
 ) -> CaseRecord:
     labels = list(case.labels)
-    key = cache_key(adapter, case.text, labels, case.question_type) if cache is not None else None
+    key = (
+        cache_key(adapter, case.text, labels, case.question_type, case.label_descriptions)
+        if cache is not None
+        else None
+    )
     if key is not None and locks is not None:
         with locks.for_key(key):
             return _answer(case, labels, key, adapter, cache, retry, table)
@@ -655,6 +671,7 @@ def _answer(
                 attempts=0,
                 table=table,
                 reports_tokens=adapter.reports_tokens,
+                model_requested=adapter.model_requested,
             )
 
     last_error: Exception | None = None
@@ -667,7 +684,7 @@ def _answer(
             retry.sleep(delay)
         attempts = attempt
         try:
-            prediction = adapter.classify(case.text, labels, question_type=case.question_type)
+            prediction = adapter.classify(case.text, labels, **_asked(adapter, case))
         except CaseRefusedError as refusal:
             # A refusal is a decision, not a transient fault. Retrying it would
             # only produce the same refusal more slowly.
@@ -701,6 +718,7 @@ def _answer(
             attempts=attempt,
             table=table,
             reports_tokens=adapter.reports_tokens,
+            model_requested=adapter.model_requested,
         )
 
     return CaseRecord(
@@ -718,6 +736,14 @@ def _answer(
     )
 
 
+def _asked(adapter: Adapter, case: Case) -> dict[str, Any]:
+    """The keyword arguments this adapter's classify takes for this case."""
+    asked: dict[str, Any] = {"question_type": case.question_type}
+    if getattr(adapter, "uses_label_descriptions", False):
+        asked["descriptions"] = case.label_descriptions
+    return asked
+
+
 def _record(
     case: Case,
     prediction: Prediction,
@@ -726,9 +752,14 @@ def _record(
     attempts: int,
     table: PricingTable,
     reports_tokens: bool,
+    model_requested: str,
 ) -> CaseRecord:
     cost, basis, key = _cost_of_record(
-        prediction, from_cache=from_cache, table=table, reports_tokens=reports_tokens
+        prediction,
+        from_cache=from_cache,
+        table=table,
+        reports_tokens=reports_tokens,
+        model_requested=model_requested,
     )
 
     return CaseRecord(
@@ -755,6 +786,7 @@ def _cost_of_record(
     from_cache: bool,
     table: PricingTable,
     reports_tokens: bool,
+    model_requested: str,
 ) -> tuple[float | None, CostBasis, str | None]:
     """The cost of one row, and the reason it is what it is.
 
@@ -771,7 +803,12 @@ def _cost_of_record(
         # An adapter that was handed a cost by the vendor. Nothing to derive.
         return prediction.cost_usd, "priced", None
 
-    pricing, key = pricing_for(table, prediction.model_reported, "")
+    # Billing follows what answered. When the response names no model there is
+    # nothing else to go on, so the requested one prices it, and the key says so.
+    # A response that names a model the table lacks is not priced as the
+    # requested one: a newer version never inherits an older rate.
+    fallback = model_requested if prediction.model_reported is None else ""
+    pricing, key = pricing_for(table, prediction.model_reported, fallback)
     cost = cost_of(prediction.input_tokens, prediction.output_tokens, pricing)
     if cost is not None:
         return cost, "priced", key

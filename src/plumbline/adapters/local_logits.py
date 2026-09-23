@@ -170,6 +170,9 @@ class LocalLogitsAdapter(Adapter):
             "option_prefix": self.option_prefix,
         }
 
+    #: The prompt lists the options in the order given.
+    label_order_matters = True
+
     def classify(
         self,
         text: str,

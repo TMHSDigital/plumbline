@@ -76,6 +76,22 @@ class Adapter(ABC):
     the artifact so a blank cost column can be read rather than guessed at.
     """
 
+    label_order_matters: bool = False
+    """Whether the order the options arrive in changes the question asked.
+
+    True for an adapter whose prompt lists the options, since option order is a
+    known source of position bias. The cache then keys on the order as given; for
+    every other adapter it sorts them, so reordering the options reuses answers.
+    """
+
+    uses_label_descriptions: bool = False
+    """Whether this adapter sends option descriptions with the question.
+
+    When True the runner passes a case's ``label_descriptions`` to ``classify``
+    as ``descriptions``, and they join the cache key. When False they are not
+    sent, and the report says so for any run whose rows carried them.
+    """
+
     @property
     def call_params(self) -> Mapping[str, object]:
         """Call parameters that change the answer, for the Phase 4 cache key.
