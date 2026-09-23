@@ -59,13 +59,21 @@ different event from one that moved because it was wrong.
 - Every page carries a Content-Security-Policy that allows nothing but the
   site's own files (no inline script or style), and `check_site_links.mjs`
   fails a page that lacks it or carries anything it would block.
+- The site is checked in a real browser before it deploys.
+  `scripts/smoke_site.mjs` drives the runner's own Chrome over the DevTools
+  protocol with Node's standard library (nothing is installed), runs the
+  calculator, a shared link, and search, and fails on any console error or CSP
+  violation on any page. After a deploy, a new job checks the live site's
+  links, anchors, meta tags, policy, and 404.
 
 ### Changed
 
 - Report bullets separate the label from the figure with a colon instead of an
   em dash (`- **Cost**: not reported.`), and the docs no longer use em dashes.
   A CI job now fails on an em dash in tracked markdown or `src/`. **This
-  changes report text, not any number.**
+  changes report text, not any number.** The job also covers `site/`,
+  `scripts/`, and `.github/`, and the HTML entity and JavaScript escape
+  spellings of the character.
 
 ### Fixed
 
@@ -94,6 +102,9 @@ different event from one that moved because it was wrong.
   `FileNotFoundError` traceback instead of refusing with a reason.
 - An adapter built without a required setting raised a bare `TypeError` from
   `__init__` instead of naming the setting.
+- CI's guard against a traceback leaking from the quickstart refusal could
+  never fail: `grep -qv Traceback` succeeds on any output with one line
+  without the word (#49).
 - CI ran every pull request twice, because both the `push` and `pull_request`
   triggers fired on a branch pushed to origin.
 
