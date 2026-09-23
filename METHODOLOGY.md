@@ -401,7 +401,19 @@ Transport failures are retried, with backoff, because a connection reset is not
 an answer. Decisions are not. A refusal (an option that is not a single token,
 a generator that answered off-label, a model that declined) is recorded once
 and never retried, since retrying would understate exactly the failure rate the
-report is there to show. A cache hit replaces the call entirely and is recorded
+report is there to show.
+
+"Transport failure" is narrow on purpose, because every retry of a paid call is
+paid for. A dropped connection, a timeout, a rate limit (429), a request timeout
+or conflict (408, 409, 425), and a server error (5xx) are retried, waiting as
+long as a `Retry-After` header asks, up to 60 seconds. Everything else fails on
+its first attempt: any other 4xx (a bad key does not become good), an answer to
+a different question than the one asked, a checkpoint that is not the one
+pinned, a missing optional dependency, and any error the runner does not
+recognise. The SDKs' own retries are switched off, so the runner is the only
+layer that retries and the artifact's `attempts` is the number of calls made.
+
+A cache hit replaces the call entirely and is recorded
 as a hit, contributing to neither cost nor latency, because it measures disk.
 
 ## Binning scheme and the ECE floor

@@ -387,3 +387,18 @@ def test_a_choice_case_is_still_asked_as_a_choice() -> None:
 def test_an_unsupported_question_type_is_refused_rather_than_asked_as_a_choice() -> None:
     with pytest.raises(CaseRefusedError, match="score"):
         an_adapter(a_response()).classify("a roster", ["0", "1", "2"], question_type="score")
+
+
+def test_the_sdk_client_is_built_with_its_own_retries_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The runner owns retries; an SDK retrying underneath multiplies billed calls (#26)."""
+    from plumbline.adapters import typesafe_wire
+
+    built: dict[str, Any] = {}
+
+    def capture(**kwargs: Any) -> object:
+        built.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(typesafe_wire, "TypeSafeClient", capture)
+    typesafe_wire.TypeSafeWireAdapter(api_key="not-a-key")
+    assert built["retry"].max_retries == 0

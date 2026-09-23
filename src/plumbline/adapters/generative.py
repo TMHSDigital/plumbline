@@ -141,8 +141,14 @@ class GenerativeAdapter(Adapter):
     def client(self) -> anthropic.Anthropic:
         """The SDK client, built on first use so no key is needed to import."""
         if self._client is None:
+            # The SDK's own retries are off: the runner retries transport
+            # failures itself, and a second layer underneath would multiply
+            # every billed call and leave the artifact's attempt count wrong.
             self._client = anthropic.Anthropic(
-                api_key=self._api_key, base_url=self.base_url, timeout=self.timeout
+                api_key=self._api_key,
+                base_url=self.base_url,
+                timeout=self.timeout,
+                max_retries=0,
             )
         return self._client
 

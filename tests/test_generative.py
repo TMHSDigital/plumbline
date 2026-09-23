@@ -256,3 +256,19 @@ def test_the_shipped_anthropic_pricing_carries_its_source_and_read_date() -> Non
     assert entry.output_usd_per_million == 25.0
     assert "anthropic" in entry.source.lower()
     assert entry.as_of.isoformat() in entry.statement(entry.as_of)
+
+
+def test_the_sdk_client_is_built_with_its_own_retries_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The runner owns retries; an SDK retrying underneath multiplies billed calls (#26)."""
+    from plumbline.adapters import generative
+
+    built: dict[str, Any] = {}
+
+    def capture(**kwargs: Any) -> object:
+        built.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(generative.anthropic, "Anthropic", capture)
+    adapter = generative.GenerativeAdapter(api_key="not-a-key")
+    assert adapter.client is not None
+    assert built["max_retries"] == 0

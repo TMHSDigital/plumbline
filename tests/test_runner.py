@@ -16,7 +16,7 @@ from plumbline.metrics.cost import Pricing
 from plumbline.runner import execute
 from plumbline.runner.cache import Cache, cache_key
 from plumbline.runner.execute import CostGuard, CostGuardError, RetryPolicy
-from plumbline.types import Case, CaseRefusedError, Prediction
+from plumbline.types import Case, CaseRefusedError, PlumblineError, Prediction
 from tests.helpers import gold_by_text, make_cases
 
 LABELS = ("billing", "returns", "shipping", "other")
@@ -301,6 +301,92 @@ def test_a_refusal_is_recorded_as_a_refusal_and_is_not_retried() -> None:
     assert all(record.refused for record in result.records)
     assert all(record.attempts == 1 for record in result.records)
     assert all("single token" in str(record.error) for record in result.records)
+
+
+class RaisingAdapter(Adapter):
+    """Raises the same error on every call. Counts its calls."""
+
+    def __init__(self, error: Exception) -> None:
+        self.name = "raiser"
+        self.model_requested = "raiser-1"
+        self.revision = None
+        self.probability_semantics = "calibrated_claim"
+        self.error = error
+        self.calls = 0
+
+    def classify(self, text: str, labels: list[str], **asked: object) -> Prediction:
+        self.calls += 1
+        raise self.error
+
+
+class StatusError(Exception):
+    """Shaped like an SDK's HTTP error: a status code and the response headers."""
+
+    def __init__(self, status: int, headers: dict[str, str] | None = None) -> None:
+        super().__init__(f"HTTP {status}")
+        self.status_code = status
+        self.headers = headers or {}
+
+
+class APIConnectionError(Exception):
+    """Named like Anthropic's, which subclasses neither ConnectionError nor OSError."""
+
+
+def permanent_errors() -> list[Exception]:
+    from plumbline.adapters.local_logits import CheckpointMismatchError
+    from plumbline.adapters.typesafe_wire import WireContractError
+
+    return [
+        WireContractError("answered a different question"),
+        CheckpointMismatchError("revision abc answered as def"),
+        PlumblineError("the local extra is not installed"),
+        ValueError("probabilities do not sum to 1"),
+        StatusError(401),
+        StatusError(400),
+    ]
+
+
+@pytest.mark.parametrize("error", permanent_errors(), ids=lambda e: type(e).__name__)
+def test_a_failure_no_retry_can_fix_is_attempted_once(error: Exception) -> None:
+    """Each retry of these is another billed call for the same failure (#26)."""
+    cases = make_cases(3, labels=LABELS)
+    adapter = RaisingAdapter(error)
+
+    result = execute.run(
+        adapter, cases, workers=1, retry=RetryPolicy(max_attempts=3, sleep=lambda _: None)
+    )
+    assert adapter.calls == 3
+    assert all(not record.ok and record.attempts == 1 for record in result.records)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [StatusError(429), StatusError(503), ConnectionError("reset"), APIConnectionError("reset")],
+    ids=["429", "503", "ConnectionError", "APIConnectionError"],
+)
+def test_a_transport_failure_is_retried(error: Exception) -> None:
+    cases = make_cases(2, labels=LABELS)
+    adapter = RaisingAdapter(error)
+
+    result = execute.run(
+        adapter, cases, workers=1, retry=RetryPolicy(max_attempts=3, sleep=lambda _: None)
+    )
+    assert adapter.calls == 6
+    assert all(record.attempts == 3 for record in result.records)
+
+
+def test_a_retry_after_header_is_waited_for_and_capped() -> None:
+    slept: list[float] = []
+    for header, expected in (("2", 2.0), ("600", 60.0)):
+        slept.clear()
+        adapter = RaisingAdapter(StatusError(429, {"retry-after": header}))
+        execute.run(
+            adapter,
+            make_cases(1, labels=LABELS),
+            workers=1,
+            retry=RetryPolicy(max_attempts=2, backoff_seconds=0.5, sleep=slept.append),
+        )
+        assert slept == [expected]
 
 
 def test_failures_are_excluded_from_accuracy_rather_than_scored_wrong() -> None:
