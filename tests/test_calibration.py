@@ -387,3 +387,9 @@ def test_a_multiclass_brier_figure_is_read_against_its_own_null() -> None:
     )
     assert "300 rows" in figure.statement()
     assert not figure.is_distinguishable
+
+
+def test_the_brier_floor_accepts_a_distribution_a_little_under_one() -> None:
+    """Prediction allows a sum within 1e-3 of 1; the floor must not index past it (#31)."""
+    floor = calibration.multiclass_brier_floor([{"a": 0.4995, "b": 0.5}] * 50, n_boot=500)
+    assert 0.0 <= floor.mean <= 2.0

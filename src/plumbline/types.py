@@ -232,9 +232,17 @@ class Prediction:
             value = getattr(self, name)
             if value is not None and not 0.0 <= value <= 1.0:
                 raise ValueError(f"{name} must lie in [0, 1], got {value!r}")
-        if self.latency_ms < 0:
-            raise ValueError(f"latency_ms must be non-negative, got {self.latency_ms!r}")
+        if not math.isfinite(self.latency_ms) or self.latency_ms < 0:
+            raise ValueError(f"latency_ms must be finite and non-negative, got {self.latency_ms!r}")
         if self.distribution is not None:
+            # Checked one by one: NaN compares false with everything, and a
+            # negative entry can hide behind a sum that still comes to 1.
+            for option, probability in self.distribution.items():
+                if not (math.isfinite(probability) and 0.0 <= probability <= 1.0):
+                    raise ValueError(
+                        f"distribution gives {option!r} a probability of {probability!r}, "
+                        "which is not a finite number in [0, 1]"
+                    )
             if self.label not in self.distribution:
                 raise ValueError(
                     f"label {self.label!r} is missing from distribution "

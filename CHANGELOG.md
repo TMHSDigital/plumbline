@@ -83,6 +83,12 @@ different event from one that moved because it was wrong.
 
 ### Fixed
 
+- A prediction whose distribution held NaN, a negative, or a value above 1 was
+  accepted as long as the entries summed to about 1, and a NaN latency was
+  accepted too (#32); each is now refused with the option it concerns. The
+  multiclass Brier floor raised `IndexError` on a distribution summing to a
+  little under 1, which `Prediction` allows (#31); it now draws from the
+  distribution as reported, and one that sums to 1 draws exactly as before.
 - The pricing template priced every call at $0, so a copy used unedited let
   any run past `--max-cost-usd` (#28). Its prices are now null and its `as_of`
   a `YYYY-MM-DD` placeholder that the loader refuses, and any entry pricing

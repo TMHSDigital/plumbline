@@ -561,8 +561,15 @@ def multiclass_brier_floor(
     totals = np.zeros(n_boot, dtype=np.float64)
     for distribution in distributions:
         values = np.asarray(list(distribution.values()), dtype=np.float64)
+        # A reported distribution may sum to slightly less than 1 (Prediction
+        # allows 1e-3), and a uniform draw above that sum would index past the
+        # last option. Normalizing the cumulative sum, and clamping for the
+        # float residue, draws from the distribution as reported; one that
+        # already sums to 1 draws exactly as before.
+        cumulative = np.cumsum(values)
+        index = np.searchsorted(cumulative / cumulative[-1], rng.random(n_boot))
+        drawn = values[np.minimum(index, len(values) - 1)]
         # sum_k (p_k - y_k)^2 collapses to sum_k p_k^2 + 1 - 2 p_gold.
-        drawn = values[np.searchsorted(np.cumsum(values), rng.random(n_boot))]
         totals += float((values**2).sum()) + 1.0 - 2.0 * drawn
 
     draws = totals / len(distributions)

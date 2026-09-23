@@ -115,3 +115,26 @@ def test_confidence_normalizes_for_option_count_and_prob_selected_does_not() -> 
 def test_confidence_needs_at_least_two_options() -> None:
     with pytest.raises(ValueError, match="at least 2 options"):
         docs_confidence({"a": 1.0})
+
+
+@pytest.mark.parametrize(
+    "distribution",
+    [
+        {"a": float("nan"), "b": 1.0},
+        {"a": 1.5, "b": -0.5},
+        {"a": float("inf"), "b": 0.0},
+    ],
+    ids=["nan", "negative", "inf"],
+)
+def test_every_probability_in_a_distribution_is_finite_and_in_unit_range(
+    distribution: dict[str, float],
+) -> None:
+    """A sum near 1 is not enough: NaN and a compensating negative both pass it (#32)."""
+    with pytest.raises(ValueError, match="distribution"):
+        a_prediction(label="a", prob_selected=0.5, confidence=None, distribution=distribution)
+
+
+@pytest.mark.parametrize("latency", [float("nan"), float("inf")])
+def test_a_latency_must_be_finite(latency: float) -> None:
+    with pytest.raises(ValueError, match="latency_ms"):
+        a_prediction(latency_ms=latency)
