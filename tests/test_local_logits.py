@@ -2,7 +2,7 @@
 
 This adapter is the null hypothesis of the whole tool: a restricted softmax over
 the option tokens, with no calibration claim attached to it. Everything here is
-about keeping that claim honest -- the probabilities are a softmax over the
+about keeping that claim honest: the probabilities are a softmax over the
 option tokens and nothing else, the checkpoint is pinned and recorded, and a
 case whose options do not map to single tokens is refused rather than quietly
 turned into a different question.

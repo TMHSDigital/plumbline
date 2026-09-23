@@ -227,10 +227,10 @@ const failures = [];
 async function check(name, body) {
   try {
     await body();
-    console.log(`  ok  ${name}`);
+    console.log(`  ok    ${name}`);
   } catch (error) {
     failures.push(`${name}: ${error.message}`);
-    console.log(`  --  ${name}: ${error.message}`);
+    console.log(`  FAIL  ${name}: ${error.message}`);
   }
 }
 const expect = (condition, what) => {

@@ -47,7 +47,7 @@ PRICING_READ_ON = date(2026, 9, 21)
 #:
 #: The vendor's customer agreement makes its pricing information confidential and
 #: overrides the usual public-knowledge carve-out, so plumbline does not restate
-#: the numbers in a file it publishes -- not in a price field, not in a quotation,
+#: the numbers in a file it publishes: not in a price field, not in a quotation,
 #: and not in a worked example whose token counts would let a reader divide one
 #: out. The page is public and the reader can go and read it. Supplying the
 #: figures is the operator's act, not plumbline's.

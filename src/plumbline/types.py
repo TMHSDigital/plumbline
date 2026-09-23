@@ -138,7 +138,7 @@ class InsufficientDataError(PlumblineError):
 class DatasetError(PlumblineError):
     """A dataset could not be read, or a row in it could not be scored.
 
-    Raised for the file as a whole -- missing, empty, or demanded complete when
+    Raised for the file as a whole: missing, empty, or demanded complete when
     it is not. A single bad row is a refusal recorded in the load report rather
     than an exception, so one typo does not stop the other 110 rows from running.
     """

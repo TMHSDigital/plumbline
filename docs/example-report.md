@@ -59,7 +59,7 @@ Generated 2026-09-22 against dataset `c18e9496`, 105 rows. 1 arm(s).
 
 ## Dataset
 
-- 111 rows read from datasets\public\jevbench-hard.jsonl, 111 loaded, 0 refused. Translated from JevBench: the case text is the row's question above its state, and every row is asked as a one-of-n choice. plumbline's harness, prompts and scoring differ from JevBench's, so these numbers are not comparable with theirs. 6 rows wrote the gold label as a JSON number against string options; each was matched to the option of the same name. 38 rows carried criteria that do not describe the options one for one, so their option descriptions were dropped rather than guessed. 6 rows ask for an ordinal score. plumbline v0.1 has no ordinal support -- flattening levels into unordered options discards the ordering -- so they are loaded, marked, and excluded from scored results.
+- 111 rows read from datasets\public\jevbench-hard.jsonl, 111 loaded, 0 refused. Translated from JevBench: the case text is the row's question above its state, and every row is asked as a one-of-n choice. plumbline's harness, prompts and scoring differ from JevBench's, so these numbers are not comparable with theirs. 6 rows wrote the gold label as a JSON number against string options; each was matched to the option of the same name. 38 rows carried criteria that do not describe the options one for one, so their option descriptions were dropped rather than guessed. 6 rows ask for an ordinal score. plumbline v0.1 has no ordinal support: flattening levels into unordered options discards the ordering, so they are loaded, marked, and excluded from scored results.
 - 6 score rows are excluded from every figure below: plumbline v0.1 scores choice and yes/no questions only.
 
 

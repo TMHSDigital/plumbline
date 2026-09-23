@@ -396,7 +396,7 @@ def _cascade_rows(
     A threshold set against a raw overconfident probability sits in the wrong
     place, because 0.9 from an overconfident model is not 0.9. So when a
     temperature was recommended, the threshold is chosen on the held-out rows
-    with that temperature applied -- the same rows the temperature was judged
+    with that temperature applied: the same rows the temperature was judged
     on, never the rows it was fitted on.
     """
     predictions = [record.prediction for record in successes if record.prediction]
