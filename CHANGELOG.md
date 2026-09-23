@@ -185,6 +185,21 @@ different event from one that moved because it was wrong.
 
 ### Documentation
 
+- The load summary said every JevBench row "is asked as a one-of-n choice",
+  which is not true of an adapter that asks yes/no rows as yes/no questions;
+  it now says each row is asked as the question type it states, and the
+  report's "3 choice asked as failed" reads "3 choice rows failed" (#62).
+  **This changes report text, not any number.**
+- CONTRIBUTING said "all three" above four commands and named only the test
+  jobs as the gate; it now lists every required check and has a section on
+  working on the site (#63). PLAN no longer lists finished work as to do (#64).
+  `.env.example` no longer claims a `.env` file is read or lists an Ollama
+  adapter that does not exist, and the docs describe `generative` as the
+  Anthropic Messages API it is (#65). The CLI's help says what the tool is and
+  lists each option's choices, and `plumbline adapters` marks an adapter whose
+  optional extra is missing (#66). The adapter template applies a label that
+  exists, and there is a template for site bugs (#67).
+
 - A new page, [Your own data](docs/datasets.md), gives the row format, what
   the loader refuses and why, and the commands a user needs next: a local
   checkpoint with its pinned revision, the cascade's two costs, and

@@ -156,7 +156,7 @@ def load_jevbench(path: Path | str) -> LoadReport:
 
     This is a translation, not a reproduction. JevBench asks its rows through
     its own harness; plumbline composes a case text from the row's question and
-    state, asks every row as a one-of-n choice, and scores with its own metrics.
+    state, asks each row as its question type, and scores with its own metrics.
     Numbers from here are not comparable with JevBench's published ones, and
     ``datasets/public/README.md`` says so in the same words.
 
@@ -205,7 +205,8 @@ def load_jevbench(path: Path | str) -> LoadReport:
 
     notes = [
         "Translated from JevBench: the case text is the row's question above its state, "
-        "and every row is asked as a one-of-n choice. plumbline's harness, prompts and "
+        "and each row is asked as the question type it states. plumbline's harness, "
+        "prompts and "
         "scoring differ from JevBench's, so these numbers are not comparable with theirs."
     ]
     if normalized:

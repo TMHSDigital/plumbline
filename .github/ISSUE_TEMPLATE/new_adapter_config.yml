@@ -1,6 +1,6 @@
 name: New vendor or model
 description: You want plumbline to run against something it does not run against yet.
-labels: ["adapter-config"]
+labels: ["adapter"]
 body:
   - type: markdown
     attributes:
@@ -16,8 +16,8 @@ body:
           all run on the unchanged adapter.
         - Any **open-weights checkpoint** is a HuggingFace model id and a
           pinned revision for `local_logits`.
-        - Any **chat model** you want as a control arm is a model string for
-          `generative`.
+        - Any **Anthropic model** you want as a control arm is a model string
+          for `generative`, which speaks Anthropic's Messages API only.
 
         If one of those fits, you may not need an issue at all. Try it and tell
         us if it worked, which is still useful.

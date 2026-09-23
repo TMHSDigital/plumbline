@@ -16,6 +16,7 @@ from __future__ import annotations
 import sys
 from collections.abc import Callable
 from functools import partial
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Annotated, NoReturn
 
@@ -30,10 +31,17 @@ from plumbline.metrics.cost import PricingTable
 from plumbline.report import markdown
 from plumbline.runner import execute
 from plumbline.runner.cache import Cache
-from plumbline.types import Case, DatasetError, PlumblineError, ProbabilitySemantics
+from plumbline.types import (
+    PROBABILITY_SEMANTICS,
+    Case,
+    DatasetError,
+    PlumblineError,
+    ProbabilitySemantics,
+)
 
 app = typer.Typer(
-    help="Choose and configure a decision model on your own labeled data.",
+    help="Measure whether a decision model's probabilities are trustworthy on your own "
+    "labeled data.",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -44,7 +52,9 @@ FORMATS = ("jsonl", "jevbench")
 @app.command()
 def run(
     dataset: Annotated[Path, typer.Argument(help="JSONL file of labeled cases.")],
-    adapter: Annotated[str, typer.Option(help="Registered adapter name.")] = "mock",
+    adapter: Annotated[
+        str, typer.Option(help=f"One of: {', '.join(registry.available())}.")
+    ] = "mock",
     model: Annotated[str | None, typer.Option(help="Model to request.")] = None,
     revision: Annotated[str | None, typer.Option(help="Pinned checkpoint commit.")] = None,
     results: Annotated[Path, typer.Option(help="Directory the artifact is written to.")] = Path(
@@ -66,7 +76,11 @@ def run(
         ),
     ] = None,
     semantics: Annotated[
-        str | None, typer.Option(help="Override probability_semantics (mock only).")
+        str | None,
+        typer.Option(
+            help="Override probability_semantics, mock only: one of "
+            f"{', '.join(PROBABILITY_SEMANTICS)}."
+        ),
     ] = None,
     seed: Annotated[int, typer.Option(help="Mock seed.")] = 7,
     accuracy: Annotated[float, typer.Option(help="Mock target accuracy.")] = 0.8,
@@ -187,7 +201,12 @@ def report(
 def adapters() -> None:
     """List the transports this install can run."""
     for name in registry.available():
-        typer.echo(name)
+        missing = [module for module in _EXTRAS.get(name, ()) if find_spec(module) is None]
+        typer.echo(f"{name}  (needs the local extra: uv sync --extra local)" if missing else name)
+
+
+#: Adapters whose dependencies are an optional extra, and the modules it installs.
+_EXTRAS = {"local_logits": ("torch", "transformers")}
 
 
 @app.command()
@@ -252,8 +271,6 @@ _KEY_VARIABLES = {"typesafe_wire": "TYPESAFE_API_KEY", "generative": "ANTHROPIC_
 
 
 def _semantics(value: str) -> ProbabilitySemantics:
-    from plumbline.types import PROBABILITY_SEMANTICS
-
     if value not in PROBABILITY_SEMANTICS:
         _fail(f"--semantics must be one of {list(PROBABILITY_SEMANTICS)!r}, got {value!r}")
     return value

@@ -44,8 +44,9 @@ All three items are done. Kept here because the answers matter, not the list.
 2. **Live call made**, 2026-09-21. See "Live validation" below. Both open
    questions are settled, and the call found two bugs that had never been
    exercised.
-3. **Decision on going public** is the human's, and the checklist at the bottom
-   of this page is what is left to do.
+3. **Decision on going public**: made. The repository is public, the v0.1.0
+   tag is pushed, and the checklist at the bottom of this page records what was
+   done.
 
 ## v0.2
 
@@ -88,7 +89,7 @@ Settled during the build. Reopen one only with a reason, not from scratch.
 - Every calibration figure carries its row count, and the artifact records
   `dataset_rows` beside `dataset_hash`, because the floor depends on n.
 - The JevBench public rows are vendored as a fixture under MIT with attribution.
-  They are asked as one-of-n choices through plumbline's own harness, so results
+  Each is asked as the question type it states, through plumbline's own harness, so results
   from them are never comparable with JevBench's published numbers.
 - A yes/no row is asked as a Noul where the transport has one, and every record
   carries both what the row asks and how it was asked. A noul figure is never
@@ -437,21 +438,18 @@ makes.
 - Whether the residual in the confidence relationship (max 0.0167) is purely
   wire rounding or a slightly different production formula. Not worth another
   spend to settle, and nothing in plumbline depends on the answer.
-- `datasets/private/.gitkeep` exists on disk but is not tracked, because the
-  `datasets/private/` ignore rule matches it. A fresh clone therefore has no
-  such directory even though the README names it as where your own data goes.
-  Harmless, and fixing it means `datasets/private/*` plus a negation, which
-  changes the ignore semantics of a data directory. Left alone deliberately
-  rather than changed on the way out the door.
+- ~~`datasets/private/.gitkeep` is not tracked.~~ Resolved: `.gitignore` now
+  ignores `datasets/private/*` with a negation for `.gitkeep`, so a fresh clone
+  has the directory the README names and still never commits what goes in it.
 
 ## Repo description and topics
 
 For the GitHub About box. Paste as is.
 
-**Description** (101 characters):
+**Description** (108 characters, as set):
 
 ```
-Measure whether a decision model's probabilities hold up on your own labeled data. Not a leaderboard.
+Measure whether a decision model's probabilities are trustworthy on your own labeled data. Not a leaderboard.
 ```
 
 **Topics:**
@@ -496,17 +494,10 @@ for you.
 - [x] History rewritten to remove the vendor price claim, and re-scanned after.
       The MIT fixture and licence are byte-identical before and after.
 
-**Yours to do:**
+**Done since:** the v0.1.0 tag is pushed, the repository is public, the About
+box carries the description above, and the CI badge renders for logged-out
+readers.
 
-1. **Read the README yourself, once, as a stranger.** It is the whole public
-   interface and it was written by someone who already knew the answer.
-2. **Push the tag** if you are happy with it: `git push origin v0.1.0`. It is
-   tagged locally and deliberately not pushed.
-3. **Flip the repository public.** Not done here, by instruction.
-4. **Set the About box** from the description and topics above.
-5. **Email TypeSafe** about 16.4 and 14.1 (see "Open questions"). A written yes
-   converts the mock example report into a real vendor one and would let the
-   shipped pricing table carry figures again. Not a blocker for anything.
-6. **Check the CI badge renders** once the repository is public. A badge
-   pointing at a private repository's workflow shows as unknown to logged-out
-   readers.
+**Still open:** email TypeSafe about 16.4 and 14.1 (see "Open questions"). A
+written yes converts the mock example report into a real vendor one and would
+let the shipped pricing table carry figures again. Not a blocker for anything.

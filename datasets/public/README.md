@@ -48,7 +48,7 @@ rather than living only here.
 ### Running it
 
 ```
-python examples/smoke_public_dataset.py
+uv run python examples/smoke_public_dataset.py
 ```
 
 Loads this file, runs the mock adapter over it, computes the metrics, and writes

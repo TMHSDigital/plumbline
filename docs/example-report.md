@@ -48,7 +48,7 @@ Running the same command against a real vendor produces the same shape. See
 
 # plumbline report
 
-Generated 2026-09-22 against dataset `c18e9496`, 105 rows. 1 arm(s).
+Generated 2026-09-23 against dataset `c18e9496`, 105 rows. 1 arm(s).
 
 ## How to read this
 
@@ -59,7 +59,7 @@ Generated 2026-09-22 against dataset `c18e9496`, 105 rows. 1 arm(s).
 
 ## Dataset
 
-- 111 rows read from datasets\public\jevbench-hard.jsonl, 111 loaded, 0 refused. Translated from JevBench: the case text is the row's question above its state, and every row is asked as a one-of-n choice. plumbline's harness, prompts and scoring differ from JevBench's, so these numbers are not comparable with theirs. 6 rows wrote the gold label as a JSON number against string options; each was matched to the option of the same name. 38 rows carried criteria that do not describe the options one for one, so their option descriptions were dropped rather than guessed. 6 rows ask for an ordinal score. plumbline v0.1 has no ordinal support: flattening levels into unordered options discards the ordering, so they are loaded, marked, and excluded from scored results.
+- 111 rows read from datasets\public\jevbench-hard.jsonl, 111 loaded, 0 refused. Translated from JevBench: the case text is the row's question above its state, and each row is asked as the question type it states. plumbline's harness, prompts and scoring differ from JevBench's, so these numbers are not comparable with theirs. 6 rows wrote the gold label as a JSON number against string options; each was matched to the option of the same name. 38 rows carried criteria that do not describe the options one for one, so their option descriptions were dropped rather than guessed. 6 rows ask for an ordinal score. plumbline v0.1 has no ordinal support: flattening levels into unordered options discards the ordering, so they are loaded, marked, and excluded from scored results.
 - 6 score rows are excluded from every figure below: plumbline v0.1 scores choice and yes/no questions only.
 
 
@@ -72,7 +72,7 @@ The vendor asserts these probabilities are calibrated. Whether that survives con
 ### mock
 
 - **Model**: requested `mock-1`, reported `mock-1`.
-- **Asked**: 67 choice asked as choice, 38 noul asked as choice.
+- **Asked**: 67 choice rows asked as choice, 38 noul rows asked as choice.
   - 38 noul rows were asked as choice questions, which is a different question from the one the dataset states. Not comparable with an arm that asked them as noul.
 - Accuracy 0.7714 over 105 rows, against a chance null of 0.3416 (95th percentile 0.4190): better than chance at this sample size.
 - ECE 0.0740 over 105 rows (10 equal width bins), against a calibrated-model floor of 0.0707 (95th percentile 0.1109): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.
