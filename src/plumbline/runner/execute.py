@@ -564,6 +564,9 @@ def run(
         "max_cases": guard.max_cases,
         "estimated_cost_usd": estimate,
         "cache_enabled": cache is not None and cache.enabled,
+        # The server that answered, when it is not the vendor's default. It is
+        # part of what was measured: a self-hosted endpoint is a different system.
+        "endpoint": getattr(adapter, "base_url", None),
         "pricing_table": {name: price.provenance(today) for name, price in table.items()},
         **dict(extra_config or {}),
     }

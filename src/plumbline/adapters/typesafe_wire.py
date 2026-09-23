@@ -27,6 +27,7 @@ argmax over ``probabilities`` will disagree with the vendor on a tied row.
 
 from __future__ import annotations
 
+import os
 import time
 from collections.abc import Mapping
 from typing import Any
@@ -130,7 +131,10 @@ class TypeSafeWireAdapter(Adapter):
         self.probability_semantics = check_probability_semantics(probability_semantics)
         self.instructions = instructions
         self.noul_instructions = noul_instructions
-        self.base_url = base_url
+        # Resolved the way the SDK resolves it, so the endpoint that actually
+        # answers is the one in the cache key and the artifact. None is the
+        # vendor's default, which keeps existing cache entries valid.
+        self.base_url = base_url or os.environ.get("TYPESAFE_BASE_URL") or None
         self.timeout = timeout
         self._owns_client = client is None
         # The SDK's own retries are off: the runner retries transport failures
@@ -139,7 +143,7 @@ class TypeSafeWireAdapter(Adapter):
         self._client = client or TypeSafeClient(
             api_key=api_key,
             model=model_requested,
-            base_url=base_url,
+            base_url=self.base_url,
             timeout=timeout,
             retry=RetryPolicy(max_retries=0),
         )

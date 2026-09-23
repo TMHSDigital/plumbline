@@ -25,6 +25,7 @@ recorded as a refusal with its category, and the run stays about one model.
 
 from __future__ import annotations
 
+import os
 import string
 import time
 from collections.abc import Mapping
@@ -132,7 +133,10 @@ class GenerativeAdapter(Adapter):
         self.prompt_template = prompt_template
         self.max_tokens = max_tokens
         self.effort = effort
-        self.base_url = base_url
+        # Resolved the way the SDK resolves it, so the endpoint that actually
+        # answers is the one in the cache key and the artifact. None is the
+        # vendor's default, which keeps existing cache entries valid.
+        self.base_url = base_url or os.environ.get("ANTHROPIC_BASE_URL") or None
         self.timeout = timeout
         self._api_key = api_key
         self._client = client

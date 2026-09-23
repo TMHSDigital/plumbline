@@ -101,6 +101,12 @@ different event from one that moved because it was wrong.
   (#27). Each write now has a temporary file of its own, a write that still
   fails is counted in the cache stats (`write_errors`) instead of raised, and
   cases sharing a key are answered once per run, the rest from the cache.
+- An endpoint set through `TYPESAFE_BASE_URL` or `ANTHROPIC_BASE_URL` changed
+  which server answered but reached neither the cache key nor the artifact, so
+  a self-hosted run and a hosted one shared cache entries (#40). The adapters
+  now resolve the endpoint the way their SDKs do, it is part of the key, the
+  artifact records it as `endpoint`, and the report names it when it is not the
+  vendor's default. Runs against the default endpoint keep their cache keys.
 - Every validation message on the site's calculator and planner read
   "[object Object]" (#25). Messages now say what is wrong, mark the field
   invalid, and are tied to it for screen readers; a result is announced as one
