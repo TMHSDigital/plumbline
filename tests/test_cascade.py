@@ -99,7 +99,7 @@ def test_the_sweep_is_exhaustive_over_thresholds_that_can_change_anything() -> N
     """Cost is a step function, so the distinct observed values contain the optimum."""
     series = a_series((0.9, 0.8, 0.6, 0.2))
     thresholds = cascade.candidate_thresholds(series)
-    assert thresholds == (0.0, 0.2, 0.6, 0.8, 0.9)
+    assert thresholds == (0.0, 0.2, 0.6, 0.8, 0.9, cascade.ESCALATE_ALL)
 
 
 def test_the_optimum_is_never_beaten_by_a_fine_grid() -> None:
@@ -192,3 +192,12 @@ def test_negative_costs_are_rejected(escalation: float, error: float) -> None:
 def test_mismatched_column_lengths_are_rejected() -> None:
     with pytest.raises(ValueError, match="must match"):
         cascade.cascade_sweep(a_series((0.5, 0.6)), [True], 0.1, 1.0)
+
+
+def test_escalating_every_case_is_a_candidate_when_it_is_cheapest() -> None:
+    """With every case wrong and errors dear, covering anything costs more (#34)."""
+    series = ProbabilitySeries(values=(0.5, 0.7, 0.9), semantics="calibrated_claim")
+    best = cascade.optimal_threshold(series, [False, False, False], 1.0, 100.0)
+
+    assert best.covered == 0 and best.escalated == 3
+    assert best.total_cost_usd == pytest.approx(3.0)

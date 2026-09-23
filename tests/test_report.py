@@ -355,6 +355,25 @@ def test_the_cascade_ends_in_a_sentence_a_person_can_act_on() -> None:
     assert "$" in body
 
 
+def test_the_cascade_says_so_when_escalating_everything_is_cheapest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A threshold of infinity is not a number to paste into a config (#34)."""
+    from plumbline.metrics import cascade
+
+    def escalate_all(series, outcomes, escalation, error):  # type: ignore[no-untyped-def]
+        # The sweep's last row is the one above every score.
+        return cascade.cascade_sweep(series, outcomes, escalation, error)[-1]
+
+    monkeypatch.setattr(markdown.cascade, "optimal_threshold", escalate_all)
+    result = skewed(a_run(n_cases=600), overconfident())
+
+    body = section(markdown.render([result], options=with_costs()), "Cascade")
+
+    assert "Escalating every case is cheapest" in body
+    assert "inf" not in body
+
+
 def test_the_cascade_needs_the_two_numbers_no_benchmark_can_know() -> None:
     body = section(render(a_run(n_cases=600)), "Cascade")
 

@@ -83,6 +83,13 @@ different event from one that moved because it was wrong.
 
 ### Fixed
 
+- The cascade never considered escalating every case, because the highest
+  observed score always kept the rows that reached it covered; with every
+  case wrong and errors dear it chose a threshold costing $201 where
+  escalating all three cost $3 (#34). Escalating everything is now a
+  candidate, and the report says so in words when it wins. Cost per correct
+  answer divided the priced total by correct answers from unpriced rows too,
+  understating it (#35); it now counts correct answers among priced rows.
 - A prediction whose distribution held NaN, a negative, or a value above 1 was
   accepted as long as the entries summed to about 1, and a NaN latency was
   accepted too (#32); each is now refused with the option it concerns. The

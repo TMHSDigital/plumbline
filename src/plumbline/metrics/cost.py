@@ -288,6 +288,12 @@ def summarize(
         )
 
     total = sum(priced)
+    # Cost per correct answer divides what was priced by the correct answers
+    # among the priced rows. Correct answers from unpriced rows cost an unknown
+    # amount, and counting them would understate the figure.
+    priced_correct = sum(
+        1 for cost, outcome in zip(costs, correct, strict=True) if cost is not None and outcome
+    )
     if unpriced:
         note = (
             f"{unpriced} of {len(costs)} cases could not be priced and are excluded, so "
@@ -300,7 +306,7 @@ def summarize(
     return CostSummary(
         total_usd=total,
         per_case_usd=total / len(priced),
-        per_correct_usd=total / correct_count if correct_count else None,
+        per_correct_usd=total / priced_correct if priced_correct else None,
         priced_cases=len(priced),
         unpriced_cases=unpriced,
         correct_cases=correct_count,

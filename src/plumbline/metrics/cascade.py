@@ -17,6 +17,7 @@ number does not know it.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -38,6 +39,10 @@ class CascadeRow:
     accuracy_overall_if_escalation_is_correct: float
     total_cost_usd: float
     cost_per_case_usd: float
+
+
+#: The threshold no score reaches: every case escalates.
+ESCALATE_ALL = math.inf
 
 
 def _values(series: ProbabilitySeries | ConfidenceSeries) -> tuple[float, ...]:
@@ -63,8 +68,13 @@ def candidate_thresholds(series: ProbabilitySeries | ConfidenceSeries) -> tuple[
     Cost as a function of the threshold is a step function that only moves where a
     row crosses it, so scanning the distinct observed values finds the exact
     minimum rather than the best point on an arbitrary grid.
+
+    The last candidate is :data:`ESCALATE_ALL`, above every score. Without it
+    the highest observed value still covers the rows that reach it, so
+    escalating everything was never considered even when it is the cheapest
+    choice.
     """
-    return (0.0, *sorted(set(_values(series))))
+    return (0.0, *sorted(set(_values(series))), ESCALATE_ALL)
 
 
 def cascade_sweep(

@@ -331,3 +331,11 @@ def test_a_summary_without_the_reasons_still_counts_the_blanks() -> None:
 def test_the_reasons_must_match_the_costs_they_explain() -> None:
     with pytest.raises(ValueError, match="must match"):
         cost.summarize([0.10, None], [True, False], bases=["priced"])
+
+
+def test_cost_per_correct_answer_counts_only_priced_rows() -> None:
+    """A priced total over correct rows from unpriced cases too understates it (#35)."""
+    summary = cost.summarize([1.0, None], [True, True])
+
+    assert summary.per_case_usd == pytest.approx(1.0)
+    assert summary.per_correct_usd == pytest.approx(1.0)
