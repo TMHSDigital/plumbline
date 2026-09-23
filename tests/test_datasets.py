@@ -341,3 +341,86 @@ def test_the_example_in_the_dataset_docs_loads_as_documented(tmp_path) -> None:
     kinds = sorted(case.question_type for case in report.cases)
     assert kinds == ["choice", "choice", "choice", "noul", "score"]
     assert len(report.scoreable) == 4  # the score row loads and is held back
+
+
+# Validation the loaders were missing (#44, #45)
+
+
+def jevbench_row(case_id: str) -> dict:
+    return {
+        "id": case_id,
+        "expected": "yes",
+        "labels": ["yes", "no"],
+        "question": {"type": "noul", "instructions": "Well?", "criteria": {}},
+        "state": f"something happened to {case_id}",
+    }
+
+
+def test_the_jevbench_loader_refuses_a_duplicate_id_like_the_jsonl_one(tmp_path: Path) -> None:
+    path = write_jsonl(tmp_path / "j.jsonl", [jevbench_row("dup"), jevbench_row("dup")])
+
+    report = loader.load_jevbench(path)
+
+    assert len(report.cases) == 1
+    assert len(report.refusals) == 1 and "duplicate id" in report.refusals[0].reason
+
+
+def test_a_byte_order_mark_is_read_as_utf8_rather_than_refused(tmp_path: Path) -> None:
+    """Windows editors and spreadsheet exports write one; the first row must still load."""
+    path = tmp_path / "bom.jsonl"
+    path.write_text(json.dumps(a_row()) + "\n", encoding="utf-8-sig")
+
+    report = loader.load_jsonl(path)
+
+    assert len(report.cases) == 1 and not report.refusals
+
+
+def test_a_file_that_is_not_utf8_names_the_file_and_the_line(tmp_path: Path) -> None:
+    path = tmp_path / "latin1.jsonl"
+    path.write_bytes(
+        (json.dumps(a_row()) + "\n").encode("utf-8")
+        # ensure_ascii=False keeps the é as a character, so latin-1 writes it as 0xE9.
+        + (json.dumps(a_row(id="two", text="café"), ensure_ascii=False) + "\n").encode("latin-1")
+    )
+
+    with pytest.raises(DatasetError, match=r"latin1\.jsonl.*line 2"):
+        loader.load_jsonl(path)
+
+
+@pytest.mark.parametrize(
+    ("labels", "gold"),
+    [
+        ([None, "a"], "a"),
+        ([True, False], "True"),
+        (["a", ""], "a"),
+        (["a", "   "], "a"),
+        ([1, 2], "1"),
+    ],
+    ids=["null", "bools", "empty", "blank", "numbers"],
+)
+def test_every_label_must_be_a_non_empty_string(
+    tmp_path: Path, labels: list[object], gold: str
+) -> None:
+    """str() used to turn null into 'None' and true into 'True', and load the row."""
+    path = write_jsonl(tmp_path / "d.jsonl", [a_row(labels=labels, gold_label=gold)])
+
+    report = loader.load_jsonl(path)
+
+    assert not report.cases
+    assert "non-empty string" in report.refusals[0].reason
+
+
+@pytest.mark.parametrize(
+    "descriptions",
+    [{"zzz": "not an option"}, {"billing": None}, {"billing": 3}],
+    ids=["unknown-key", "null-value", "number-value"],
+)
+def test_label_descriptions_must_describe_the_options_in_words(
+    tmp_path: Path, descriptions: dict[str, object]
+) -> None:
+    path = write_jsonl(tmp_path / "d.jsonl", [a_row(label_descriptions=descriptions)])
+
+    report = loader.load_jsonl(path)
+
+    assert not report.cases
+    assert "label_descriptions" in report.refusals[0].reason

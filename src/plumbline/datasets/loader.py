@@ -131,14 +131,7 @@ def load_jsonl(path: Path | str) -> LoadReport:
             refusals.append(RowRefusal(number, case_id, str(refused)))
             continue
         if case.id in seen:
-            refusals.append(
-                RowRefusal(
-                    number,
-                    case.id,
-                    f"duplicate id {case.id!r}; results are keyed by id, so a repeat would "
-                    "overwrite an earlier row",
-                )
-            )
+            refusals.append(_duplicate(number, case.id))
             continue
         seen.add(case.id)
         cases.append(case)
@@ -179,6 +172,7 @@ def load_jevbench(path: Path | str) -> LoadReport:
     cases: list[Case] = []
     refusals: list[RowRefusal] = []
     types: dict[str, int] = {}
+    seen: set[str] = set()
     normalized = 0
     dropped_criteria = 0
 
@@ -199,6 +193,10 @@ def load_jevbench(path: Path | str) -> LoadReport:
             refusals.append(RowRefusal(number, case_id, str(refused)))
             continue
 
+        if case.id in seen:
+            refusals.append(_duplicate(number, case.id))
+            continue
+        seen.add(case.id)
         normalized += int(was_normalized)
         dropped_criteria += int(lost_criteria)
         cases.append(case)
@@ -206,8 +204,8 @@ def load_jevbench(path: Path | str) -> LoadReport:
     notes = [
         "Translated from JevBench: the case text is the row's question above its state, "
         "and each row is asked as the question type it states. plumbline's harness, "
-        "prompts and "
-        "scoring differ from JevBench's, so these numbers are not comparable with theirs."
+        "prompts and scoring differ from JevBench's, so these numbers are not comparable "
+        "with theirs."
     ]
     if normalized:
         notes.append(
@@ -248,19 +246,20 @@ def _read_rows(path: Path) -> list[tuple[int, Mapping[str, Any] | str]]:
         )
 
     rows: list[tuple[int, Mapping[str, Any] | str]] = []
-    with path.open(encoding="utf-8") as handle:
-        for number, line in enumerate(handle, start=1):
-            if not line.strip():
-                continue  # A blank line is formatting, not a row.
-            try:
-                parsed = json.loads(line)
-            except json.JSONDecodeError as broken:
-                rows.append((number, f"line is not valid JSON: {broken.msg}"))
-                continue
-            if not isinstance(parsed, dict):
-                rows.append((number, f"line is a {type(parsed).__name__}, expected an object"))
-                continue
-            rows.append((number, parsed))
+    # Decoded line by line, so a file that is not UTF-8 is named with the line
+    # that is not. The first line is read as utf-8-sig, so a byte order mark
+    # (which Windows editors and spreadsheet exports write) is read as nothing
+    # rather than refusing the first row.
+    for number, raw in enumerate(path.read_bytes().splitlines(keepends=True), start=1):
+        try:
+            line = raw.decode("utf-8-sig" if number == 1 else "utf-8")
+        except UnicodeDecodeError as undecodable:
+            raise DatasetError(
+                f"{path} is not UTF-8 text: line {number} holds the byte "
+                f"{raw[undecodable.start]:#04x}, which UTF-8 does not allow. Save the "
+                "file as UTF-8 and load it again."
+            ) from None
+        _parse_line(rows, number, line)
 
     if not rows:
         raise DatasetError(
@@ -268,6 +267,31 @@ def _read_rows(path: Path) -> list[tuple[int, Mapping[str, Any] | str]]:
             "a run over nothing reports as cleanly as a run over everything."
         )
     return rows
+
+
+def _parse_line(rows: list[tuple[int, Mapping[str, Any] | str]], number: int, line: str) -> None:
+    """One line of the file: a row, a refusal to record, or nothing if it is blank."""
+    if not line.strip():
+        return  # A blank line is formatting, not a row.
+    try:
+        parsed = json.loads(line)
+    except json.JSONDecodeError as broken:
+        rows.append((number, f"line is not valid JSON: {broken.msg}"))
+        return
+    if not isinstance(parsed, dict):
+        rows.append((number, f"line is a {type(parsed).__name__}, expected an object"))
+        return
+    rows.append((number, parsed))
+
+
+def _duplicate(number: int, case_id: str) -> RowRefusal:
+    """The refusal for an id already seen, the same from either loader."""
+    return RowRefusal(
+        number,
+        case_id,
+        f"duplicate id {case_id!r}; results are keyed by id, so a repeat would "
+        "overwrite an earlier row",
+    )
 
 
 def _case_from_record(record: Mapping[str, Any]) -> Case:
@@ -287,7 +311,15 @@ def _case_from_record(record: Mapping[str, Any]) -> Case:
     raw_labels = record["labels"]
     if not isinstance(raw_labels, Sequence) or isinstance(raw_labels, str | bytes):
         raise DatasetError("field 'labels' must be a list of strings")
-    labels = tuple(str(label) for label in raw_labels)
+    # Each label is taken as written. str() would have turned null into "None"
+    # and true into "True", and loaded an option nobody wrote.
+    for label in raw_labels:
+        if not isinstance(label, str) or not label.strip():
+            raise DatasetError(
+                f"every label must be a non-empty string, and {label!r} is not; labels are "
+                "the options the model chooses between, as written"
+            )
+    labels = tuple(raw_labels)
     if len(labels) < 2:
         raise DatasetError(f"a case needs at least 2 labels, got {len(labels)}")
     if len(set(labels)) != len(labels):
@@ -302,8 +334,21 @@ def _case_from_record(record: Mapping[str, Any]) -> Case:
         )
 
     descriptions = record.get("label_descriptions")
-    if descriptions is not None and not isinstance(descriptions, Mapping):
-        raise DatasetError("field 'label_descriptions' must be an object")
+    if descriptions is not None:
+        if not isinstance(descriptions, Mapping):
+            raise DatasetError("field 'label_descriptions' must be an object")
+        unknown = sorted(str(key) for key in descriptions if key not in labels)
+        if unknown:
+            raise DatasetError(
+                f"label_descriptions describes {unknown!r}, which are not among this row's "
+                f"options {list(labels)!r}; a description has to belong to an option"
+            )
+        for option, description in descriptions.items():
+            if not isinstance(description, str) or not description.strip():
+                raise DatasetError(
+                    f"label_descriptions gives {option!r} the description {description!r}; "
+                    "each description is a non-empty string"
+                )
 
     question_type = record.get("question_type", "choice")
     if question_type not in QUESTION_TYPES:

@@ -158,3 +158,30 @@ def test_a_bool_is_not_accepted_as_a_price(tmp_path: Path) -> None:
     payload = {"m": {**ENTRY, "output_usd_per_million": True}}
     with pytest.raises(config.PricingConfigError, match="not a number"):
         config.load_pricing_file(write(tmp_path, payload))
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected"),
+    [
+        ("input_usd_per_million", float("nan"), "finite"),
+        ("output_usd_per_million", float("inf"), "finite"),
+        ("input_usd_per_million", -1.0, "negative"),
+        ("as_of", "20260901", "YYYY-MM-DD"),
+        ("as_of", "2026-W36-1", "YYYY-MM-DD"),
+        ("as_of", "2099-01-01", "future"),
+    ],
+)
+def test_prices_must_be_finite_and_dates_real_and_past(
+    tmp_path: Path, field: str, value: object, expected: str
+) -> None:
+    """A NaN price costs every row as NaN; a future date defeats the staleness check (#45)."""
+    path = tmp_path / "pricing.json"
+    path.write_text(json.dumps({"m": {**ENTRY, field: value}}), encoding="utf-8")
+    with pytest.raises(config.PricingConfigError, match=expected):
+        config.load_pricing_file(path)
+
+
+def test_a_pricing_file_with_a_byte_order_mark_loads(tmp_path: Path) -> None:
+    path = tmp_path / "pricing.json"
+    path.write_text(json.dumps({"m": ENTRY}), encoding="utf-8-sig")
+    assert "m" in config.load_pricing_file(path)

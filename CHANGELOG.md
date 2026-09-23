@@ -83,6 +83,17 @@ different event from one that moved because it was wrong.
 
 ### Fixed
 
+- The JevBench loader skipped the duplicate-id check the JSONL loader makes, so
+  repeated ids loaded silently (#44). Both loaders now share it. The dataset
+  loader read a byte order mark as part of the first row and refused it, turned
+  a label of `null`, `true` or `1` into the text "None", "True" or "1", accepted
+  empty labels and descriptions of options that do not exist, and failed on a
+  non-UTF-8 file without naming it (#45). It now reads the mark as nothing,
+  refuses each of the others with the reason, and names the file and line that
+  is not UTF-8. The pricing loader accepted NaN, infinite and negative prices,
+  `as_of` values such as `20260901` or `2026-W36-1`, and dates in the future,
+  which kept the report from ever calling a price stale; each is refused now,
+  and a byte order mark is read as nothing there too.
 - The CLI accepted options that misbehaved or crashed (#41): `--limit 0` ran
   every row and a negative limit sliced from the end, `--boot 0` failed with a
   traceback after the run had been paid for, an option the adapter does not
