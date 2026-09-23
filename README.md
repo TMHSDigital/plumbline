@@ -109,8 +109,16 @@ That refusal is the product.
 An older Python gives a resolver error rather than a clear message, so check
 with `python --version` first.
 
-**plumbline is not on PyPI.** `pip install plumbline` will not work. Clone the
-repository; that is the intended install path for v0.1.
+**plumbline is not on PyPI, and `pip install plumbline` installs something
+else.** The name on PyPI belongs to an unrelated project, so that command
+succeeds and gives you the wrong tool. Clone the repository, which is the
+intended install path for v0.1. If you use pip rather than uv, install from the
+repository itself:
+
+```
+pip install "plumbline @ git+https://github.com/TMHSDigital/plumbline"
+pip install "plumbline[local] @ git+https://github.com/TMHSDigital/plumbline"   # with the local extra
+```
 
 Nothing in this first section needs an API key or spends anything.
 
@@ -206,7 +214,7 @@ $env:TYPESAFE_API_KEY = "your-key-here"
 uv run plumbline run datasets/public/jevbench-hard.jsonl `
     --adapter typesafe_wire --model jev-latest --format jevbench `
     --results results --report results/report.md `
-    --max-cases 40 --pricing my-pricing.json
+    --limit 40 --pricing my-pricing.json
 ```
 
 </details>
@@ -220,7 +228,7 @@ export TYPESAFE_API_KEY="your-key-here"
 uv run plumbline run datasets/public/jevbench-hard.jsonl \
     --adapter typesafe_wire --model jev-latest --format jevbench \
     --results results --report results/report.md \
-    --max-cases 40 --pricing my-pricing.json
+    --limit 40 --pricing my-pricing.json
 ```
 
 </details>
@@ -231,6 +239,9 @@ Without a pricing table the run still works; cost reports as unpriced, and
 
 Your own data goes in `datasets/private/`, which is gitignored, and that is the
 only path on which the recalibration numbers mean anything.
+[Your own data](docs/datasets.md) gives the row format, what is refused and why,
+and the commands to run next: a local checkpoint, the cascade's two costs, and
+`plumbline report` for runs that already happened.
 
 ## Example report
 

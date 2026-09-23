@@ -197,7 +197,9 @@ defensible merely because projects usually have one.
 - **`CITATION.cff`.** Nobody has cited this. A citation file asserting how to
   cite work nobody has referenced is a claim about its significance rather than
   a service to a reader. Revisit if someone references the METHODOLOGY results.
-- **PyPI publishing.** Premature. It commits the project to a name and to a
+- **PyPI publishing.** Premature, and the name is taken: `plumbline` on PyPI is
+  an unrelated project, so publishing needs a different distribution name
+  first. It commits the project to a name and to a
   release cadence before the API has settled, and the API is explicitly not
   stable before v0.2. The README says cloning is the install path, which is
   honest and costs a reader one command. Revisit when the CLI flags stop

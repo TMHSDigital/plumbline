@@ -57,7 +57,14 @@ def run(
     workers: Annotated[int, typer.Option(min=1, help="Concurrent requests.")] = 8,
     cache_dir: Annotated[Path | None, typer.Option("--cache", help="Cache directory.")] = None,
     max_cost_usd: Annotated[float | None, typer.Option(help="Abort above this.")] = None,
-    max_cases: Annotated[int | None, typer.Option(min=1, help="Abort above this many.")] = None,
+    max_cases: Annotated[
+        int | None,
+        typer.Option(
+            min=1,
+            help="Refuse the run if it covers more cases than this. A guard, not a "
+            "truncation: use --limit to run fewer.",
+        ),
+    ] = None,
     semantics: Annotated[
         str | None, typer.Option(help="Override probability_semantics (mock only).")
     ] = None,
