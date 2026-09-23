@@ -91,31 +91,66 @@ if (!chromePath) {
   process.exit(2);
 }
 
-const profile = mkdtempSync(path.join(tmpdir(), "plumbline-smoke-"));
-const chrome = spawn(chromePath, [
-  "--headless=new",
-  "--remote-debugging-port=0",
-  `--user-data-dir=${profile}`,
-  "--no-first-run",
-  "--no-default-browser-check",
-  "--disable-gpu",
-  "--window-size=1280,900",
-  "about:blank",
-], { stdio: ["ignore", "ignore", "pipe"] });
+// A free port, chosen here rather than by Chrome, so the DevTools address is
+// known without reading Chrome's stderr (which a cold start on a CI runner has
+// been seen to leave empty for longer than any sensible wait).
+async function freePort() {
+  const probe = createServer();
+  await new Promise((resolve) => probe.listen(0, "127.0.0.1", resolve));
+  const { port } = probe.address();
+  await new Promise((resolve) => probe.close(resolve));
+  return port;
+}
 
-const browserUrl = await new Promise((resolve, reject) => {
-  let seen = "";
-  const timer = setTimeout(() => reject(new Error(`Chrome did not report a DevTools address:\n${seen}`)), 20000);
-  chrome.stderr.on("data", (chunk) => {
-    seen += chunk;
-    const match = /DevTools listening on (ws:\/\/\S+)/.exec(seen);
-    if (match) {
-      clearTimeout(timer);
-      resolve(match[1]);
+// Starts Chrome and waits until its DevTools endpoint answers. A cold start is
+// slow and occasionally stalls, so each attempt waits up to a minute and a
+// stalled Chrome is killed and started again, three times at most.
+async function launchChrome() {
+  let last = "";
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const port = await freePort();
+    const profile = mkdtempSync(path.join(tmpdir(), "plumbline-smoke-"));
+    const child = spawn(chromePath, [
+      "--headless=new",
+      `--remote-debugging-port=${port}`,
+      `--user-data-dir=${profile}`,
+      "--no-first-run",
+      "--no-default-browser-check",
+      "--disable-gpu",
+      "--disable-dev-shm-usage",
+      "--window-size=1280,900",
+      "about:blank",
+    ], { stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    let exited = null;
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.on("exit", (code) => { exited = code; });
+    const deadline = Date.now() + 60000;
+    while (Date.now() < deadline && exited === null) {
+      try {
+        const response = await fetch(`http://127.0.0.1:${port}/json/version`);
+        if (response.ok) {
+          const { webSocketDebuggerUrl } = await response.json();
+          return { child, profile, browserUrl: webSocketDebuggerUrl };
+        }
+      } catch {
+        // Not listening yet.
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
     }
-  });
-  chrome.on("exit", (code) => reject(new Error(`Chrome exited with ${code}:\n${seen}`)));
-});
+    last = exited === null ? "did not answer within 60s" : `exited with ${exited}`;
+    console.log(`  Chrome attempt ${attempt} ${last}; ${attempt < 3 ? "starting another" : "giving up"}`);
+    child.kill();
+    try {
+      rmSync(profile, { recursive: true, force: true });
+    } catch {
+      // Held briefly after exit; the OS cleans temp.
+    }
+    if (attempt === 3) throw new Error(`Chrome ${last}:\n${stderr}`);
+  }
+}
+
+const { child: chrome, profile, browserUrl } = await launchChrome();
 
 // ---- a minimal DevTools client ---------------------------------------------
 
