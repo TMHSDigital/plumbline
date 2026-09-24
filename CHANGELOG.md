@@ -13,6 +13,23 @@ different event from one that moved because it was wrong.
 
 ### Added
 
+- `plumbline run --dry-run` loads and checks the dataset, builds the adapter,
+  applies the cost guard, and prints the case count, the endpoint, the timeout,
+  the semantics, and the estimated cost with the pricing entry behind it, then
+  exits without sending a request or writing a file (#58). It refuses exactly
+  what the run would refuse, because the run starts from the same plan.
+- `--base-url` and `--timeout` on `plumbline run`, for an adapter that takes
+  them (#58). The endpoint could be changed only through an environment
+  variable before; it is recorded in the artifact and the cache key either
+  way, and the timeout is now recorded too. `--semantics` now overrides the
+  declared semantics for any adapter that takes it, not only the mock, and the
+  report says when the operator set it. An option an adapter does not take is
+  refused by name before anything is built.
+- An artifact now stores what loading the dataset found, so a report rebuilt
+  with `plumbline report` prints the same Dataset section, with the read,
+  loaded, and refused counts, as the one written at run time (#58). Artifacts
+  written before this still report, without the section.
+
 - A browser calculator for the ECE floor (`site/`), a JavaScript port of
   `synthetic_floor` that reproduces numpy's seeded random stream draw for draw.
   `scripts/floor_golden.py` exports golden values from the Python and

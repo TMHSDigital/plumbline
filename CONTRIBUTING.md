@@ -9,7 +9,8 @@ one of them. Adding a vendor should not add a file.
 
 - **Anything serving the Jev wire format is a `base_url` for `typesafe_wire`.**
   A self-hosted endpoint, a compatible server in front of an open model, a
-  provider that implemented the same shape. It is a config entry. That includes
+  provider that implemented the same shape. It is `plumbline run --base-url`,
+  recorded in the artifact and part of the cache key. That includes
   the open decision models that serve this wire format: the unchanged adapter
   runs them.
 - **Any open-weights checkpoint is a config entry for `local_logits`**, as a

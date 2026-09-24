@@ -51,6 +51,56 @@ class RowRefusal:
 
 
 @dataclass(frozen=True)
+class LoadSummary:
+    """What a load found, without its cases: the part a report prints.
+
+    An artifact keeps this, so a report rendered from artifacts later still says
+    how many rows were read, loaded, and refused, as the one written at run time
+    did. The cases themselves are already in the artifact's records.
+    """
+
+    source: str
+    rows_read: int
+    loaded: int
+    refusals: tuple[str, ...] = ()
+    notes: tuple[str, ...] = ()
+    unsupported_by_type: Mapping[str, int] = field(default_factory=dict)
+
+    def statement(self) -> str:
+        """One line naming all three counts, because two of them are not enough."""
+        parts = [
+            f"{self.rows_read} rows read from {self.source}, "
+            f"{self.loaded} loaded, {len(self.refusals)} refused."
+        ]
+        parts.extend(self.notes)
+        return " ".join(parts)
+
+    def to_jsonable(self) -> dict[str, Any]:
+        return {
+            "source": self.source,
+            "rows_read": self.rows_read,
+            "loaded": self.loaded,
+            "refusals": list(self.refusals),
+            "notes": list(self.notes),
+            "unsupported_by_type": dict(self.unsupported_by_type),
+        }
+
+    @classmethod
+    def from_jsonable(cls, stored: Mapping[str, Any]) -> LoadSummary:
+        return cls(
+            source=str(stored["source"]),
+            rows_read=int(stored["rows_read"]),
+            loaded=int(stored["loaded"]),
+            refusals=tuple(str(refusal) for refusal in stored.get("refusals", ())),
+            notes=tuple(str(note) for note in stored.get("notes", ())),
+            unsupported_by_type={
+                str(name): int(count)
+                for name, count in dict(stored.get("unsupported_by_type", {})).items()
+            },
+        )
+
+
+@dataclass(frozen=True)
 class LoadReport:
     """What a file contained, what came out of it, and what was left behind."""
 
@@ -91,14 +141,20 @@ class LoadReport:
     def is_complete(self) -> bool:
         return not self.refusals
 
+    def summary(self) -> LoadSummary:
+        """This load without its cases, as an artifact stores it."""
+        return LoadSummary(
+            source=self.source,
+            rows_read=self.rows_read,
+            loaded=self.row_count,
+            refusals=tuple(str(refusal) for refusal in self.refusals),
+            notes=self.notes,
+            unsupported_by_type=self.unsupported_by_type,
+        )
+
     def statement(self) -> str:
         """One line naming all three counts, because two of them are not enough."""
-        parts = [
-            f"{self.rows_read} rows read from {self.source}, "
-            f"{self.row_count} loaded, {len(self.refusals)} refused."
-        ]
-        parts.extend(self.notes)
-        return " ".join(parts)
+        return self.summary().statement()
 
     def require_complete(self) -> None:
         """Refuse to proceed on a partial dataset, naming every row dropped."""
