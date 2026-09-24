@@ -95,7 +95,12 @@ different event from one that moved because it was wrong.
   the registry imported all four adapters at startup (#47). An adapter is now
   imported the first time it is created, and one that cannot be says which
   module is missing; the other adapters, and the adapters list, are unaffected.
-
+- `scripts/build_site.py --out` deleted whatever directory it was given unless
+  it was the repository, `site/`, or above them, so a typo such as `--out docs`
+  or `--out .git` deleted source or history (#50). It now deletes only a
+  directory that is empty or carries the `.plumbline-site` marker a build
+  writes, and refuses anything else before doing any work. A `_site` built
+  before this change has no marker, so it is refused once; remove it by hand.
 - A row whose response named no model was never priced, because pricing
   looked up only the model reported; the guard, which prices the requested
   model, and the report then disagreed about the same run (#36). Such a row is
