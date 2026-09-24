@@ -519,12 +519,17 @@
 
   /* -------------------------------------------------------------- wording */
 
-  // Python's "%.4f": round half to even on the exact binary value. toFixed
-  // rounds exact ties up, which differs only when the value is a tie exactly.
+  // Python's "%.4f": round the exact binary value, half to even. toFixed also
+  // rounds the exact value, but takes an exact tie away from zero, so the two
+  // differ only on exact ties. A tie is x = (2k + 1) / 20000, and a double is a
+  // dyadic rational, which 20000 = 32 * 625 allows only when x * 32 is an odd
+  // integer (0.03125, 0.09375, ...). Scaling by 32 is exact, so this finds
+  // exact ties and nothing else. Checking x * 10000 for a fractional .5 cannot:
+  // the product is itself rounded, and turns near ties into false ones.
   function fixed4(x) {
-    var scaled = x * 10000;
-    if (Math.abs(scaled) < 1e15 && scaled - Math.floor(scaled) === 0.5 && x * 10000 === scaled) {
-      var down = Math.floor(scaled);
+    var in32nds = x * 32;
+    if (Math.abs(in32nds) < 1e15 && Number.isInteger(in32nds) && in32nds % 2 !== 0) {
+      var down = Math.floor(x * 10000); // exact here: x * 10000 is 312.5 * in32nds
       var even = down % 2 === 0 ? down : down + 1;
       return (even / 10000).toFixed(4);
     }

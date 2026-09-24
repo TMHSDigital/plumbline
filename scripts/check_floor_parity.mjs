@@ -53,6 +53,16 @@ for (const c of fixture.cases) {
   console.log(`${label.padEnd(36)} mean ${band.mean.toFixed(6)}  p95 ${band.p95.toFixed(6)}  ${elapsed}ms`);
 }
 
+// Every figure on the page is printed through fixed4, which must round as
+// Python's "%.4f" does, including on and beside a tie.
+const formats = Object.entries(fixture.fixed4);
+const misformatted = formats.filter(([value, expected]) => floor.fixed4(Number(value)) !== expected);
+for (const [value, expected] of misformatted.slice(0, 5)) {
+  failures.push(`fixed4(${value}) is ${floor.fixed4(Number(value))}, Python's %.4f prints ${expected}`);
+}
+if (misformatted.length > 5) failures.push(`...and ${misformatted.length - 5} more fixed4 disagreements`);
+console.log(`${formats.length} values formatted, ${misformatted.length} differ from Python's %.4f`);
+
 console.log(`\n${fixture.cases.length} cases, largest difference ${worst.toExponential(2)}, tolerance ${tolerance}`);
 
 // The worked example, when a built site is given: the page derives the example
