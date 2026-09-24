@@ -184,3 +184,35 @@ def test_search_index_caps_long_sections(site: ModuleType) -> None:
     rendered[site.DOCS[0].slug]["sections"][2]["text"] = "x" * 10_000
     index = site.search_index(rendered, EXPLAINER)
     assert max(len(entry["x"]) for entry in index) == site.SEARCH_TEXT_LIMIT
+
+
+def test_out_refuses_a_directory_the_build_did_not_make(site: ModuleType, tmp_path: Path) -> None:
+    # The output directory is deleted before the build writes it, so a typo in
+    # --out must never reach source, history, or home.
+    for protected in (site.ROOT, site.SITE, site.ROOT / "docs", site.ROOT / "src"):
+        assert site.refusal_to_clear(protected) is not None
+    assert site.refusal_to_clear(site.ROOT / ".git") is not None
+    assert site.refusal_to_clear(Path.home()) is not None
+
+    ours = tmp_path / "keep"
+    ours.mkdir()
+    (ours / "notes.txt").write_text("mine", encoding="utf-8")
+    assert "not a site this build made" in site.refusal_to_clear(ours)
+
+    a_file = tmp_path / "a-file"
+    a_file.write_text("x", encoding="utf-8")
+    assert site.refusal_to_clear(a_file) is not None
+
+
+def test_out_accepts_new_empty_or_previously_built_directories(
+    site: ModuleType, tmp_path: Path
+) -> None:
+    assert site.refusal_to_clear(tmp_path / "new") is None
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert site.refusal_to_clear(empty) is None
+    built = tmp_path / "built"
+    built.mkdir()
+    (built / site.MARKER).write_text("", encoding="utf-8")
+    (built / "index.html").write_text("<p>old</p>", encoding="utf-8")
+    assert site.refusal_to_clear(built) is None

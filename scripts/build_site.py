@@ -858,15 +858,42 @@ def search_index(rendered: dict[str, Rendered], explainer: str) -> list[dict[str
     return entries
 
 
+#: Written into every site this script builds. The output directory is deleted
+#: before a build, so only one that carries this, or holds nothing, is deleted.
+MARKER = ".plumbline-site"
+
+
+def refusal_to_clear(out: Path) -> str | None:
+    """Why ``out`` must not be deleted and rebuilt, or None when it may be.
+
+    A path that does not exist, an empty directory, and a directory an earlier
+    build wrote may be cleared. Anything else is somebody's files, and a typo in
+    --out would otherwise delete the source, the history, or a home directory.
+    """
+    out = out.resolve()
+    if out in (ROOT, SITE) or out in ROOT.parents or SITE in out.parents:
+        return f"{out} is the repository, the site sources, or above them"
+    if not out.exists():
+        return None
+    if not out.is_dir():
+        return f"{out} is a file, not a directory"
+    if (out / MARKER).is_file() or not any(out.iterdir()):
+        return None
+    return (
+        f"{out} is not a site this build made (it has files and no {MARKER}), so it "
+        "is not deleted. Choose a new or empty directory, or remove this one yourself."
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", type=Path, default=ROOT / "_site", help="output directory")
     args = parser.parse_args()
     out: Path = args.out.resolve()
-    # The output directory is deleted and rebuilt, so it must be a directory of
-    # its own and never the repository, the site sources, or anything above them.
-    if out in (ROOT, SITE) or out in ROOT.parents or SITE in out.parents:
-        print(f"site build refused: {out} is not a safe output directory", file=sys.stderr)
+    # The output directory is deleted and rebuilt, so it is checked before any
+    # work is done.
+    if (refusal := refusal_to_clear(out)) is not None:
+        print(f"site build refused: {refusal}", file=sys.stderr)
         return 1
 
     try:
@@ -885,6 +912,10 @@ def main() -> int:
     # vendor/ holds the markdown renderer, which runs here at build time; the
     # pages it produces are finished HTML, so it is not shipped.
     shutil.copytree(SITE, out, ignore=shutil.ignore_patterns("vendor"))
+    (out / MARKER).write_text(
+        "Built by scripts/build_site.py, which deletes this directory on its next build.\n",
+        encoding="utf-8",
+    )
     (out / "example-run.json").write_text(json.dumps(example, indent=1) + "\n", encoding="utf-8")
     (out / "index.html").write_text(explainer, encoding="utf-8")
     (out / "search-index.json").write_text(
