@@ -65,6 +65,33 @@ jobs:
       - name: Tests
         run: uv run pytest
 
+  # uv.lock pins the newest releases, so the matrix never sees the oldest ones
+  # pyproject still admits. The floors were once set by hand and were wrong for
+  # three packages at once. This job installs the oldest direct dependency each
+  # floor allows and runs the suite on it, so a floor that no longer holds fails
+  # here, not on a user's machine.
+  lowest:
+    name: the oldest dependencies pyproject allows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+
+      - name: Resolve the lowest direct dependencies
+        # uv sync alone keeps a lockfile that already satisfies pyproject, so
+        # the lowest resolution is locked first and then installed as written.
+        run: uv lock --resolution lowest-direct
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Tests
+        run: uv run --frozen pytest
+
   # The unit suite has twice now passed while the path a new user takes first
   # was broken: an adapter that raised a bare TypeError when a setting was
   # missing, and a local arm that failed every case with the reason visible

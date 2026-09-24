@@ -83,6 +83,19 @@ different event from one that moved because it was wrong.
 
 ### Fixed
 
+- The dependency floors in pyproject were never tested, and three were wrong:
+  scipy 1.14.0 has no wheel for Python 3.13, anthropic before 0.77 lacks the
+  structured output types the generative adapter uses, and typer before 0.16
+  breaks against click 8.2 (#47). The floors are now the oldest releases the
+  whole suite passes on: numpy 2.1, scipy 1.14.1, typer 0.16, typesafe-sdk
+  0.5.7, and anthropic 0.77. The two SDKs are capped below their next breaking
+  series, httpx is no longer declared (nothing imported it), and a new CI job
+  runs the suite on the oldest direct dependencies pyproject allows.
+- A broken or missing SDK took down every command, the mock included, because
+  the registry imported all four adapters at startup (#47). An adapter is now
+  imported the first time it is created, and one that cannot be says which
+  module is missing; the other adapters, and the adapters list, are unaffected.
+
 - A row whose response named no model was never priced, because pricing
   looked up only the model reported; the guard, which prices the requested
   model, and the report then disagreed about the same run (#36). Such a row is
