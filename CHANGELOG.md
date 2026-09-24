@@ -83,6 +83,19 @@ different event from one that moved because it was wrong.
 
 ### Fixed
 
+- The release workflow gave its whole run a write token while it executed the
+  project's code and every dependency's, expanded the tag, which a manual run
+  takes as free text, straight into shell, and let a tag push and a manual run
+  of the same tag race to replace the same assets (#51). The tag is now checked
+  against `vX.Y.Z` in a job of its own and passed through the environment; the
+  build job can only read; a separate job with no checkout and no project code
+  signs build provenance for the wheel and sdist
+  (`gh attestation verify`) and attaches them; and runs queue per tag.
+- Every action was referenced by a movable major tag (#52). Each is now pinned
+  to a commit, with its version beside it, and Dependabot keeps the pins and
+  uv.lock current, waiting a week after any release. CI now also runs on macOS
+  and Python 3.14, so `requires-python = ">=3.12"` says what is tested.
+
 - The dependency floors in pyproject were never tested, and three were wrong:
   scipy 1.14.0 has no wheel for Python 3.13, anthropic before 0.77 lacks the
   structured output types the generative adapter uses, and typer before 0.16

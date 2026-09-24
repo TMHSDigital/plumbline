@@ -1,0 +1,32 @@
+# Every action in .github/workflows is pinned by commit, so a moved tag cannot
+# change what runs. The cost is that pins go stale; this keeps them current,
+# one reviewable pull request a week per ecosystem.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # A release this new has had no time to be found out if it is bad.
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+
+  # uv.lock, which CI installs with --locked. The floors in pyproject are
+  # tested by the lowest-direct job and are raised by hand, not here.
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    versioning-strategy: lockfile-only
+    groups:
+      dependencies:
+        patterns: ["*"]
+    commit-message:
+      prefix: deps
