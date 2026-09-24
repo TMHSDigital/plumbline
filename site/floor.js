@@ -517,6 +517,111 @@
     return { rows: rows, band: band, evaluations: evaluations };
   }
 
+  /* ---------------------------------------------------------- pasted rows */
+
+  // The most rows the page scores. Each row is redrawn 2,000 times for the
+  // floor, so past this the wait grows long enough that the tool itself is the
+  // better place to run it.
+  var MAX_PASTED_ROWS = 20000;
+  var NUMBER = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
+
+  function unquoted(raw) {
+    var value = raw.trim();
+    if (value.length >= 2 && value.charAt(0) === '"' && value.charAt(value.length - 1) === '"') {
+      value = value.slice(1, -1).trim();
+    }
+    return value;
+  }
+
+  // A plain decimal or exponent number, or null. Number() alone would accept
+  // "", "0x1", and "Infinity", none of which is a probability someone meant.
+  function strictNumber(value) {
+    return NUMBER.test(value) ? Number(value) : null;
+  }
+
+  function outcome(value) {
+    var lower = value.toLowerCase();
+    if (lower === "true") return true;
+    if (lower === "false") return false;
+    var number = strictNumber(value);
+    return number === 0 || number === 1 ? number === 1 : null;
+  }
+
+  // A first line is a header when it names its columns: some field is not a
+  // number, not an outcome, and not a spelling of NaN or infinity, which are
+  // mistakes to report rather than names to skip.
+  function isHeader(fields) {
+    return fields.some(function (value) {
+      return strictNumber(value) === null && outcome(value) === null &&
+        /[a-z]/i.test(value) && !/^[+-]?(nan|inf|infinity)$/i.test(value);
+    });
+  }
+
+  function shown(value) {
+    return '"' + (value.length > 24 ? value.slice(0, 24) + "..." : value) + '"';
+  }
+
+  /**
+   * Reads pasted predictions: one row per line, a probability and an outcome
+   * (1 or true when the prediction was right, 0 or false when it was not),
+   * separated by a comma, semicolon, tab, or spaces. A first line that names
+   * its columns is skipped, and so are blank lines.
+   *
+   * Returns { probabilities, correct, rows, header, errors }. Each error is
+   * { line, message }, with line null for a problem with the whole paste. Rows
+   * are for scoring only when errors is empty.
+   *
+   * options: maxRows (default 20,000).
+   */
+  function parsePredictions(text, options) {
+    options = options || {};
+    var maxRows = options.maxRows || MAX_PASTED_ROWS;
+    var lines = String(text).split(/\r\n|\r|\n/);
+    var probabilities = [];
+    var correct = [];
+    var errors = [];
+    var header = false;
+    var first = true;
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].trim() === "") continue;
+      var fields = lines[i].trim().split(/\s*[,;\t]\s*|\s+/).map(unquoted);
+      if (fields.length > 1 && fields[fields.length - 1] === "") fields.pop(); // a trailing separator
+      if (first) {
+        first = false;
+        if (isHeader(fields)) { header = true; continue; }
+      }
+      var line = i + 1;
+      if (fields.length !== 2) {
+        errors.push({ line: line, message: "expected two values, a probability and an outcome, and found " + fields.length });
+        continue;
+      }
+      var p = strictNumber(fields[0]);
+      var y = outcome(fields[1]);
+      if (p === null) {
+        errors.push({ line: line, message: "the probability " + shown(fields[0]) + " is not a number" });
+      } else if (!(p >= 0 && p <= 1)) {
+        errors.push({ line: line, message: "the probability " + fields[0] + " is outside 0 to 1" });
+      } else if (y === null) {
+        errors.push({ line: line, message: "the outcome " + shown(fields[1]) + " is not 0 or 1" });
+      } else {
+        probabilities.push(p);
+        correct.push(y);
+      }
+    }
+    var rows = probabilities.length;
+    if (!errors.length && !rows) {
+      errors.push({ line: null, message: "there are no rows to score. Paste one row per line: a probability, then 0 or 1" });
+    }
+    if (rows > maxRows) {
+      errors.push({
+        line: null,
+        message: rows.toLocaleString("en-US") + " rows is more than this page scores (" +
+          maxRows.toLocaleString("en-US") + "). Run plumbline itself on a set this large",
+      });
+    }
+    return { probabilities: probabilities, correct: correct, rows: rows, header: header, errors: errors };
+  }
+
   /* -------------------------------------------------------------- wording */
 
   // Python's "%.4f": round the exact binary value, half to even. toFixed also
@@ -1064,6 +1169,8 @@
     judgment: judgment,
     isDistinguishable: isDistinguishable,
     fixed4: fixed4,
+    parsePredictions: parsePredictions,
+    maxPastedRows: MAX_PASTED_ROWS,
     // Exposed for the parity check, not for the page.
     _internal: {
       Pcg64: Pcg64,

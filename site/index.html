@@ -52,6 +52,7 @@
     <li><a href="#argument">The argument</a></li>
     <li><a href="#calculator">Floor calculator</a></li>
     <li><a href="#example">Worked example</a></li>
+    <li><a href="#yours">Your own predictions</a></li>
     <li><a href="#planner">Sample-size planner</a></li>
     <li><a href="#provenance">What computes this</a></li>
   </ul>
@@ -119,7 +120,7 @@
       </p>
       <p class="small muted">This is an estimate from summary numbers. Your real predictions can
       give a different floor at the same row count; the <a href="#example">worked example</a>
-      shows why.</p>
+      shows why, and you can <a href="#yours">score your own predictions</a> instead.</p>
     </div>
   </section>
 
@@ -191,7 +192,57 @@
         </table>
       </div>
       <p><strong>This is why plumbline needs your actual predictions.</strong> The calculator gives
-      an estimate from summary numbers. The tool gives the real floor, from your data.</p>
+      an estimate from summary numbers. The tool gives the real floor, from your data, and so does
+      <a href="#yours">the next section</a>.</p>
+    </div>
+  </section>
+
+  <section id="yours" aria-labelledby="yours-h">
+    <h2 id="yours-h">Your own predictions</h2>
+    <p>Paste the predictions a model made and whether each one was right, and this computes their
+    ECE, the floor for exactly those predictions, and the verdict a plumbline report would print,
+    word for word.</p>
+    <p class="note"><strong>Nothing you paste leaves this page.</strong> It is read and scored by
+    the script on this page, in your browser. It is not uploaded, not stored, and not put in the
+    address, so reloading the page clears it.</p>
+
+    <form id="paste" novalidate>
+      <div class="wide">
+        <label for="paste-data">Predictions <span class="hint">one row per line: the probability
+        the model gave its answer, then 1 if the answer was right or 0 if not. Commas, tabs, or
+        spaces between them; a header line is fine. Up to 20,000 rows.</span></label>
+        <textarea id="paste-data" name="data" rows="8" spellcheck="false" autocomplete="off" placeholder="probability,outcome&#10;0.91,1&#10;0.64,0&#10;0.78,1"></textarea>
+      </div>
+      <div>
+        <label for="paste-bins">Bins <span class="hint">equal width</span></label>
+        <input id="paste-bins" name="bins" type="number" inputmode="numeric" min="1" max="1000" step="1" value="10" required>
+      </div>
+      <div class="actions">
+        <button id="paste-go" type="submit">Score these rows</button>
+        <button id="paste-fill" type="button" class="secondary" hidden>Use the worked example's rows</button>
+        <button id="paste-cancel" type="button" class="secondary" hidden>Cancel</button>
+        <progress id="paste-progress" max="1" value="0" hidden aria-label="Scoring progress"></progress>
+        <span id="paste-status" role="status" aria-live="polite"></span>
+      </div>
+    </form>
+    <ul id="paste-errors" class="paste-errors error" hidden></ul>
+
+    <div id="paste-result" class="result" hidden>
+      <h3>Measured against its own floor</h3>
+      <dl>
+        <dt>Rows</dt><dd id="paste-n"></dd>
+        <dt>Measured ECE</dt><dd id="paste-ece"></dd>
+        <dt>Floor mean</dt><dd id="paste-mean"></dd>
+        <dt>95th percentile</dt><dd id="paste-p95"></dd>
+      </dl>
+      <div id="paste-verdict" class="verdict"></div>
+      <p class="share">
+        <button id="paste-copy-result" type="button" class="secondary small-button">Copy result</button>
+      </p>
+      <p class="small muted">A binary classifier's probability of the positive class, with the true
+      label as the outcome, can be scored the same way. That measures whether the positive class's
+      probabilities hold, which is a different figure from the report's ECE for the same classifier:
+      the report scores the confidence in whichever answer was chosen.</p>
     </div>
   </section>
 
@@ -258,6 +309,9 @@
       at deploy time from the seeded mock adapter by the command the report records. The deploy
       fails unless the derived line matches the report character for character. No vendor's output
       is on this page.</li>
+      <li>Your own predictions go through <code>ece_figure</code>, the call a report makes: the
+      ECE, then <code>calibration_floor</code> on the same rows. The check holds it to the Python
+      on pasted text, including a value that sits exactly on a rounding tie.</li>
       <li>The check is <a href="https://github.com/TMHSDigital/plumbline/blob/main/scripts/check_floor_parity.mjs">scripts/check_floor_parity.mjs</a>;
       the implementation is <a href="floor.js">floor.js</a>.</li>
     </ul>

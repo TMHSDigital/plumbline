@@ -6,12 +6,16 @@ section { padding: 2rem 0; border-top: 1px solid var(--line); }
 form { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 1rem; margin: 1.25rem 0 1rem; }
 label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.25rem; }
 .hint { display: block; font-size: 0.8rem; font-weight: 400; color: var(--muted); }
-input { width: 100%; font: 1rem var(--mono); padding: 0.5rem 0.6rem; color: var(--fg); background: var(--bg); border: 1px solid var(--control); border-radius: 4px; }
+input, textarea { width: 100%; font: 1rem var(--mono); padding: 0.5rem 0.6rem; color: var(--fg); background: var(--bg); border: 1px solid var(--control); border-radius: 4px; }
 .actions { grid-column: 1 / -1; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
 button { font: 600 1rem var(--sans); padding: 0.55rem 1.1rem; color: var(--bg); background: var(--fg); border: 0; border-radius: 4px; cursor: pointer; }
 button[disabled] { opacity: 0.55; cursor: progress; }
 progress { flex: 1 1 8rem; height: 0.5rem; }
 .error { color: var(--error); }
+textarea { display: block; min-height: 9rem; resize: vertical; font-size: 0.9rem; line-height: 1.4; }
+form .wide { grid-column: 1 / -1; }
+.note { border-left: 3px solid var(--line); padding: 0.2rem 0 0.2rem 0.8rem; }
+.paste-errors { margin: 0 0 1rem; padding-left: 1.25rem; font-size: 0.9rem; }
 
 .result { border: 1px solid var(--line); border-radius: 6px; padding: 1rem; background: var(--panel); }
 .result[hidden], [hidden] { display: none !important; }
@@ -98,5 +102,5 @@ a.button.secondary, button.secondary { color: var(--fg); background: var(--bg); 
 a.button.secondary:hover, button.secondary:hover { border-color: var(--fg); }
 button.small-button { font-size: 0.85rem; font-weight: 400; padding: 0.3rem 0.7rem; }
 .share { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1rem; }
-input[aria-invalid="true"] { border-color: var(--error); outline: 1px solid var(--error); }
+input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--error); outline: 1px solid var(--error); }
 @media print { .rail, .cta, .share, .actions { display: none !important; } }

@@ -25,7 +25,8 @@ from typing import Any
 
 import numpy as np
 
-from plumbline.metrics.calibration import CalibrationFigure, synthetic_floor
+from plumbline.metrics.calibration import CalibrationFigure, ece_figure, synthetic_floor
+from plumbline.types import ProbabilitySeries
 
 FIXTURE = Path(__file__).resolve().parent.parent / "site" / "floor-golden.json"
 
@@ -93,6 +94,81 @@ def _formatting_cases() -> dict[str, str]:
     return {repr(value): f"{value:.4f}" for value in sorted(values)}
 
 
+def _pasted_cases() -> list[dict[str, Any]]:
+    """Pasted text in the formats the page reads, with what a report prints for it.
+
+    The page parses the text itself, so each case is written the way a person
+    might paste it, and the Python scores the rows the text was written from
+    through ``ece_figure``, the call a report makes. Probabilities are written
+    with ``repr``, which round-trips exactly, so both sides score the same
+    doubles. Two cases put the measured ECE on and beside a rounding tie.
+    """
+    rng = np.random.default_rng(56)
+    confident = [float(p) for p in rng.beta(5.0, 2.0, 300)]
+    confident_hits = [bool(u < p * 0.9) for u, p in zip(rng.random(300), confident, strict=True)]
+    spread = [float(p) for p in rng.uniform(0.0, 1.0, 150)]
+    spread_hits = [bool(u < p) for u, p in zip(rng.random(150), spread, strict=True)]
+    tie = [0.75] * 32
+    tie_hits = [True] * 23 + [False] * 9  # 23/32 against 0.75: ECE is exactly 0.03125
+    near = [0.80125] * 400
+    near_hits = [True] * 320 + [False] * 80  # 0.8 against 0.80125: beside 0.00125
+
+    def rows(ps: list[float], hits: list[bool], line: str) -> list[str]:
+        return [
+            line.format(p=repr(p), y=int(y), word=str(y).lower())
+            for p, y in zip(ps, hits, strict=True)
+        ]
+
+    spread_lines = rows(spread, spread_hits, "{p}\t{word}")
+    spread_lines.insert(40, "")
+    series = [
+        (
+            "comma separated, with a header",
+            10,
+            confident,
+            confident_hits,
+            "probability,outcome\n" + "\n".join(rows(confident, confident_hits, "{p},{y}")) + "\n",
+        ),
+        (
+            "tab separated, CRLF line ends, true and false, a blank line",
+            15,
+            spread,
+            spread_hits,
+            "\r\n".join(spread_lines),
+        ),
+        (
+            "space separated, the ECE exactly on a rounding tie",
+            10,
+            tie,
+            tie_hits,
+            "\n".join(rows(tie, tie_hits, "  {p}   {y}")),
+        ),
+        (
+            "semicolons and quotes, the ECE beside a tie",
+            10,
+            near,
+            near_hits,
+            'p;"correct"\n' + "\n".join(rows(near, near_hits, '"{p}";"{y}"')),
+        ),
+    ]
+    cases = []
+    for label, n_bins, ps, hits, text in series:
+        figure = ece_figure(ProbabilitySeries(tuple(ps), "calibrated_claim"), hits, n_bins=n_bins)
+        cases.append(
+            {
+                "label": label,
+                "n_bins": n_bins,
+                "text": text,
+                "n": figure.n,
+                "ece": figure.value,
+                "mean": figure.floor.mean,
+                "p95": figure.floor.p95,
+                "statement": figure.statement(),
+            }
+        )
+    return cases
+
+
 def _pcg64_state(seed: int) -> dict[str, str]:
     state = np.random.default_rng(seed).bit_generator.state["state"]
     return {"state": str(state["state"]), "inc": str(state["inc"])}
@@ -125,8 +201,9 @@ def build() -> dict[str, Any]:
         )
     return {
         "about": (
-            "Golden values from plumbline.metrics.calibration.synthetic_floor, "
-            "which site/floor.js must reproduce. Written by scripts/floor_golden.py."
+            "Golden values from plumbline.metrics.calibration (synthetic_floor for the "
+            "calculator, ece_figure for pasted rows), which site/floor.js must "
+            "reproduce. Written by scripts/floor_golden.py."
         ),
         "function": "synthetic_floor(n, n_bins, accuracy), all other arguments default",
         "defaults": {"binning": "equal_width", "n_boot": 2000, "concentration": 6.0, "seed": 0},
@@ -135,6 +212,7 @@ def build() -> dict[str, Any]:
         "pcg64_initial_state": {"0": _pcg64_state(0), "1": _pcg64_state(1)},
         "cases": cases,
         "fixed4": _formatting_cases(),
+        "pasted": _pasted_cases(),
     }
 
 
@@ -147,6 +225,16 @@ def _check(fresh: dict[str, Any]) -> list[str]:
         problems.append("numpy's seeded PCG64 states differ from the fixture")
     if committed.get("fixed4") != fresh["fixed4"]:
         problems.append("the :.4f formatting cases differ from the fixture")
+    old_pasted = committed.get("pasted", [])
+    if [c["text"] for c in old_pasted] != [c["text"] for c in fresh["pasted"]]:
+        problems.append("the pasted-text cases differ from the fixture; regenerate it")
+    else:
+        for old, new in zip(old_pasted, fresh["pasted"], strict=True):
+            for key in ("ece", "mean", "p95"):
+                if abs(old[key] - new[key]) > TOLERANCE:
+                    problems.append(f"pasted, {new['label']}: {key} is {new[key]!r} now")
+            if old["statement"] != new["statement"]:
+                problems.append(f"pasted, {new['label']}: verdict wording changed")
     if len(committed["cases"]) != len(fresh["cases"]):
         problems.append("the fixture holds a different set of cases; regenerate it")
         return problems

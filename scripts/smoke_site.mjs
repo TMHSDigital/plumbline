@@ -17,6 +17,8 @@
 //   field invalid;
 // - the calculator runs, and writes its inputs into the address;
 // - a link carrying those inputs runs the calculator as the page opens;
+// - pasted predictions with a bad row name the line and score nothing, and the
+//   worked example's rows, pasted, reproduce the report's line;
 // - search, opened from the header on a doc page, finds a section of that doc.
 
 import { spawn } from "node:child_process";
@@ -310,6 +312,27 @@ await check("a link carrying the inputs runs the calculator as the page opens", 
   await until(`!${$("calc-result")}.hidden`, "the linked result");
   const verdict = await evaluate(`${$("calc-verdict")}.textContent`);
   expect(verdict.includes("ECE 0.2500 over 150 rows"), `verdict reads ${JSON.stringify(verdict.slice(0, 80))}`);
+  await violations();
+});
+
+await check("a pasted row that cannot be read names its line and scores nothing", async () => {
+  await until(`!${$("paste-fill")}.hidden`, "the example's rows to be offered");
+  await evaluate(`${$("paste-data")}.value = "probability,outcome\\n0.5,1\\n1.4,0"; ${$("paste-go")}.click();`);
+  const status = await evaluate(`${$("paste-status")}.textContent`);
+  expect(status.startsWith("Line 3: the probability 1.4 is outside 0 to 1."), `status reads ${JSON.stringify(status)}`);
+  expect((await evaluate(`${$("paste-data")}.getAttribute("aria-invalid")`)) === "true", "the box is not marked invalid");
+  expect(await evaluate(`${$("paste-result")}.hidden`), "a result was shown for rows that did not read");
+});
+
+await check("the worked example's rows, pasted, give the report's line", async () => {
+  const before = await evaluate("location.search");
+  await evaluate(`${$("paste-fill")}.click(); ${$("paste-go")}.click();`);
+  await until(`!${$("paste-result")}.hidden && !${$("paste-go")}.disabled`, "a scored paste");
+  const verdict = await evaluate(`${$("paste-verdict")}.querySelector("span").textContent`);
+  const report = await evaluate(`${$("ex-report-line")}.lastElementChild.textContent`);
+  expect(verdict === report, `pasted verdict ${JSON.stringify(verdict.slice(0, 80))} is not the report's ${JSON.stringify(report.slice(0, 80))}`);
+  expect(!(await evaluate(`${$("paste-data")}.hasAttribute("aria-invalid")`)), "the box is still marked invalid");
+  expect((await evaluate("location.search")) === before, "scoring pasted rows changed the address");
   await violations();
 });
 

@@ -29,7 +29,16 @@ different event from one that moved because it was wrong.
   with `plumbline report` prints the same Dataset section, with the read,
   loaded, and refused counts, as the one written at run time (#58). Artifacts
   written before this still report, without the section.
-
+- The site scores your own predictions (#56). Paste a probability and an
+  outcome per line, as CSV, tabs, or spaces, with or without a header, and the
+  page computes the ECE, the floor for exactly those predictions, and the
+  verdict a report would print, word for word. A row that cannot be read is
+  named by its line, and nothing is scored until every row reads. Nothing
+  pasted leaves the browser: it is not uploaded, stored, or put in the address.
+  The parity check holds the path to `ece_figure` on pasted text in four
+  formats, two of them on and beside a rounding tie, and pins the parser's
+  refusals; the smoke test pastes a bad row and the worked example's rows,
+  which must reproduce the report's line.
 - A browser calculator for the ECE floor (`site/`), a JavaScript port of
   `synthetic_floor` that reproduces numpy's seeded random stream draw for draw.
   `scripts/floor_golden.py` exports golden values from the Python and

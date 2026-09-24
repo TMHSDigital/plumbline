@@ -12,6 +12,11 @@ self.onmessage = function (event) {
     var result;
     if (job.kind === "synthetic") {
       result = F.syntheticFloor(job.n, job.nBins, job.accuracy, { onProgress: progress });
+    } else if (job.kind === "observed") {
+      result = {
+        measured: F.ece(job.probabilities, job.correct, job.nBins),
+        band: F.calibrationFloor(job.probabilities, job.nBins, { onProgress: progress }),
+      };
     } else if (job.kind === "plan") {
       result = F.planRows(job.target, job.nBins, job.accuracy, {
         onProgress: progress,

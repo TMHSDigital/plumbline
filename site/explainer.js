@@ -38,8 +38,11 @@
   function runHere(job) {
     setTimeout(function () {
       try {
-        if (job.message.kind === "synthetic") {
-          job.resolve(F.syntheticFloor(job.message.n, job.message.nBins, job.message.accuracy));
+        var m = job.message;
+        if (m.kind === "synthetic") {
+          job.resolve(F.syntheticFloor(m.n, m.nBins, m.accuracy));
+        } else if (m.kind === "observed") {
+          job.resolve({ measured: F.ece(m.probabilities, m.correct, m.nBins), band: F.calibrationFloor(m.probabilities, m.nBins) });
         } else {
           job.resolve(F.planRows(job.message.target, job.message.nBins, job.message.accuracy, { onStep: job.onStep }));
         }
@@ -107,7 +110,7 @@
       },
     };
   }
-  var runners = { calc: makeRunner(), plan: makeRunner() };
+  var runners = { calc: makeRunner(), plan: makeRunner(), paste: makeRunner() };
 
   /* ---- forms ------------------------------------------------------------ */
 
@@ -140,7 +143,7 @@
   }
 
   function clearInvalid(form) {
-    Array.prototype.forEach.call(form.querySelectorAll("input"), function (input) {
+    Array.prototype.forEach.call(form.querySelectorAll("input, textarea"), function (input) {
       input.removeAttribute("aria-invalid");
       input.removeAttribute("aria-describedby");
     });
@@ -205,7 +208,7 @@
     });
   }
 
-  var lastResult = { calc: "", plan: "" };
+  var lastResult = { calc: "", plan: "", paste: "" };
   ["calc", "plan"].forEach(function (prefix) {
     function copyButton(id, what, valueOf) {
       $(id).addEventListener("click", function () {
@@ -219,6 +222,16 @@
     copyButton(prefix + "-copy-link", "Link", function () { return linkFor(prefix); });
     copyButton(prefix + "-copy-result", "Result", function () { return lastResult[prefix]; });
     $(prefix + "-cancel").addEventListener("click", function () { runners[prefix].cancel(); });
+  });
+  // Pasted rows are never put in the address, so this tool shares a result
+  // and not a link.
+  $("paste-cancel").addEventListener("click", function () { runners.paste.cancel(); });
+  $("paste-copy-result").addEventListener("click", function () {
+    var status = $("paste-status");
+    copy(lastResult.paste).then(
+      function () { status.classList.remove("error"); status.textContent = "Result copied."; },
+      function () { status.textContent = "Could not copy; select the text instead."; }
+    );
   });
 
   /* ---- calculator ------------------------------------------------------ */
@@ -348,6 +361,8 @@
   }
 
   function showExample(ex) {
+    exampleRows = ex;
+    $("paste-fill").hidden = false;
     var p = ex.probabilities, correct = ex.correct, nBins = ex.n_bins, n = p.length;
     $("ex-report-line").replaceChildren(el("p", ex.report.accuracy_line), el("p", ex.report.ece_line));
 
@@ -403,6 +418,91 @@
       spread.appendChild(row([binLabel(k / nBins, (k + 1) / nBins), String(realCounts[k]), String(inventedCounts[k])]));
     }
     $("ex-lesson").hidden = false;
+  }
+
+  /* ---- your own predictions --------------------------------------------- */
+
+  // Nothing pasted here leaves the page: it is read below, scored in the
+  // worker, and never written to the address, storage, or the network.
+  var exampleRows = null;
+  var PASTE_ERRORS_SHOWN = 10;
+
+  $("paste-fill").addEventListener("click", function () {
+    if (!exampleRows) return;
+    var lines = ["probability,outcome"];
+    exampleRows.probabilities.forEach(function (p, i) { lines.push(p + "," + (exampleRows.correct[i] ? 1 : 0)); });
+    $("paste-data").value = lines.join("\n") + "\n";
+    $("paste-bins").value = String(exampleRows.n_bins);
+    busy("paste", false, "Filled in the worked example's " + exampleRows.probabilities.length +
+      " rows. Score them to see the report's line again.");
+  });
+
+  function showPasteErrors(errors) {
+    var list = $("paste-errors");
+    list.replaceChildren();
+    errors.slice(0, PASTE_ERRORS_SHOWN).forEach(function (e) {
+      list.appendChild(el("li", (e.line === null ? "" : "Line " + e.line + ": ") + e.message + "."));
+    });
+    if (errors.length > PASTE_ERRORS_SHOWN) {
+      list.appendChild(el("li", (errors.length - PASTE_ERRORS_SHOWN) + " more not shown.", "muted"));
+    }
+    list.hidden = !errors.length;
+  }
+
+  $("paste").addEventListener("submit", function (event) {
+    event.preventDefault();
+    var form = event.target;
+    clearInvalid(form);
+    showPasteErrors([]);
+    var bins = number(form.bins, isWhole(1, 1000), "Bins must be a whole number from 1 to 1,000.");
+    if (bins.message) { busy("paste", false); fail("paste", bins); return; }
+    var parsed = F.parsePredictions(form.data.value);
+    if (parsed.errors.length) {
+      // Nothing is scored until every row reads. The first problem is said in
+      // the status line; the list holds the rest, and the box points at both.
+      var first = parsed.errors[0];
+      var more = parsed.errors.length - 1;
+      busy("paste", false);
+      fail("paste", {
+        message: (first.line === null ? "" : "Line " + first.line + ": ") + first.message + "." +
+          (more ? " " + more + " more " + (more === 1 ? "problem" : "problems") + " below." : "") +
+          " Nothing was scored.",
+      });
+      showPasteErrors(parsed.errors);
+      form.data.setAttribute("aria-invalid", "true");
+      form.data.setAttribute("aria-describedby", "paste-status paste-errors");
+      form.data.focus();
+      $("paste-result").hidden = true;
+      return;
+    }
+    var running = runners.paste.run(
+      { kind: "observed", probabilities: parsed.probabilities, correct: parsed.correct, nBins: bins.value },
+      function (f) { $("paste-progress").value = f; });
+    busy("paste", true, "Scoring " + parsed.rows.toLocaleString("en-US") + " rows and running 2,000 resamples...");
+    running
+      .then(function (result) { busy("paste", false, showPaste(result, parsed)); })
+      .catch(function (error) { busy("paste", false); fail("paste", error); });
+  });
+
+  // Draws the result, and returns the one line the status reads out.
+  function showPaste(result, parsed) {
+    var band = result.band, measured = result.measured;
+    var clears = F.isDistinguishable(measured, band);
+    var statement = F.statement(measured, band);
+    text("paste-n", band.n.toLocaleString("en-US") + (parsed.header ? " (a header line was skipped)" : ""));
+    text("paste-ece", fmt(measured));
+    text("paste-mean", fmt(band.mean));
+    text("paste-p95", fmt(band.p95));
+    var verdict = $("paste-verdict");
+    verdict.className = "verdict " + (clears ? "distinguishable" : "inconclusive");
+    verdict.replaceChildren(
+      el("strong", clears ? "Distinguishable from sampling noise" : "Inconclusive, which is not a pass"),
+      el("span", statement)
+    );
+    lastResult.paste = statement;
+    $("paste-result").hidden = false;
+    return "ECE " + fmt(measured) + " against a floor 95th percentile of " + fmt(band.p95) +
+      (clears ? ": it clears it." : ": inconclusive.");
   }
 
   /* ---- planner --------------------------------------------------------- */
