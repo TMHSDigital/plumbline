@@ -13,13 +13,15 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
+# Each floor is the oldest release the whole test suite passes on, checked by
+# the lowest-direct job in CI. The SDKs are capped below their next breaking
+# series, since an adapter depends on their request and response shapes.
 dependencies = [
     "numpy>=2.1",
-    "scipy>=1.14",
-    "typer>=0.15",
-    "httpx>=0.28",
-    "typesafe-sdk>=0.1",
-    "anthropic>=0.40",
+    "scipy>=1.14.1",
+    "typer>=0.16",
+    "typesafe-sdk>=0.5.7,<0.8",
+    "anthropic>=0.77,<2",
 ]
 
 [project.optional-dependencies]
@@ -43,6 +45,9 @@ dev = [
     "pytest-cov>=6.0",
     "ruff>=0.8",
     "mypy>=1.13",
+    # The CLI tests read stderr apart from stdout, which Click's test runner
+    # does from 8.2.
+    "click>=8.2",
 ]
 
 [build-system]

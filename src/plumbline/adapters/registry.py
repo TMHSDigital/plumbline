@@ -8,33 +8,39 @@ Registering a new name here is for a genuinely new transport, which is rare.
 
 from __future__ import annotations
 
+import importlib
 import inspect
 from collections.abc import Callable
 from typing import Any
 
 from plumbline.adapters.base import Adapter
-from plumbline.types import UnknownAdapterError
+from plumbline.types import PlumblineError, UnknownAdapterError
 
 AdapterFactory = Callable[..., Adapter]
 
 _REGISTRY: dict[str, AdapterFactory] = {}
 
+#: Built-in adapters by module and class, imported the first time they are
+#: created. Importing all four at startup meant one broken or missing SDK took
+#: the whole command line down, the mock included.
+_BUILTINS: dict[str, tuple[str, str]] = {
+    "generative": ("plumbline.adapters.generative", "GenerativeAdapter"),
+    "local_logits": ("plumbline.adapters.local_logits", "LocalLogitsAdapter"),
+    "mock": ("plumbline.adapters.mock", "MockAdapter"),
+    "typesafe_wire": ("plumbline.adapters.typesafe_wire", "TypeSafeWireAdapter"),
+}
+
 
 def register(name: str, factory: AdapterFactory) -> None:
     """Bind ``name`` to a factory. Re-registering the same name is an error."""
-    if name in _REGISTRY:
+    if name in _REGISTRY or name in _BUILTINS:
         raise ValueError(f"adapter {name!r} is already registered")
     _REGISTRY[name] = factory
 
 
 def create(name: str, **config: Any) -> Adapter:
     """Build a configured adapter by registered name."""
-    try:
-        factory = _REGISTRY[name]
-    except KeyError:
-        raise UnknownAdapterError(
-            f"no adapter registered as {name!r}. Available: {available()!r}"
-        ) from None
+    factory = _factory(name)
 
     missing = _missing_arguments(factory, config)
     if missing:
@@ -63,6 +69,26 @@ def create(name: str, **config: Any) -> Adapter:
     return factory(**config)
 
 
+def _factory(name: str) -> AdapterFactory:
+    """The factory registered as ``name``, importing a built-in on first use."""
+    if name in _REGISTRY:
+        return _REGISTRY[name]
+    if name not in _BUILTINS:
+        raise UnknownAdapterError(f"no adapter registered as {name!r}. Available: {available()!r}")
+    module_name, class_name = _BUILTINS[name]
+    try:
+        module = importlib.import_module(module_name)
+    except ImportError as missing:
+        raise PlumblineError(
+            f"the {name} adapter could not be loaded, because a module it needs could not "
+            f"be imported: {missing}. The other adapters are unaffected. Reinstall "
+            "plumbline's dependencies (uv sync) to restore it."
+        ) from missing
+    factory: AdapterFactory = getattr(module, class_name)
+    _REGISTRY[name] = factory
+    return factory
+
+
 def _missing_arguments(factory: AdapterFactory, config: dict[str, Any]) -> list[str]:
     """Required parameters of ``factory`` that ``config`` does not supply.
 
@@ -85,20 +111,5 @@ def _missing_arguments(factory: AdapterFactory, config: dict[str, Any]) -> list[
 
 
 def available() -> tuple[str, ...]:
-    """Registered adapter names, sorted."""
-    return tuple(sorted(_REGISTRY))
-
-
-def _register_builtins() -> None:
-    from plumbline.adapters.generative import GenerativeAdapter
-    from plumbline.adapters.local_logits import LocalLogitsAdapter
-    from plumbline.adapters.mock import MockAdapter
-    from plumbline.adapters.typesafe_wire import TypeSafeWireAdapter
-
-    register("generative", GenerativeAdapter)
-    register("local_logits", LocalLogitsAdapter)
-    register("mock", MockAdapter)
-    register("typesafe_wire", TypeSafeWireAdapter)
-
-
-_register_builtins()
+    """Registered adapter names, sorted, without importing any of them."""
+    return tuple(sorted({*_REGISTRY, *_BUILTINS}))
