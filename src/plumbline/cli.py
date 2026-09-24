@@ -76,13 +76,34 @@ def run(
             "truncation: use --limit to run fewer.",
         ),
     ] = None,
+    base_url: Annotated[
+        str | None,
+        typer.Option(
+            "--base-url",
+            help="Send requests here instead of the vendor's endpoint, for an adapter that "
+            "takes one. Recorded in the artifact and part of the cache key.",
+        ),
+    ] = None,
+    timeout: Annotated[
+        float | None,
+        typer.Option(
+            "--timeout", help="Seconds one request may take, for an adapter that takes it."
+        ),
+    ] = None,
     semantics: Annotated[
         str | None,
         typer.Option(
-            help="Override probability_semantics, mock only: one of "
-            f"{', '.join(PROBABILITY_SEMANTICS)}."
+            help="Override the probability_semantics the adapter declares, for one that "
+            f"takes it: one of {', '.join(PROBABILITY_SEMANTICS)}. The report says so."
         ),
     ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Load, check, and price the run, print what it would do, and send nothing.",
+        ),
+    ] = False,
     seed: Annotated[int, typer.Option(help="Mock seed.")] = 7,
     accuracy: Annotated[float, typer.Option(help="Mock target accuracy.")] = 0.8,
     escalation_cost: Annotated[
@@ -102,12 +123,15 @@ def run(
 
     Status lines and errors go to stderr, so stdout carries only the report when
     no --report is given. The exit code is 1 when no case produced a prediction,
-    after the artifact and the report are written.
+    after the artifact and the report are written. With --dry-run, stdout carries
+    the plan instead, and nothing is sent or written.
     """
     # Everything that can be checked before a call goes out is checked here,
     # so a mistake costs nothing.
     if report is not None and report.is_dir():
         _fail(f"--report {report} is a directory; give it a file path, such as {report}/report.md")
+    if timeout is not None and not timeout > 0:
+        _fail(f"--timeout must be a number of seconds above 0, got {timeout}")
     load = dataclasses.replace(_load(dataset, data_format), source=_shown(dataset))
     _status(load.statement())
     for refusal in load.refusals:
@@ -124,19 +148,32 @@ def run(
         cases,
         model=model,
         revision=revision,
+        base_url=base_url,
+        timeout=timeout,
         semantics=semantics,
         seed=seed,
         accuracy=accuracy,
     )
+    guard = execute.CostGuard(max_cost_usd=max_cost_usd, max_cases=max_cases)
+    table = _pricing(pricing)
+    if dry_run:
+        planned = _guard(lambda: execute.plan(built, cases, guard=guard, pricing_table=table))
+        typer.echo(_plan_text(built, planned, guard, semantics_set=semantics is not None))
+        return
+
+    extra: dict[str, object] = {"dataset": _shown(dataset), "format": data_format}
+    if semantics is not None:
+        extra["semantics_set_by"] = "operator"
     result = _guard(
         lambda: execute.run(
             built,
             cases,
             cache=Cache(cache_dir) if cache_dir else None,
-            guard=execute.CostGuard(max_cost_usd=max_cost_usd, max_cases=max_cases),
-            pricing_table=_pricing(pricing),
+            guard=guard,
+            pricing_table=table,
             workers=workers,
-            extra_config={"dataset": _shown(dataset), "format": data_format},
+            extra_config=extra,
+            load=load.summary(),
         )
     )
 
@@ -192,6 +229,7 @@ def report(
     document = _guard(
         lambda: markdown.render(
             results,
+            load=_stored_load(results),
             options=markdown.ReportOptions(
                 n_boot=n_boot,
                 cost_escalation_usd=escalation_cost,
@@ -206,6 +244,20 @@ def report(
         _status(f"report: {out}")
     else:
         typer.echo(document)
+
+
+def _stored_load(results: list[execute.RunResult]) -> loader.LoadSummary | None:
+    """The Dataset section a rebuilt report can print, from what the runs stored.
+
+    Only when every run is over one dataset and they all say the same thing
+    about loading it. Otherwise there is no single section that is true of the
+    document, and printing one run's counts over another's figures would be
+    worse than printing none.
+    """
+    if len({result.dataset_hash for result in results}) != 1:
+        return None
+    first = results[0].load
+    return first if all(result.load == first for result in results) else None
 
 
 @app.command()
@@ -253,6 +305,8 @@ def _build(
     *,
     model: str | None,
     revision: str | None,
+    base_url: str | None = None,
+    timeout: float | None = None,
     semantics: str | None,
     seed: int,
     accuracy: float,
@@ -263,6 +317,12 @@ def _build(
         config["model_requested"] = model
     if revision is not None:
         config["revision"] = revision
+    if base_url is not None:
+        config["base_url"] = base_url
+    if timeout is not None:
+        config["timeout"] = timeout
+    if semantics is not None:
+        config["probability_semantics"] = _semantics(semantics)
 
     if adapter == "mock":
         # The mock is told the answer key up front, because classify() is never
@@ -270,17 +330,23 @@ def _build(
         config["gold_by_text"] = {case.text: case.gold_label for case in cases}
         config["seed"] = seed
         config["accuracy"] = accuracy
-        if semantics is not None:
-            config["probability_semantics"] = _semantics(semantics)
-    elif semantics is not None:
-        _fail("--semantics applies to the mock only; a real adapter declares its own.")
+
+    # Name the exact option an adapter will not take, before building it: the
+    # generative arm reports no probability, so it has no semantics to override.
+    refused_options = [
+        flag
+        for setting, flag in _OPTIONS.items()
+        if setting in config and not _guard(partial(registry.accepts, adapter, setting))
+    ]
+    if refused_options:
+        _fail(f"the {adapter} adapter does not take {', '.join(refused_options)}.")
 
     try:
         return registry.create(adapter, **config)
     except (PlumblineError, ValueError) as refused:
         _fail(str(refused))
     except TypeError:
-        given = [f"--{name.replace('_requested', '')}" for name in config if name in _OPTIONS]
+        given = [flag for setting, flag in _OPTIONS.items() if setting in config]
         _fail(f"the {adapter} adapter does not take {', '.join(given) or 'these settings'}.")
     except Exception as unavailable:  # an SDK that cannot start, such as a missing key
         variable = _KEY_VARIABLES.get(adapter)
@@ -288,8 +354,56 @@ def _build(
         _fail(f"could not set up the {adapter} adapter: {unavailable}.{hint}")
 
 
-#: Settings the CLI passes to an adapter from its own options.
-_OPTIONS = ("model_requested", "revision")
+#: Settings the CLI passes to an adapter from its own options, and the option
+#: each comes from.
+_OPTIONS = {
+    "model_requested": "--model",
+    "revision": "--revision",
+    "base_url": "--base-url",
+    "timeout": "--timeout",
+    "probability_semantics": "--semantics",
+}
+
+
+def _plan_text(
+    adapter: Adapter, planned: execute.Plan, guard: execute.CostGuard, *, semantics_set: bool
+) -> str:
+    """What a dry run prints: what would be sent, to whom, and what it would cost."""
+    endpoint = getattr(adapter, "base_url", None)
+    timeout = getattr(adapter, "timeout", None)
+    semantics = adapter.probability_semantics + (", set by --semantics" if semantics_set else "")
+    if planned.estimated_cost_usd is not None and planned.pricing is not None:
+        cost = (
+            f"about {planned.estimated_cost_usd:.4f} USD, priced by `{planned.pricing_key}` "
+            f"as read on {planned.pricing.as_of.isoformat()}. The estimate is rough: it counts "
+            "the case text, the option names, and a fixed overhead."
+        )
+    else:
+        cost = (
+            f"not estimated: `{adapter.model_requested}` is not in the pricing table. Pass "
+            "--pricing with an entry for it to cost the run in advance."
+        )
+    cost_limit = (
+        f"max cost {guard.max_cost_usd} USD" if guard.max_cost_usd is not None else "no cost limit"
+    )
+    case_limit = f"max cases {guard.max_cases}" if guard.max_cases is not None else "no case limit"
+    revision = f", revision `{adapter.revision}`" if adapter.revision else ""
+    return "\n".join(
+        [
+            "dry run: nothing was sent and nothing was written.",
+            "",
+            f"- {planned.cases} cases for the {adapter.name} adapter, model "
+            f"`{adapter.model_requested}`{revision}.",
+            f"- Endpoint: `{endpoint}`." if endpoint else "- Endpoint: the adapter's default.",
+            f"- Timeout: {timeout:g} s per request."
+            if timeout
+            else "- Timeout: the adapter's default.",
+            f"- Probability semantics: {semantics}.",
+            f"- Cost: {cost}",
+            f"- Guard: {cost_limit}, {case_limit}; the run would start.",
+        ]
+    )
+
 
 #: Where each hosted adapter reads its key, for the message when it is missing.
 _KEY_VARIABLES = {"typesafe_wire": "TYPESAFE_API_KEY", "generative": "ANTHROPIC_API_KEY"}

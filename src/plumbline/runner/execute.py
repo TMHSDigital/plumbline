@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any
 
 from plumbline.adapters.base import Adapter
+from plumbline.datasets.loader import LoadSummary
 from plumbline.metrics.cost import (
     CostBasis,
     Pricing,
@@ -221,6 +222,13 @@ class RunResult:
     Carries the source and the date that entry was read, so a result opened in a
     year is not silently re-scored against the prices of the day it is opened.
     """
+    load: LoadSummary | None = None
+    """What loading the dataset found: rows read, loaded, and refused.
+
+    Kept so a report rendered from this artifact later prints the same Dataset
+    section as the one written at run time. None for a run started without a
+    load, and for artifacts written before this was stored.
+    """
 
     @property
     def successes(self) -> list[CaseRecord]:
@@ -288,6 +296,7 @@ class RunResult:
             "pricing": self.pricing,
             "config": self.config,
             "cache_stats": self.cache_stats,
+            "load": self.load.to_jsonable() if self.load is not None else None,
             "records": [
                 {
                     "case_id": record.case_id,
@@ -369,6 +378,7 @@ class RunResult:
             records=[_record_from_jsonable(row) for row in stored["records"]],
             cache_stats=stored.get("cache_stats", {}),
             pricing=stored.get("pricing"),
+            load=LoadSummary.from_jsonable(stored["load"]) if stored.get("load") else None,
         )
 
     def write(self, directory: Path | str) -> Path:
@@ -516,6 +526,39 @@ def check_guard(
     return estimate
 
 
+@dataclass(frozen=True)
+class Plan:
+    """What a run would do, decided before anything is sent."""
+
+    cases: int
+    estimated_cost_usd: float | None
+    """None when the requested model is not in the pricing table."""
+    pricing_key: str | None
+    pricing: Pricing | None
+
+
+def plan(
+    adapter: Adapter,
+    cases: Sequence[Case],
+    *,
+    guard: CostGuard | None = None,
+    pricing_table: PricingTable | None = None,
+) -> Plan:
+    """Price a run and apply its guard, sending nothing.
+
+    ``run`` starts here, so a dry run refuses exactly what the run would refuse
+    and prints the estimate the run would check against its limit. The guard can
+    only price the requested model, since nothing has answered yet.
+    """
+    if not cases:
+        raise ValueError("no cases to run")
+    pricing, pricing_key = pricing_for(pricing_table or {}, None, adapter.model_requested)
+    estimate = check_guard(cases, guard or CostGuard(), pricing)
+    return Plan(
+        cases=len(cases), estimated_cost_usd=estimate, pricing_key=pricing_key, pricing=pricing
+    )
+
+
 def run(
     adapter: Adapter,
     cases: Sequence[Case],
@@ -526,6 +569,7 @@ def run(
     workers: int = DEFAULT_WORKERS,
     retry: RetryPolicy | None = None,
     extra_config: Mapping[str, Any] | None = None,
+    load: LoadSummary | None = None,
 ) -> RunResult:
     """Classify every case, in order, with the guard checked before anything is sent."""
     if not cases:
@@ -537,8 +581,8 @@ def run(
     guard = guard or CostGuard()
     table: PricingTable = pricing_table or {}
     today = datetime.now(UTC).date()
-    pricing, pricing_key = pricing_for(table, None, adapter.model_requested)
-    estimate = check_guard(cases, guard, pricing)
+    planned = plan(adapter, cases, guard=guard, pricing_table=table)
+    estimate, pricing_key = planned.estimated_cost_usd, planned.pricing_key
 
     records: list[CaseRecord | None] = [None] * len(cases)
     locks = _KeyLocks() if cache is not None and cache.enabled else None
@@ -583,6 +627,10 @@ def run(
         # The server that answered, when it is not the vendor's default. It is
         # part of what was measured: a self-hosted endpoint is a different system.
         "endpoint": getattr(adapter, "base_url", None),
+        # How long one request was allowed, when the adapter was given a limit.
+        # A tight timeout turns slow answers into failures, which is part of
+        # what the run measured.
+        "timeout_seconds": getattr(adapter, "timeout", None),
         # Whether rows carried option descriptions and whether they were sent,
         # so the report can say when the dataset's descriptions went nowhere.
         "label_descriptions": {
@@ -609,6 +657,7 @@ def run(
         config=redact(config),
         records=finished,
         cache_stats=cache.stats if cache is not None else {},
+        load=load,
     )
 
 

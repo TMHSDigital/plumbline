@@ -237,6 +237,13 @@ Without a pricing table the run still works; cost reports as unpriced, and
 `--max-cost-usd` refuses rather than bounding a run it cannot cost. See
 [Limitations](#limitations).
 
+Add `--dry-run` to either command first to see what the run would do without
+spending anything. It loads and checks the dataset, builds the adapter, applies
+the guard, and prints the case count, the endpoint, and the estimated cost, then
+exits without sending a request or writing a file. Pass `--base-url` to point
+`typesafe_wire` at a self-hosted endpoint, and `--timeout` to bound one request;
+both are recorded in the artifact.
+
 Your own data goes in `datasets/private/`, which is gitignored, and that is the
 only path on which the recalibration numbers mean anything.
 [Your own data](docs/datasets.md) gives the row format, what is refused and why,
@@ -290,7 +297,7 @@ and self-hosted servers speak it, which is why one adapter covers all of them.
 
 | Adapter | Transport | Semantics | Run for real | Adding one |
 |---|---|---|---|---|
-| `typesafe_wire` | Jev wire format over HTTP | `calibrated_claim` | Yes, 40 rows against a hosted vendor | A `base_url`. Anything serving the same wire format is a config entry, including self-hosted endpoints and open models behind a compatible server. |
+| `typesafe_wire` | Jev wire format over HTTP | `calibrated_claim` | Yes, 40 rows against a hosted vendor | `--base-url`. Anything serving the same wire format is one flag, recorded in the artifact, including self-hosted endpoints and open models behind a compatible server. |
 | `local_logits` | Option-token logits from a local checkpoint | `restricted_softmax` | **No, tests only** | A HuggingFace model id and a pinned revision. Needs the optional `local` extra. |
 | `generative` | Chat completion, parsed | `none` | **No, tests only** | A model string. |
 | `mock` | None, seeded | configurable | Yes, it is the example report | Built in. A deterministic stand-in, not a system under test. |
@@ -369,8 +376,8 @@ Specific, and none of them are going to surprise you later.
 - **[Mapika/decider](https://github.com/Mapika/decider)**. One-pass typed
   decisions with calibrated probabilities, fine-tuned from Qwen3.5-2B, in several
   sizes. Its own guidance is to check calibration on your own labels before
-  routing on confidence. It serves the same typed question shape, so it is a
-  `base_url` config entry here rather than new code.
+  routing on confidence. It serves the same typed question shape, so it is
+  `--base-url` on `typesafe_wire` here rather than new code.
 - **[Bespoke Nimble](https://github.com/bespokelabsai/nimble)**. An open recipe
   for typed decision models, a LoRA fine-tune on Qwen3.5-9B, trained with
   contrastive data curation. It serves the Jev wire format, so the unchanged

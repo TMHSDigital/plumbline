@@ -27,7 +27,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
-from plumbline.datasets.loader import LoadReport
+from plumbline.datasets.loader import LoadReport, LoadSummary
 from plumbline.metrics import baseline, calibration, cascade, cost, latency, recalibration
 from plumbline.metrics.calibration import Binning
 from plumbline.metrics.cost import DEFAULT_PRICING_MAX_AGE_DAYS
@@ -111,7 +111,7 @@ class ReportOptions:
 def render(
     results: Sequence[RunResult],
     *,
-    load: LoadReport | None = None,
+    load: LoadReport | LoadSummary | None = None,
     options: ReportOptions | None = None,
 ) -> str:
     """One markdown document covering every arm, grouped and labeled."""
@@ -146,7 +146,7 @@ def render(
 
 
 def _header(
-    results: Sequence[RunResult], load: LoadReport | None, options: ReportOptions
+    results: Sequence[RunResult], load: LoadReport | LoadSummary | None, options: ReportOptions
 ) -> list[str]:
     first = results[0]
     datasets = sorted({result.dataset_hash for result in results})
@@ -215,7 +215,7 @@ def _how_to_read() -> list[str]:
     ]
 
 
-def _dataset_section(load: LoadReport) -> list[str]:
+def _dataset_section(load: LoadReport | LoadSummary) -> list[str]:
     lines = ["## Dataset", "", f"- {load.statement()}"]
     for question_type, count in load.unsupported_by_type.items():
         lines.append(
@@ -563,7 +563,13 @@ def _provenance(result: RunResult, options: ReportOptions) -> list[str]:
     hits = result.cache_stats.get("hits", 0)
     if hits:
         line += f" {hits} of {len(result.records)} rows came from cache and cost nothing."
-    return [line]
+    lines = [line]
+    if result.config.get("semantics_set_by") == "operator":
+        lines.append(
+            f"- **Probability semantics**: {_code(result.probability_semantics)}, set by the "
+            "operator with --semantics rather than declared by the adapter."
+        )
+    return lines
 
 
 def _code(value: str) -> str:

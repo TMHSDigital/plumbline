@@ -110,6 +110,22 @@ def _missing_arguments(factory: AdapterFactory, config: dict[str, Any]) -> list[
     ]
 
 
+def accepts(name: str, setting: str) -> bool:
+    """Whether the adapter registered as ``name`` takes ``setting`` when it is built.
+
+    Imports a built-in to read its signature, as ``create`` would, so a caller can
+    name the one setting an adapter refuses before trying to build it.
+    """
+    try:
+        parameters = inspect.signature(_factory(name)).parameters.values()
+    except (TypeError, ValueError):  # no signature to read, so let create decide
+        return True
+    return any(
+        parameter.name == setting or parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters
+    )
+
+
 def available() -> tuple[str, ...]:
     """Registered adapter names, sorted, without importing any of them."""
     return tuple(sorted({*_REGISTRY, *_BUILTINS}))
