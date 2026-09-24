@@ -83,6 +83,15 @@ different event from one that moved because it was wrong.
 
 ### Fixed
 
+- The site printed some figures one step off from the report, such as a
+  measured ECE of 0.00125 as `0.0012` where the report prints `0.0013` (#48).
+  Its formatter meant to round half to even only on an exact tie, but its tie
+  test compared a product with itself, so every near tie was rounded to even.
+  It now detects exact binary ties alone (odd multiples of 1/32, the only
+  values a double can hold exactly on a tie) and otherwise rounds the exact
+  value, as Python does. The golden fixture gains 890 values on and beside
+  ties, and near-tie measured values, so the parity check covers them.
+
 - The release workflow gave its whole run a write token while it executed the
   project's code and every dependency's, expanded the tag, which a manual run
   takes as free text, straight into shell, and let a tag push and a manual run

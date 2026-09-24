@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -72,7 +73,24 @@ CASES: list[tuple[int, int, float]] = [
 #: Measured ECE values each case's verdict sentence is exported for, so the
 #: wording, the formatting, and the side of the line a value falls on are all
 #: checked, not only the floor.
-MEASURED = [0.005, 0.02, 0.05, 0.074, 0.1, 0.2]
+MEASURED = [0.00125, 0.005, 0.02, 0.03125, 0.05, 0.074, 0.1, 0.2]
+
+
+def _formatting_cases() -> dict[str, str]:
+    """Values on and beside a rounding tie, with what the report prints for them.
+
+    The report formats with ``:.4f``, which rounds the exact binary value, half
+    to even. A value that looks like a tie in decimal, such as 0.00125, is not
+    one in binary and rounds by which side of the tie it really lies on; the
+    only exact ties are odd multiples of 1/32. The measured values above held
+    none of either, which is how a formatter that rounded every near tie to
+    even passed this check.
+    """
+    values = {j / 32 for j in range(1, 64, 2)}
+    for k in range(0, 2000, 7):
+        tie = (k + 0.5) / 10000
+        values.update({tie, math.nextafter(tie, 0.0), math.nextafter(tie, 1.0)})
+    return {repr(value): f"{value:.4f}" for value in sorted(values)}
 
 
 def _pcg64_state(seed: int) -> dict[str, str]:
@@ -116,6 +134,7 @@ def build() -> dict[str, Any]:
         "tolerance": TOLERANCE,
         "pcg64_initial_state": {"0": _pcg64_state(0), "1": _pcg64_state(1)},
         "cases": cases,
+        "fixed4": _formatting_cases(),
     }
 
 
@@ -126,6 +145,8 @@ def _check(fresh: dict[str, Any]) -> list[str]:
     problems = []
     if committed["pcg64_initial_state"] != fresh["pcg64_initial_state"]:
         problems.append("numpy's seeded PCG64 states differ from the fixture")
+    if committed.get("fixed4") != fresh["fixed4"]:
+        problems.append("the :.4f formatting cases differ from the fixture")
     if len(committed["cases"]) != len(fresh["cases"]):
         problems.append("the fixture holds a different set of cases; regenerate it")
         return problems
