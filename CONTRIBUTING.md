@@ -59,7 +59,8 @@ uv run ruff format --check .
 uv run mypy --strict
 ```
 
-CI runs these on Python 3.12 and 3.13, on Ubuntu and Windows.
+CI runs these on Python 3.12, 3.13 and 3.14, on Ubuntu, Windows and macOS, and
+runs the tests once more on the oldest dependencies pyproject allows.
 
 **Tests never need a network connection or an API key.** Every test must pass
 without either. If a change needs a live call to be tested, the live call is
@@ -80,9 +81,10 @@ The flow:
 4. **Open a pull request.** No approval is required, because there is currently
    one maintainer and a rule demanding one would only demand it of them. CI is
    the gate that actually matters.
-5. **CI must be green** before merge. The required checks are the four test
-   jobs (ruff, ruff format, mypy --strict and pytest, on Python 3.12 and 3.13,
-   on Ubuntu and Windows), the quickstart as the README documents it, the prose
+5. **CI must be green** before merge. The required checks are the nine test
+   jobs (ruff, ruff format, mypy --strict and pytest, on Python 3.12, 3.13 and
+   3.14, on Ubuntu, Windows and macOS), the tests on the oldest dependencies
+   pyproject allows, the quickstart as the README documents it, the prose
    check (no em dashes, no `--` used as a dash), the built wheel, and the site's
    two checks (the floor agrees with the Python; every link, anchor, meta tag
    and policy resolves, and the pages work in a real browser).

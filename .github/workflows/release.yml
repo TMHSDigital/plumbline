@@ -14,29 +14,61 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write # attaching assets to the release
+# No job gets a token it does not need, so each names its own. The build runs
+# the project's code and every dependency's, so it can only read; the job that
+# can write runs none of it.
+permissions: {}
 
+# Keyed on the tag itself, not the ref, so a tag push and a manual re-run of
+# the same tag queue behind each other instead of racing to replace the same
+# assets.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: build and attach the distributions
+  resolve:
+    name: the tag is a release tag
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      # The tag arrives through the environment and is checked before any
+      # other job sees it. A dispatch input is free text, and one expanded
+      # straight into a script is a script of the caller's choosing.
+      - id: tag
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::the tag is not a release tag of the form v1.2.3"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: build and check the distributions
+    needs: resolve
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ needs.resolve.outputs.tag }}
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: refs/tags/${{ needs.resolve.outputs.tag }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           python-version: "3.13"
-          enable-cache: true
+          # A release builds from a clean download, never from a cache that
+          # another workflow could have written.
+          enable-cache: false
 
       - name: Sync dependencies
         run: uv sync --locked
@@ -46,12 +78,11 @@ jobs:
       # because the test asserting the version used a substring match.
       - name: The tag and the package version must agree
         run: |
-          tag="${{ inputs.tag || github.ref_name }}"
-          expected="${tag#v}"
+          expected="${TAG#v}"
           actual="$(uv run python -c 'import plumbline; print(plumbline.__version__)')"
-          echo "tag $tag implies version $expected; package says $actual"
+          echo "tag $TAG implies version $expected; package says $actual"
           if [ "$expected" != "$actual" ]; then
-            echo "::error::tag $tag does not match __version__ $actual. Bump the version or move the tag; do not release a mismatch."
+            echo "::error::tag $TAG does not match __version__ $actual. Bump the version or move the tag; do not release a mismatch."
             exit 1
           fi
 
@@ -67,8 +98,7 @@ jobs:
 
       - name: The artifact names carry the released version
         run: |
-          tag="${{ inputs.tag || github.ref_name }}"
-          version="${tag#v}"
+          version="${TAG#v}"
           ls -l dist/
           test -f "dist/plumbline-${version}-py3-none-any.whl" \
             || { echo "::error::expected dist/plumbline-${version}-py3-none-any.whl"; exit 1; }
@@ -88,18 +118,52 @@ jobs:
           print("installed", plumbline.__version__, "clean")
           PY
 
+      - name: Hand the distributions to the publishing job
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: attest and attach the distributions
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    # This job holds the only write token, so it checks out nothing and runs
+    # no project code: it signs what the build made and attaches it.
+    permissions:
+      contents: write # attaching assets to the release
+      id-token: write # signing the provenance
+      attestations: write # storing the provenance
+    env:
+      TAG: ${{ needs.resolve.outputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Collect the distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist
+
+      # Anyone can then check that a wheel came from this workflow at this
+      # tag: gh attestation verify plumbline-*.whl -R TMHSDigital/plumbline
+      - name: Record where the distributions came from
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
+
       - name: Attach the distributions to the release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag="${{ inputs.tag || github.ref_name }}"
           # The release notes are written by hand, so this only ever adds
           # assets to a release that already exists. It does not create one and
           # it does not generate notes from commit messages.
-          if ! gh release view "$tag" > /dev/null 2>&1; then
-            echo "::error::no release exists for $tag. Create it with written notes first, then re-run this workflow."
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            echo "::error::no release exists for $TAG. Create it with written notes first, then re-run this workflow."
             exit 1
           fi
-          gh release upload "$tag" dist/* --clobber
+          gh release upload "$TAG" dist/* --clobber
           echo "attached:"
-          gh release view "$tag" --json assets --jq '.assets[].name'
+          gh release view "$TAG" --json assets --jq '.assets[].name'

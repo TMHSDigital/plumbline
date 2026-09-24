@@ -341,7 +341,8 @@ Specific, and none of them are going to surprise you later.
 - **Probabilities from a hosted API may arrive quantized.** That bounds the
   resolution of any threshold or bin computed from them. METHODOLOGY says what
   the bound is and where it bites.
-- **Verified on Windows and Ubuntu, Python 3.12 and 3.13.** macOS is untested.
+- **Verified on Ubuntu, Windows, and macOS, Python 3.12 through 3.14**, and on
+  the oldest release of each dependency that pyproject allows.
 - **Two of the three transports have never run outside the test suite.** See
   the adapters table above and
   [issue #3](https://github.com/TMHSDigital/plumbline/issues/3).
