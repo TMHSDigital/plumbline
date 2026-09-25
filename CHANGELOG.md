@@ -13,6 +13,11 @@ different event from one that moved because it was wrong.
 
 ### Added
 
+- A row whose top probability is shared by two or more options is now recorded
+  as one (#10). Each artifact record carries `tied_for_top`, and when any row
+  tied the report says how many beside the accuracy figure, and on how many the
+  gold label was a tied option the vendor did not choose. On a two-decimal grid
+  such ties are ordinary, and a row decided by a tie-break looked like any other.
 - `plumbline run --dry-run` loads and checks the dataset, builds the adapter,
   applies the cost guard, and prints the case count, the endpoint, the timeout,
   the semantics, and the estimated cost with the pricing entry behind it, then

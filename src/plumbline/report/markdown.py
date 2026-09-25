@@ -282,6 +282,7 @@ def _arm(result: RunResult, options: ReportOptions, heading: str) -> list[str]:
             f"- **Failures**: {len(failures)} of {len(scoreable)} cases produced no "
             "prediction and are excluded from accuracy rather than scored wrong."
         )
+    lines.extend(_tie_lines(successes))
 
     probabilities = _probabilities(result, successes)
     lines.extend(_calibration_lines(probabilities, outcomes, options))
@@ -687,6 +688,30 @@ def _confidence_lines(
     except ValueError as undefined:
         return [f"- **Confidence**: not reported. {undefined}"]
     return [f"- **Confidence**: {figure.statement()}"]
+
+
+def _tie_lines(successes: Sequence[CaseRecord]) -> list[str]:
+    """How many answers the vendor's tie-break chose, and how many went against gold."""
+    tied = [record for record in successes if record.prediction and record.prediction.tied_for_top]
+    if not tied:
+        return []
+    against = sum(
+        1
+        for record in tied
+        if record.prediction
+        and record.gold_label in record.prediction.tied_for_top
+        and not record.correct
+    )
+    line = (
+        f"- **Ties**: {len(tied)} of {len(successes)} scored rows had two or more options tied "
+        "for the highest probability, so the vendor's tie-break chose the answer, not a margin."
+    )
+    if against:
+        line += (
+            f" On {against} of them the gold label was one of the tied options and was not the "
+            "one chosen, so those rows count as wrong by a tie-break."
+        )
+    return [line]
 
 
 def _distribution_caveat(result: RunResult, successes: Sequence[CaseRecord]) -> list[str]:

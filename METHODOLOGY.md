@@ -287,6 +287,20 @@ label is one of the labels that were asked about, and raises rather than scoring
 the row if it is not. A service answering a different question than the one
 posed is not a prediction to score.
 
+A tie is recorded, not only survived. Each record in the artifact carries
+`tied_for_top`, the options that shared the highest probability when two or more
+did, so a reader auditing a close result can see which rows were decided by the
+vendor's tie-break rather than by a margin. When any row tied, the report says
+how many beside the accuracy figure, and on how many of them the gold label was
+a tied option the vendor did not choose: those rows count as wrong by a
+tie-break, which is a fact about the measurement's precision rather than about
+the model's preference.
+
+Whether a vendor's tie-break is deterministic is not known. If it is not, the
+same tied row can resolve differently between calls, and a cached answer and a
+live one can disagree on it for a reason that is nobody's fault. The flag is
+what lets that be checked.
+
 ## Probabilities arrive quantized, which bounds the resolution of any figure here
 
 Hosted Jev returns probabilities on a two-decimal grid. All 165 probability
