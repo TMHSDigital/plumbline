@@ -90,6 +90,14 @@ def run(
             "--timeout", help="Seconds one request may take, for an adapter that takes it."
         ),
     ] = None,
+    device: Annotated[
+        str | None,
+        typer.Option(
+            "--device",
+            help="Where a local checkpoint runs, such as cpu or cuda, for an adapter that "
+            "takes it. Recorded in the artifact.",
+        ),
+    ] = None,
     semantics: Annotated[
         str | None,
         typer.Option(
@@ -150,6 +158,7 @@ def run(
         revision=revision,
         base_url=base_url,
         timeout=timeout,
+        device=device,
         semantics=semantics,
         seed=seed,
         accuracy=accuracy,
@@ -307,6 +316,7 @@ def _build(
     revision: str | None,
     base_url: str | None = None,
     timeout: float | None = None,
+    device: str | None = None,
     semantics: str | None,
     seed: int,
     accuracy: float,
@@ -321,6 +331,8 @@ def _build(
         config["base_url"] = base_url
     if timeout is not None:
         config["timeout"] = timeout
+    if device is not None:
+        config["device"] = device
     if semantics is not None:
         config["probability_semantics"] = _semantics(semantics)
 
@@ -361,6 +373,7 @@ _OPTIONS = {
     "revision": "--revision",
     "base_url": "--base-url",
     "timeout": "--timeout",
+    "device": "--device",
     "probability_semantics": "--semantics",
 }
 
@@ -371,6 +384,7 @@ def _plan_text(
     """What a dry run prints: what would be sent, to whom, and what it would cost."""
     endpoint = getattr(adapter, "base_url", None)
     timeout = getattr(adapter, "timeout", None)
+    device = getattr(adapter, "device", None)
     semantics = adapter.probability_semantics + (", set by --semantics" if semantics_set else "")
     if planned.estimated_cost_usd is not None and planned.pricing is not None:
         cost = (
@@ -398,6 +412,7 @@ def _plan_text(
             f"- Timeout: {timeout:g} s per request."
             if timeout
             else "- Timeout: the adapter's default.",
+            *([f"- Device: {device}."] if device else []),
             f"- Probability semantics: {semantics}.",
             f"- Cost: {cost}",
             f"- Guard: {cost_limit}, {case_limit}; the run would start.",

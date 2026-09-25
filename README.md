@@ -191,6 +191,21 @@ uv sync --extra local
 Without it every case fails with a message telling you this, so if a local run
 reports no figures at all, that is the first thing to check.
 
+Name the checkpoint, pin it to a commit, and say where it runs:
+
+```
+uv run plumbline run datasets/public/jevbench-hard.jsonl --format jevbench \
+    --adapter local_logits --model Qwen/Qwen2.5-1.5B-Instruct \
+    --revision 989aa7980e4cf806f80c7fef2b1adb7bc71aa306 --device cuda
+```
+
+`--device` defaults to `cpu`, which works anywhere and is slow. On Windows the
+torch that PyPI serves is CPU only; for `--device cuda`, install a CUDA build
+of torch from the PyTorch index into the same environment. The arm scores only
+options that are a single token for the checkpoint and refuses the rest by
+name, so on the public fixture, whose choice options are mostly multi-word
+identifiers, most choice rows are refused and the yes/no rows carry the run.
+
 ### Running a hosted vendor
 
 This one spends money. Set a key, name an adapter, and cap the run.
@@ -298,7 +313,7 @@ and self-hosted servers speak it, which is why one adapter covers all of them.
 | Adapter | Transport | Semantics | Run for real | Adding one |
 |---|---|---|---|---|
 | `typesafe_wire` | Jev wire format over HTTP | `calibrated_claim` | Yes, 40 rows against a hosted vendor | `--base-url`. Anything serving the same wire format is one flag, recorded in the artifact, including self-hosted endpoints and open models behind a compatible server. |
-| `local_logits` | Option-token logits from a local checkpoint | `restricted_softmax` | **No, tests only** | A HuggingFace model id and a pinned revision. Needs the optional `local` extra. |
+| `local_logits` | Option-token logits from a local checkpoint | `restricted_softmax` | Yes, 105 rows against a pinned Qwen2.5-1.5B-Instruct on a GPU; 39 scored, 66 refused as multi-token | A HuggingFace model id and a pinned revision. Needs the optional `local` extra. |
 | `generative` | Chat completion, parsed | `none` | **No, tests only** | A model string. |
 | `mock` | None, seeded | configurable | Yes, it is the example report | Built in. A deterministic stand-in, not a system under test. |
 
@@ -350,9 +365,9 @@ Specific, and none of them are going to surprise you later.
   the bound is and where it bites.
 - **Verified on Ubuntu, Windows, and macOS, Python 3.12 through 3.14**, and on
   the oldest release of each dependency that pyproject allows.
-- **Two of the three transports have never run outside the test suite.** See
-  the adapters table above and
-  [issue #3](https://github.com/TMHSDigital/plumbline/issues/3).
+- **The generative transport has never run outside the test suite.** The
+  local arm has, against a pinned open checkpoint; see the adapters table
+  above and [issue #3](https://github.com/TMHSDigital/plumbline/issues/3).
 
 ## Related work
 

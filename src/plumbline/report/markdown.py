@@ -661,10 +661,17 @@ def _confidence_lines(
 ) -> list[str]:
     values = tuple(record.prediction.confidence for record in successes if record.prediction)
     if all(value is None for value in values):
+        # A yes/no asked as one has a single probability and nothing to
+        # summarize beside it. Any other arm without one simply returns none,
+        # such as a local checkpoint, which has no vendor to report it.
+        why = (
+            "a yes/no answer has no distribution to summarize"
+            if successes and all(record.asked_as == "noul" for record in successes)
+            else "the adapter returns none beside its probabilities"
+        )
         return [
-            "- **Confidence**: not reported. This arm reports no confidence statistic: a "
-            "yes/no answer has no distribution to summarize, so the number does not exist "
-            "rather than being missing."
+            f"- **Confidence**: not reported. This arm reports no confidence statistic: {why}, "
+            "so the number does not exist rather than being missing."
         ]
     if any(value is None for value in values):
         missing = sum(1 for value in values if value is None)
@@ -731,7 +738,11 @@ def _latency_lines(result: RunResult) -> list[str]:
             "- **Latency**: not reported. No call went out, so every latency here would "
             "be a measurement of disk."
         ]
-    summary = latency.summarize(live, excluded_cache_hits=len(result.records) - len(live))
+    # Only answers served from cache are cache hits. A refused or failed case
+    # made no timed call either, and counting it here named every local arm's
+    # untokenizable cases as cache hits on a run with no cache at all.
+    hits = sum(1 for record in result.records if record.ok and record.from_cache)
+    summary = latency.summarize(live, excluded_cache_hits=hits)
     return [f"- **Latency**: {summary}"]
 
 

@@ -109,6 +109,19 @@ different event from one that moved because it was wrong.
 
 ### Fixed
 
+- The local arm, run for real for the first time against a pinned
+  Qwen2.5-1.5B-Instruct on a GPU, turned up four problems the fakes could not
+  (#3). The run's eight workers each loaded their own copy of the checkpoint on
+  the first case; it now loads once, and forward passes run one at a time, with
+  latency timed after any wait. There was no way to put it on a GPU from the
+  command line; `--device` now does, and the artifact records it. The first
+  pass on a device paid for kernel setup, which put a 10 second call in a
+  latency tail whose p50 was 66 ms; the readout now makes that pass when it
+  loads, and p99 fell to 487 ms. The report called every refused or failed case
+  a cache hit in its latency line, on runs with no cache at all, and blamed a
+  missing confidence on yes/no answers for any arm that reports none; both now
+  say what happened.
+
 - The site printed some figures one step off from the report, such as a
   measured ECE of 0.00125 as `0.0012` where the report prints `0.0013` (#48).
   Its formatter meant to round half to even only on an exact tie, but its tie
