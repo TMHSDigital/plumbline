@@ -483,6 +483,73 @@ fitted on fewer rows carries uncertainty larger than the correction it claims to
 make, and it arrives looking authoritative. The report says the rule it failed
 and gives no temperature.
 
+## A temperature per predicted label, when one temperature is the wrong shape
+
+A model can be well calibrated on most labels and overconfident on one. One
+temperature cannot reach that: flattening enough for the skewed label
+over-flattens the honest ones, and the global fit's verdict says so, either as a
+refusal because the change was no larger than chance or as a partial fit whose
+residual stays above the floor. After exactly those two verdicts, and never
+otherwise, the report tries the smallest correction that can reach it: one
+temperature per predicted label.
+
+It is keyed on the label the model predicted, because that is all a caller knows
+when the correction is applied. Each label's temperature is fitted on the fit
+rows the model predicted that label for, in the same form as the global fit, and
+every held-out row is scaled by its own label's temperature. Scaling never
+changes which label is on top, so a row stays in its label's group. The split is
+the global fit's, so both are judged on the same held-out rows, and the verdict
+is the same rule: inside the floor is recommended, a material improvement that
+stops short is partial, and anything else is refused with no temperature
+printed. The report prints the per-label temperatures in a block of their own,
+says they are a different correction and not comparable with the global
+temperature, and names which of the two to apply.
+
+A label with fewer than 100 fit rows is not fitted. It keeps its probabilities as
+they came, and the report names it with its counts. A temperature fitted on a
+handful of rows is the noise of those rows, and a per-label fit has one of those
+per label.
+
+### When it helps, and what it costs
+
+`scripts/per_label_study.py` measures both on the seeded mock (accuracy 0.75,
+four options, five seeds). Each cell is post-scaling ECE on the held-out half
+over the floor's 95th percentile, so 1.0 or below is inside the floor, with how
+often each verdict would ship a correction:
+
+| rows | fit rows per label | one temperature | per label | per label ships |
+|---|---|---|---|---|
+| 500 | 49 | 1.05x | not fitted | 0% |
+| 1,000 | 103 | 1.22x | 0.77x | 60% |
+| 2,000 | 216 | 1.93x | 0.83x | 100% |
+| 4,000 | 461 | 2.09x | 0.86x | 100% |
+| 8,000 | 952 | 3.30x | 0.67x | 100% |
+
+That is a per-label bias: the model sharpened by a temperature of 0.45 whenever
+it says billing, and honest otherwise. From about 100 fit rows per label the
+per-label fit lands inside the floor, while the global fit falls further behind
+as rows are added, the same pattern as the top-line penalty above: a fixed bias
+that a shrinking floor exposes.
+
+The cost is measured where one temperature is the right shape: every answer
+sharpened by 0.5. There the four extra parameters can only add noise, and they
+leave 5 to 15 percent more ECE on the held-out rows than one temperature does
+(0.77x against 0.72x at 1,000 rows, 0.67x against 0.58x at 8,000), all inside the
+floor. The report never pays that cost, since it tries per-label only after one
+temperature was diagnosed as the wrong shape.
+
+The row gate is set more strictly than the mock requires. At 500 rows with the
+gate lowered to 40, the per-label fit still reached 0.69x, and the verdict
+shipped it on only two of five seeds. But the mock is per-label scaling's best
+case, since its distortion is exactly a per-label temperature and a real model's
+is not. So the default waits for 100 rows a label, where the result above is not
+in doubt.
+
+What it does not do: vector or matrix scaling, which fit more parameters than
+most datasets here can support; a correction keyed on the gold label, which no
+caller knows at inference time; or feeding the per-label temperatures into the
+cascade, which still scores on the global temperature when one was emitted.
+
 ## The binary Brier formulation
 
 The Brier score plumbline reports by default is

@@ -90,6 +90,11 @@ NO_DISTRIBUTION_NOTE = (
 #: noise of the split itself.
 DEFAULT_MIN_EVAL_ROWS = 200
 
+#: Below this many fit rows predicted as a label, that label keeps its
+#: probabilities as they came. A temperature fitted on a handful of rows is the
+#: noise of those rows, and a per-label fit has one of those per label.
+DEFAULT_MIN_LABEL_ROWS = 100
+
 #: Search bounds for the fit. Wide enough to cover any real miscalibration and
 #: narrow enough that hitting an edge is a signal that something is wrong.
 TEMPERATURE_BOUNDS = (0.05, 20.0)
@@ -150,24 +155,16 @@ class MetricSet:
     multiclass_brier: float | None
 
 
-@dataclass(frozen=True)
-class RecalibrationResult:
-    """Everything the report needs to state what the fit did and did not achieve.
+class _Gate:
+    """The verdict a fitted correction earns, whatever its shape.
 
-    The headline is :attr:`recommendation`, not :attr:`temperature`. A fitted
-    temperature with a tight interval clear of 1.0 can still make calibration
-    worse, which is exactly what a per-label bias produces, so a clear interval
-    is not permission to ship a number.
+    Shared by the global and the per-label fit, so both are judged by one rule:
+    on the held-out rows, against the floor, and refused unless the change is
+    larger than this sample size produces by chance.
     """
 
-    method: Method
-    semantics: ProbabilitySemantics
-    had_distribution: bool
-    temperature: float
-    temperature_ci: tuple[float, float]
-    justified: bool
     split: Split
-    seed: int
+    justified: bool
     before: MetricSet
     after: MetricSet
     floor: dict[str, FloorBand]
@@ -251,6 +248,30 @@ class RecalibrationResult:
             return "partial"
         return "refused"
 
+
+@dataclass(frozen=True)
+class RecalibrationResult(_Gate):
+    """Everything the report needs to state what the fit did and did not achieve.
+
+    The headline is :attr:`recommendation`, not :attr:`temperature`. A fitted
+    temperature with a tight interval clear of 1.0 can still make calibration
+    worse, which is exactly what a per-label bias produces, so a clear interval
+    is not permission to ship a number.
+    """
+
+    method: Method
+    semantics: ProbabilitySemantics
+    had_distribution: bool
+    temperature: float
+    temperature_ci: tuple[float, float]
+    justified: bool
+    split: Split
+    seed: int
+    before: MetricSet
+    after: MetricSet
+    floor: dict[str, FloorBand]
+    floor_before: dict[str, FloorBand]
+
     @property
     def temperature_to_use(self) -> float | None:
         """The temperature to put into production code, or None when refused."""
@@ -274,9 +295,9 @@ class RecalibrationResult:
                 "at least as likely to hurt as to help. The signature is consistent with "
                 "a per-label bias, where some labels are systematically overconfident and "
                 "others are not. One global parameter cannot reach that, since flattening "
-                "enough for the skewed labels over-flattens the honest ones. Per-label or "
-                "vector scaling would be the next thing to try, and plumbline fits "
-                "neither."
+                "enough for the skewed labels over-flattens the honest ones. A temperature "
+                "per predicted label is the next thing to try (recalibrate_per_label); "
+                "plumbline does not fit vector scaling."
             )
         if reason == "interval_spans_one":
             return (
@@ -593,6 +614,275 @@ def recalibrate(
             after_series,
             eval_correct,
             eval_distributions_after,
+            eval_gold,
+            n_bins,
+            binning,
+            min_bin_count,
+        ),
+        floor=calibration_floor(
+            after_series,
+            n_bins=n_bins,
+            binning=binning,
+            min_bin_count=min_bin_count,
+            n_boot=n_boot_floor,
+            seed=seed + 2,
+        ),
+        floor_before=calibration_floor(
+            before_series,
+            n_bins=n_bins,
+            binning=binning,
+            min_bin_count=min_bin_count,
+            n_boot=n_boot_floor,
+            seed=seed + 3,
+        ),
+    )
+
+
+@dataclass(frozen=True)
+class LabelFit:
+    """One label's share of a per-label fit."""
+
+    label: str
+    n_fit: int
+    """Fit rows the model predicted this label for."""
+    n_eval: int
+    """Held-out rows the model predicted this label for."""
+    temperature: float | None
+    """None when the label had too few fit rows; its probabilities are left alone."""
+    temperature_ci: tuple[float, float] | None
+
+
+@dataclass(frozen=True)
+class PerLabelResult(_Gate):
+    """A temperature per predicted label, judged exactly as the global fit is.
+
+    Each held-out row is scaled by the temperature of the label the model
+    predicted for it, since that is all a caller knows at inference time.
+    Scaling never changes which label is on top, so every row stays in its
+    label's group. A label below the row gate is left as it came, and named.
+    """
+
+    method: Method
+    semantics: ProbabilitySemantics
+    had_distribution: bool
+    labels: tuple[LabelFit, ...]
+    min_label_rows: int
+    justified: bool
+    split: Split
+    seed: int
+    before: MetricSet
+    after: MetricSet
+    floor: dict[str, FloorBand]
+    floor_before: dict[str, FloorBand]
+
+    @property
+    def fitted(self) -> tuple[LabelFit, ...]:
+        return tuple(fit for fit in self.labels if fit.temperature is not None)
+
+    @property
+    def temperatures_to_use(self) -> dict[str, float] | None:
+        """Label to temperature for production code, or None when refused.
+
+        A label absent from the mapping keeps its probabilities, temperature 1.
+        """
+        if self.recommendation == "refused":
+            return None
+        return {fit.label: fit.temperature for fit in self.fitted if fit.temperature is not None}
+
+    def _verdict(self) -> str:
+        reason = self.reason
+        if not self.fitted:
+            return (
+                f"Refused: no label had {self.min_label_rows} fit rows, so no per-label "
+                "temperature was fitted. A temperature fitted on fewer rows is the noise "
+                "of those rows. Collect more rows per label."
+            )
+        if reason == "already_calibrated":
+            return (
+                "Refused: calibration is already inside the floor, so there is nothing "
+                "for a per-label correction to do."
+            )
+        if reason == "no_material_improvement":
+            return (
+                f"Refused: per-label scaling moved ECE from {self.before.ece:.4f} to "
+                f"{self.after.ece:.4f}, no more than this sample size moves it by chance "
+                f"(noise scale {self.noise_scale:.4f}). The miscalibration is not a "
+                "per-label temperature either. No temperatures are emitted."
+            )
+        if reason == "interval_spans_one":
+            return (
+                "Refused: every fitted label's interval spans 1.0, so this sample does "
+                "not establish that any label needs correcting."
+            )
+        if reason == "residual_above_floor":
+            return (
+                f"Partial: per-label scaling removed {self.improvement:.4f} of ECE and "
+                f"{self.after.ece:.4f} remains, {self.residual_ratio:.1f} times the floor. "
+                "Use the temperatures, and know that some miscalibration survives them."
+            )
+        return (
+            "Recommended: post-scaling ECE is inside the floor, so a temperature per "
+            "predicted label accounts for the miscalibration present."
+        )
+
+    def summary(self) -> str:
+        fitted = ", ".join(
+            f"{fit.label} T = {fit.temperature:.3f}"
+            for fit in self.fitted
+            if fit.temperature is not None
+        )
+        left = [fit.label for fit in self.labels if fit.temperature is None]
+        lines = [
+            f"Per-label temperature scaling, {self.method} form, on the same split as the "
+            f"global fit: {self.split_sizes}.",
+            f"Fitted {fitted or 'no label'}"
+            + (
+                f"; left as they came, under {self.min_label_rows} fit rows: {', '.join(left)}."
+                if left
+                else "."
+            ),
+            f"ECE {self.before.ece:.4f} before, {self.after.ece:.4f} after, against a "
+            f"calibrated-model floor of {self.floor['ece'].mean:.4f} "
+            f"(95th percentile {self.floor['ece'].p95:.4f}).",
+            self._verdict(),
+        ]
+        return " ".join(lines)
+
+    @property
+    def split_sizes(self) -> str:
+        return f"{self.n_fit} fit rows and {self.n_eval} held-out rows (seed {self.seed})"
+
+
+def recalibrate_per_label(
+    series: ProbabilitySeries,
+    correct: Sequence[bool],
+    *,
+    predicted_labels: Sequence[str],
+    distributions: Sequence[Mapping[str, float] | None] | None = None,
+    gold_labels: Sequence[str] | None = None,
+    split: Split | None = None,
+    fit_fraction: float = 0.5,
+    seed: int = 0,
+    min_eval_rows: int = DEFAULT_MIN_EVAL_ROWS,
+    min_label_rows: int = DEFAULT_MIN_LABEL_ROWS,
+    n_bins: int = DEFAULT_N_BINS,
+    binning: Binning = DEFAULT_BINNING,
+    min_bin_count: int = DEFAULT_MIN_BIN_COUNT,
+    n_boot_ci: int = DEFAULT_N_BOOT_CI,
+    n_boot_floor: int = 800,
+) -> PerLabelResult:
+    """Fit one temperature per predicted label on the global fit's split.
+
+    The fallback for a global fit refused as the wrong shape, not a default.
+    The split is built exactly as :func:`recalibrate` builds it from the same
+    seed, so the two are judged on the same held-out rows. ``predicted_labels``
+    is the label each row's answer chose, the vendor's pick rather than an
+    argmax, since on a tie the two differ.
+    """
+    probabilities = series.require_reportable()
+    if not (len(probabilities) == len(correct) == len(predicted_labels)):
+        raise ValueError("probabilities, outcomes, and predicted labels must align")
+    use_multiclass = (
+        distributions is not None
+        and gold_labels is not None
+        and all(distribution is not None for distribution in distributions)
+    )
+    split = split if split is not None else make_split(len(probabilities), fit_fraction, seed)
+    if len(split.eval_indices) < min_eval_rows:
+        raise InsufficientDataError(
+            f"recalibration needs at least {min_eval_rows} held-out evaluation rows and "
+            f"this split has {len(split.eval_indices)}."
+        )
+
+    complete: list[Mapping[str, float]] = (
+        [distribution for distribution in distributions if distribution is not None]
+        if use_multiclass and distributions is not None
+        else []
+    )
+    fits: list[LabelFit] = []
+    temperatures: dict[str, float] = {}
+    for offset, label in enumerate(sorted(set(predicted_labels))):
+        fit_rows = [index for index in split.fit_indices if predicted_labels[index] == label]
+        eval_count = sum(1 for index in split.eval_indices if predicted_labels[index] == label)
+        if len(fit_rows) < min_label_rows:
+            fits.append(LabelFit(label, len(fit_rows), eval_count, None, None))
+            continue
+        if use_multiclass:
+            assert gold_labels is not None
+            label_distributions = [complete[index] for index in fit_rows]
+            label_gold = [gold_labels[index] for index in fit_rows]
+            temperature = fit_temperature_multiclass(label_distributions, label_gold)
+            interval = bootstrap_temperature_ci(
+                True, label_distributions, label_gold, None, None, n_boot_ci, seed + 11 + offset
+            )
+        else:
+            label_probabilities = [probabilities[index] for index in fit_rows]
+            label_correct = [correct[index] for index in fit_rows]
+            temperature = fit_temperature_binary(label_probabilities, label_correct)
+            interval = bootstrap_temperature_ci(
+                False, None, None, label_probabilities, label_correct, n_boot_ci, seed + 11 + offset
+            )
+        temperatures[label] = temperature
+        fits.append(LabelFit(label, len(fit_rows), eval_count, temperature, interval))
+
+    eval_rows = split.eval_indices
+    if use_multiclass:
+        assert gold_labels is not None
+        before_distributions: list[Mapping[str, float]] | None = [
+            complete[index] for index in eval_rows
+        ]
+        scaled = [
+            apply_temperature(complete[index], temperatures.get(predicted_labels[index], 1.0))
+            for index in eval_rows
+        ]
+        after_probabilities = tuple(
+            distribution[predicted_labels[index]]
+            for distribution, index in zip(scaled, eval_rows, strict=True)
+        )
+        after_distributions: list[Mapping[str, float]] | None = list(scaled)
+        eval_gold: list[str] | None = [gold_labels[index] for index in eval_rows]
+        method: Method = "multiclass"
+    else:
+        after_probabilities = tuple(
+            apply_temperature_binary(
+                probabilities[index], temperatures.get(predicted_labels[index], 1.0)
+            )
+            for index in eval_rows
+        )
+        before_distributions = after_distributions = eval_gold = None
+        method = "binary"
+
+    eval_correct = [correct[index] for index in eval_rows]
+    before_series = ProbabilitySeries(
+        values=tuple(probabilities[index] for index in eval_rows), semantics=series.semantics
+    )
+    after_series = ProbabilitySeries(values=after_probabilities, semantics=series.semantics)
+    return PerLabelResult(
+        method=method,
+        semantics=series.semantics,
+        had_distribution=use_multiclass,
+        labels=tuple(fits),
+        min_label_rows=min_label_rows,
+        justified=any(
+            fit.temperature_ci is not None
+            and not (fit.temperature_ci[0] <= 1.0 <= fit.temperature_ci[1])
+            for fit in fits
+        ),
+        split=split,
+        seed=seed,
+        before=_metrics(
+            before_series,
+            eval_correct,
+            before_distributions,
+            eval_gold,
+            n_bins,
+            binning,
+            min_bin_count,
+        ),
+        after=_metrics(
+            after_series,
+            eval_correct,
+            after_distributions,
             eval_gold,
             n_bins,
             binning,

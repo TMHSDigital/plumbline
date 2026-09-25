@@ -369,8 +369,9 @@ def test_a_per_label_bias_is_refused_on_the_seeds_where_scaling_degrades() -> No
 def test_the_refusal_names_a_next_step_rather_than_stopping() -> None:
     run = redistort(run_for(4000, 1.0, seed=2), per_label_skew(("billing",)))
     summary = recalibrate(run, seed=0).summary()
-    assert "vector scaling" in summary
-    assert "plumbline fits neither" in summary
+    assert "per predicted label" in summary
+    assert "recalibrate_per_label" in summary
+    assert "does not fit vector scaling" in summary
 
 
 def test_an_interval_spanning_one_is_refused_even_when_ece_improves() -> None:
