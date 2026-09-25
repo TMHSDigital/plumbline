@@ -53,6 +53,39 @@ underconfident case the multiclass form returns ECE to the noise floor and the
 binary form leaves it at roughly five times the floor, removing less than a
 fifth of the miscalibration present.
 
+#### More rows do not close the gap
+
+That table is one sample size, so it could have been a small-sample artifact.
+It is not. `scripts/distribution_penalty.py` repeats the comparison from 500 to
+20,000 rows, averaged over five seeds of the same mock (accuracy 0.75, four
+options). Each cell is post-scaling ECE on the held-out half, with its ratio to
+that half's floor:
+
+| rows | injected skew | floor | multiclass | binary |
+|---|---|---|---|---|
+| 500 | T = 0.5 | 0.0489 | 0.0515 (1.05x) | 0.0438 (0.98x) |
+| 2,000 | T = 0.5 | 0.0251 | 0.0306 (1.22x) | 0.0266 (1.18x) |
+| 5,000 | T = 0.5 | 0.0158 | 0.0181 (1.14x) | 0.0238 (1.66x) |
+| 20,000 | T = 0.5 | 0.0079 | 0.0113 (1.43x) | 0.0210 (2.92x) |
+| 500 | T = 2.0 | 0.0489 | 0.0515 (1.05x) | 0.1815 (2.88x) |
+| 2,000 | T = 2.0 | 0.0251 | 0.0306 (1.22x) | 0.1836 (5.78x) |
+| 5,000 | T = 2.0 | 0.0158 | 0.0181 (1.14x) | 0.1756 (8.80x) |
+| 20,000 | T = 2.0 | 0.0079 | 0.0113 (1.43x) | 0.1756 (17.23x) |
+
+The binary form's leftover miscalibration does not shrink with rows: about
+0.18 on the underconfident case and 0.02 on the overconfident one, at every
+size. Only its ratio to the floor grows, because the floor falls as rows are
+added. So the penalty is a bias of the answer shape, not noise, and the more
+rows a dataset has, the more plainly a top-line-only transport shows it. On the
+overconfident case it is hidden at a few hundred rows and plain by a few
+thousand.
+
+The multiclass form lands on identical figures for both skews, and on the same
+figures again with no skew injected at all. The fit inverts the injected
+temperature exactly, and what remains, including the drift to 1.43x at 20,000
+rows, is the mock's own base calibration rather than anything the correction
+left behind.
+
 So an adapter that reports a probability without a distribution is penalized
 twice: it loses a metric, and the correction plumbline can fit for it is weaker
 even in the easy case. This is a consequence of the API shape rather than of the

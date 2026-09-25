@@ -317,6 +317,12 @@ different event from one that moved because it was wrong.
 
 ### Documentation
 
+- METHODOLOGY now measures how the penalty for reporting no distribution
+  changes with row count (#8). `scripts/distribution_penalty.py` repeats the
+  comparison from 500 to 20,000 rows: the top-line form's leftover
+  miscalibration stays about 0.18 on an underconfident model at every size,
+  while the floor falls, so its ratio to the floor grows from 2.9 to 17 times.
+  The penalty is a bias of the answer shape, not a small-sample artifact.
 - The load summary said every JevBench row "is asked as a one-of-n choice",
   which is not true of an adapter that asks yes/no rows as yes/no questions;
   it now says each row is asked as the question type it states, and the
