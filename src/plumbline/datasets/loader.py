@@ -221,6 +221,8 @@ def load_jevbench(path: Path | str) -> LoadReport:
       exactly the options. On the yes/no rows the criteria describe the
       statement rather than the options, and mapping them across would be a
       guess about someone else's file, so they are dropped and counted.
+    * A score row's criteria are its rubric, a list with one entry per level in
+      level order, and become the levels' descriptions when the counts match.
     """
     path = Path(path)
     rows = _read_rows(path)
@@ -274,12 +276,12 @@ def load_jevbench(path: Path | str) -> LoadReport:
             "one for one, so their option descriptions were dropped rather than guessed."
         )
 
-    unsupported = sum(1 for case in cases if not case.is_scoreable)
-    if unsupported:
+    scores = sum(1 for case in cases if case.question_type == "score")
+    if scores:
         notes.append(
-            f"{unsupported} rows ask for an ordinal score. plumbline v0.1 has no ordinal "
-            "support: flattening levels into unordered options discards the ordering, "
-            "so they are loaded, marked, and excluded from scored results."
+            f"{scores} rows ask for an ordinal score. They are scored by rank, in a block "
+            "of their own, and left out of every choice figure, since a rank-blind "
+            "figure scores wrong by one and wrong by three the same."
         )
 
     return LoadReport(
@@ -413,6 +415,12 @@ def _case_from_record(record: Mapping[str, Any]) -> Case:
             "unrecognized type is refused rather than assumed to be a choice: asking a "
             "question the wrong way round is not something to guess at."
         )
+    if question_type == "score" and not _integer_levels(list(labels)):
+        raise DatasetError(
+            f"a score row's options are its levels, the integers 0 to K minus 1, and this "
+            f"row's are {list(labels)!r}. It is refused rather than scored by rank against "
+            "an order that is not there."
+        )
 
     return Case(
         id=case_id,
@@ -444,6 +452,16 @@ def _jevbench_record(
         and {str(key) for key in criteria} == set(labels)
     ):
         descriptions = {str(key): str(value) for key, value in criteria.items()}
+    elif (
+        question.get("type") == "score"
+        and isinstance(criteria, list)
+        and isinstance(labels, list)
+        and len(criteria) == len(labels)
+        and _integer_levels(labels)
+    ):
+        # A rubric lists the levels in order: its first entry describes level 0.
+        ordered = sorted(labels, key=int)
+        descriptions = {level: str(entry) for level, entry in zip(ordered, criteria, strict=True)}
 
     instructions = _string_or_none(question.get("instructions")) or ""
     text = _TEXT_JOIN.join(part for part in (instructions, _render_state(raw.get("state"))) if part)
@@ -458,8 +476,15 @@ def _jevbench_record(
             "question_type": question.get("type", "choice"),
         },
         normalized,
-        isinstance(criteria, Mapping) and bool(criteria) and descriptions is None,
+        bool(criteria) and isinstance(criteria, Mapping | list) and descriptions is None,
     )
+
+
+def _integer_levels(labels: list[str]) -> bool:
+    try:
+        return sorted(int(label) for label in labels) == list(range(len(labels)))
+    except ValueError:
+        return False
 
 
 def _render_state(state: Any) -> str:

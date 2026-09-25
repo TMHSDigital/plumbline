@@ -31,8 +31,9 @@ prompts differ, and the scoring differs:
   by a transport with no Noul. Those are different questions, so every record
   carries both what the row asks and how it was asked, and the report keeps them
   apart rather than averaging across the difference. The six `score` rows are
-  loaded, marked, and excluded from every figure: v0.1 has no ordinal support,
-  and flattening ordered levels into unordered options discards the ordering.
+  read by rank, in a block apart from the choice figures, and their rubric is
+  kept as the levels' descriptions; flattening ordered levels into unordered
+  options would discard the ordering.
 - JevBench's score combines intelligence, calibration, speed, and cost into one
   number. plumbline computes its own metrics, against its own calibrated-null
   floor, and deliberately publishes no combined score.

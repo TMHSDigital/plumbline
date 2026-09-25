@@ -13,6 +13,19 @@ different event from one that moved because it was wrong.
 
 ### Added
 
+- Ordinal score rows are scored (#6). Each is read by three rank-aware
+  figures, in a score block of its own and never beside a choice figure: mean
+  absolute error of the expected score in levels, against a permutation null;
+  the ranked probability score; and a cumulative calibration error, the
+  predicted probability of being at or below each threshold against how often
+  it was, pooled and binned as ECE is. The last two are read against a
+  calibrated-model floor, built by redrawing each row's level from its own
+  distribution. `typesafe_wire` asks a real Score with the row's rubric, which
+  the JevBench loader now keeps as the levels' descriptions; the other arms
+  answer the levels as options and say so. A score row whose options are not
+  integer levels is refused. On the public fixture the six score rows now run,
+  so its report covers 111 rows, with the choice figures unchanged over 105.
+  METHODOLOGY's "Ordinal score questions are scored by rank" is the design.
 - A temperature per predicted label, tried only when the global fit is refused
   as the wrong shape or stops short of the floor (#4). It uses the global fit's
   split and verdict rule, leaves a label with under 100 fit rows as it came and

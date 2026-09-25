@@ -38,6 +38,7 @@ from typesafe_sdk import (
     Noul,
     NoulAnswer,
     RetryPolicy,
+    Score,
     SystemOneResponse,
     TypeSafeClient,
 )
@@ -62,6 +63,11 @@ DEFAULT_INSTRUCTIONS = "Which label best describes this text?"
 #: that is where a dataset's own wording lives; this only says how to answer.
 DEFAULT_NOUL_INSTRUCTIONS = (
     "Answer the question stated in the document. Report the probability that the answer is yes."
+)
+
+#: What a score row is asked. The row's own rubric arrives as the criteria.
+DEFAULT_SCORE_INSTRUCTIONS = (
+    "Answer the question stated in the document on the rubric given, one level per criterion."
 )
 
 #: The key the case text is filed under in the request state.
@@ -103,7 +109,7 @@ class TypeSafeWireAdapter(Adapter):
             without a network or a key.
     """
 
-    supported_question_types = ("choice", "noul")
+    supported_question_types = ("choice", "noul", "score")
 
     reports_tokens = True
     """This transport can report token counts, so a blank cost is about the run.
@@ -119,6 +125,7 @@ class TypeSafeWireAdapter(Adapter):
         model_requested: str = "jev-latest",
         instructions: str = DEFAULT_INSTRUCTIONS,
         noul_instructions: str = DEFAULT_NOUL_INSTRUCTIONS,
+        score_instructions: str = DEFAULT_SCORE_INSTRUCTIONS,
         api_key: str | None = None,
         base_url: str | None = None,
         timeout: float | None = None,
@@ -131,6 +138,7 @@ class TypeSafeWireAdapter(Adapter):
         self.probability_semantics = check_probability_semantics(probability_semantics)
         self.instructions = instructions
         self.noul_instructions = noul_instructions
+        self.score_instructions = score_instructions
         # Resolved the way the SDK resolves it, so the endpoint that actually
         # answers is the one in the cache key and the artifact. None is the
         # vendor's default, which keeps existing cache entries valid.
@@ -158,12 +166,18 @@ class TypeSafeWireAdapter(Adapter):
         authenticates the caller, it does not change the answer, and a cache key
         is written to disk.
         """
-        return {
+        params: dict[str, object] = {
             "instructions": self.instructions,
             "noul_instructions": self.noul_instructions,
             "base_url": self.base_url,
             "question_name": QUESTION_NAME,
         }
+        # Added only when changed from the default, so every cache entry written
+        # before score questions existed keeps its key; a score row's key
+        # already differs from any other by its question type.
+        if self.score_instructions != DEFAULT_SCORE_INSTRUCTIONS:
+            params["score_instructions"] = self.score_instructions
+        return params
 
     #: Option descriptions become the choice's criteria.
     uses_label_descriptions = True
@@ -186,12 +200,12 @@ class TypeSafeWireAdapter(Adapter):
 
         if question_type == "noul":
             return self._classify_noul(text, labels)
+        if question_type == "score":
+            return self._classify_score(text, labels, descriptions or {})
         if question_type != "choice":
             raise CaseRefusedError(
-                f"typesafe_wire does not ask {question_type!r} questions. A score question "
-                "asks for an ordinal level, and asking it as a choice between unordered "
-                "options throws the ordering away, so the case is refused rather than "
-                "answered as something else."
+                f"typesafe_wire does not ask {question_type!r} questions, so the case is "
+                "refused rather than answered as something else."
             )
 
         described = descriptions or {}
@@ -267,7 +281,68 @@ class TypeSafeWireAdapter(Adapter):
             },
         )
 
-    def _ask(self, text: str, question: Choice | Noul) -> tuple[SystemOneResponse, float]:
+    def _classify_score(
+        self, text: str, labels: list[str], descriptions: Mapping[str, str]
+    ) -> Prediction:
+        """Ask an ordinal row as a Score, with its rubric, and keep the order.
+
+        The answer is an expected score and a probability per level. The
+        expected score is the vendor's answer and is kept as given; ``label`` is
+        the level nearest it, so the row has a level to show, and is never used
+        in place of it.
+        """
+        levels = sorted(labels, key=int)
+        # A rubric criterion per level, in level order; a level the dataset gave
+        # no words for is described by its own number.
+        question = Score(
+            instructions=self.score_instructions,
+            criteria=[descriptions.get(level) or level for level in levels],
+        )
+        response, latency_ms = self._ask(text, question)
+        try:
+            answer = response.scores[QUESTION_NAME]
+        except KeyError:
+            raise WireContractError(
+                f"no score answer named {QUESTION_NAME!r} in the response. A score was "
+                f"asked and something else came back. Answers present: "
+                f"{sorted(response.answers)!r}"
+            ) from None
+
+        by_level = {str(level): float(value) for level, value in answer.probabilities.items()}
+        distribution = self._checked_distribution(by_level, labels)
+        expected = float(answer.score)
+        if not int(levels[0]) <= expected <= int(levels[-1]):
+            raise WireContractError(
+                f"the API reported an expected score of {expected!r}, outside the levels "
+                f"{levels[0]} to {levels[-1]}. Nothing is clamped."
+            )
+        nearest = min(levels, key=lambda level: (abs(int(level) - expected), int(level)))
+
+        usage = response.usage
+        return Prediction(
+            label=nearest,
+            prob_selected=distribution[nearest],
+            distribution=distribution,
+            confidence=answer.confidence,
+            latency_ms=latency_ms,
+            cost_usd=None,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            model_reported=response.model,
+            raw={
+                "model": response.model,
+                "question_name": QUESTION_NAME,
+                "asked_as": "score",
+                "expected_score": expected,
+                "probabilities": distribution,
+                "usage": {
+                    "input_tokens": usage.input_tokens,
+                    "output_tokens": usage.output_tokens,
+                },
+            },
+        )
+
+    def _ask(self, text: str, question: Choice | Noul | Score) -> tuple[SystemOneResponse, float]:
         """One request, one question, with the latency it took."""
         started = time.perf_counter()
         response = self._client.system_one(

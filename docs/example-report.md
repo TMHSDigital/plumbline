@@ -48,7 +48,7 @@ Running the same command against a real vendor produces the same shape. See
 
 # plumbline report
 
-Generated 2026-09-23 against dataset `1b96dc91`, 105 rows. 1 arm(s).
+Generated 2026-09-25 against dataset `420956a9`, 111 rows. 1 arm(s).
 
 ## How to read this
 
@@ -59,8 +59,7 @@ Generated 2026-09-23 against dataset `1b96dc91`, 105 rows. 1 arm(s).
 
 ## Dataset
 
-- 111 rows read from datasets\public\jevbench-hard.jsonl, 111 loaded, 0 refused. Translated from JevBench: the case text is the row's question above its state, and each row is asked as the question type it states. plumbline's harness, prompts and scoring differ from JevBench's, so these numbers are not comparable with theirs. 6 rows wrote the gold label as a JSON number against string options; each was matched to the option of the same name. 38 rows carried criteria that do not describe the options one for one, so their option descriptions were dropped rather than guessed. 6 rows ask for an ordinal score. plumbline v0.1 has no ordinal support: flattening levels into unordered options discards the ordering, so they are loaded, marked, and excluded from scored results.
-- 6 score rows are excluded from every figure below: plumbline v0.1 scores choice and yes/no questions only.
+- 111 rows read from datasets\public\jevbench-hard.jsonl, 111 loaded, 0 refused. Translated from JevBench: the case text is the row's question above its state, and each row is asked as the question type it states. plumbline's harness, prompts and scoring differ from JevBench's, so these numbers are not comparable with theirs. 6 rows wrote the gold label as a JSON number against string options; each was matched to the option of the same name. 38 rows carried criteria that do not describe the options one for one, so their option descriptions were dropped rather than guessed. 6 rows ask for an ordinal score. They are scored by rank, in a block of their own, and left out of every choice figure, since a rank-blind figure scores wrong by one and wrong by three the same.
 
 
 ---
@@ -72,15 +71,16 @@ The vendor asserts these probabilities are calibrated. Whether that survives con
 ### mock
 
 - **Model**: requested `mock-1`, reported `mock-1`.
-- **Option descriptions**: 67 rows carried option descriptions, and this adapter does not send them, so they had no effect on its answers.
-- **Asked**: 67 choice rows asked as choice, 38 noul rows asked as choice.
+- **Option descriptions**: 73 rows carried option descriptions, and this adapter does not send them, so they had no effect on its answers.
+- **Asked**: 67 choice rows asked as choice, 38 noul rows asked as choice, 6 score rows asked as choice.
   - 38 noul rows were asked as choice questions, which is a different question from the one the dataset states. Not comparable with an arm that asked them as noul.
+  - 6 score rows were asked as choice questions, which is a different question from the one the dataset states. Not comparable with an arm that asked them as score.
 - Accuracy 0.7714 over 105 rows, against a chance null of 0.3416 (95th percentile 0.4190): better than chance at this sample size.
 - ECE 0.0740 over 105 rows (10 equal width bins), against a calibrated-model floor of 0.0707 (95th percentile 0.1109): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.
 - Brier 0.1711 over 105 rows, against a calibrated-model floor of 0.1489 (95th percentile 0.1839): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.
 - **Confidence**: AUROC 0.6034 over 105 rows, against a permutation null of 0.4997 (95th percentile 0.6116): INCONCLUSIVE at this sample size. Permutation would often score this well on this many rows, so this dataset cannot tell the two apart. This is not a result in either direction. Collect more rows to make the question answerable.
-- **Cost**: not reported. No cost available. None of the 105 cases could be priced, so cost is not reported rather than being shown as zero. 105 rows: tokens were reported, but the model that answered is not priced.
-- **Latency**: p50 37.7ms, p95 85.0ms, p99 104.7ms over 105 live calls
+- **Cost**: not reported. No cost available. None of the 111 cases could be priced, so cost is not reported rather than being shown as zero. 111 rows: tokens were reported, but the model that answered is not priced.
+- **Latency**: p50 36.6ms, p95 85.0ms, p99 104.7ms over 111 live calls
 
 #### Recalibration
 
@@ -96,3 +96,11 @@ Read these only after the figures above. MCE is a maximum over bins, decided by 
 
 - MCE 0.1588 over 105 rows (10 equal width bins), against a calibrated-model floor of 0.1251 (95th percentile 0.2198): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.
 - Multiclass Brier 0.3526 over 105 rows, against a calibrated-model floor of 0.3168 (95th percentile 0.3975): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.
+
+#### Score questions
+
+- 6 rows ask for an ordinal level and are read by rank, by the figures below and by none of the figures above. They are not comparable with a choice figure.
+- Mean absolute error 0.6746 levels over 6 rows, against a permutation null of 0.8199 (5th percentile 0.4664): INCONCLUSIVE at this sample size. The same answers shuffled across the rows would often score this well, so this dataset cannot tell whether they carry information about the level. This is not a result in either direction. Collect more rows to make the question answerable.
+- Ranked probability score 0.1577 over 6 rows, against a calibrated-model floor of 0.0829 (95th percentile 0.1930): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.
+- Cumulative calibration error 0.1796 over 6 rows (19 threshold events, 10 equal width bins), against a calibrated-model floor of 0.1420 (95th percentile 0.2323): INCONCLUSIVE at this sample size. A perfectly calibrated model would often score this badly on this many rows, so this dataset cannot tell the two apart. This is not a clean bill of health: nothing was established either way. Collect more rows to make the question answerable.
+- Recalibration and the cascade are not applied to score rows: each would be a different correction or decision on an ordered answer, and neither is designed yet.

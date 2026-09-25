@@ -12,7 +12,16 @@ from datetime import date
 from typing import Any
 
 import pytest
-from typesafe_sdk import Choice, ChoiceAnswer, Noul, NoulAnswer, SystemOneResponse, Usage
+from typesafe_sdk import (
+    Choice,
+    ChoiceAnswer,
+    Noul,
+    NoulAnswer,
+    Score,
+    ScoreAnswer,
+    SystemOneResponse,
+    Usage,
+)
 
 from plumbline.adapters import registry
 from plumbline.adapters.typesafe_wire import (
@@ -384,9 +393,61 @@ def test_a_choice_case_is_still_asked_as_a_choice() -> None:
     assert prediction.raw["asked_as"] == "choice"
 
 
-def test_an_unsupported_question_type_is_refused_rather_than_asked_as_a_choice() -> None:
-    with pytest.raises(CaseRefusedError, match="score"):
-        an_adapter(a_response()).classify("a roster", ["0", "1", "2"], question_type="score")
+def a_score_response(
+    *, score: float = 1.4, probabilities: dict[int, float] | None = None
+) -> SystemOneResponse:
+    return SystemOneResponse(
+        model="jev-1.2",
+        usage=Usage(input_tokens=90, output_tokens=8),
+        answers={
+            QUESTION_NAME: ScoreAnswer(
+                score=score,
+                confidence=0.6,
+                legend={0: "none", 1: "one", 2: "two"},
+                probabilities=probabilities or {0: 0.1, 1: 0.4, 2: 0.5},
+            )
+        },
+    )
+
+
+def test_a_score_row_is_asked_as_a_score_with_its_rubric_in_level_order() -> None:
+    client = FakeClient(a_score_response())
+    adapter = TypeSafeWireAdapter(client=client)  # type: ignore[arg-type]
+
+    prediction = adapter.classify(
+        "a roster",
+        ["2", "0", "1"],
+        question_type="score",
+        descriptions={"0": "No violations", "1": "One violation", "2": "Two or more"},
+    )
+
+    question = client.calls[0]["questions"][QUESTION_NAME]
+    assert isinstance(question, Score)
+    assert list(question.criteria) == ["No violations", "One violation", "Two or more"]
+    assert prediction.raw["asked_as"] == "score"
+    assert prediction.raw["expected_score"] == 1.4
+    assert prediction.distribution == {"0": 0.1, "1": 0.4, "2": 0.5}
+    assert prediction.label == "1"  # the level nearest the expected score, not the argmax
+
+
+def test_a_score_answer_over_other_levels_is_a_contract_failure() -> None:
+    adapter = an_adapter(a_score_response(probabilities={0: 0.5, 1: 0.5}))
+
+    with pytest.raises(WireContractError, match="different label set"):
+        adapter.classify("a roster", ["0", "1", "2"], question_type="score")
+
+
+def test_an_expected_score_outside_the_levels_is_not_clamped() -> None:
+    adapter = an_adapter(a_score_response(score=2.5))
+
+    with pytest.raises(WireContractError, match="outside the levels"):
+        adapter.classify("a roster", ["0", "1", "2"], question_type="score")
+
+
+def test_score_support_leaves_every_existing_cache_key_alone() -> None:
+    assert (
+        "score_instructions" not in TypeSafeWireAdapter(client=FakeClient(a_response())).call_params
+    )  # type: ignore[arg-type]
 
 
 def test_the_sdk_client_is_built_with_its_own_retries_off(monkeypatch: pytest.MonkeyPatch) -> None:

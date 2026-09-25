@@ -186,15 +186,73 @@ Confidence on a noul is not reported, and the report says so in those words. A
 blank cell would suggest the vendor failed to send something; the statistic does
 not exist for an answer with no distribution.
 
-## Ordinal score questions are not scored in v0.1
+## Ordinal score questions are scored by rank
 
 Some datasets ask for a level rather than a label: 0, 1, 2, or 3 daily-rest
-violations. The levels are ordered, and every metric here is rank-blind: being
-wrong by one level and wrong by three score identically. Flattening the levels
-into unordered options would discard exactly the structure that makes the
-question a score, so plumbline loads those rows, marks them, and leaves them out
-of every figure. The load report and the run report both say how many were held
-back. Ordinal support is a v0.2 question, not a formatting one.
+violations. The levels are ordered, and every choice metric here is rank-blind:
+being wrong by one level and wrong by three score identically, and a
+distribution piled on the levels beside the answer is treated no differently
+from one spread to both ends. So a score row is never scored as a choice. It is
+asked as a score, answered as a distribution over its levels, and read by three
+figures of its own, in a block of its own, never beside a choice figure.
+
+### What an answer is
+
+A score answer is a probability for each level, from 0 to K minus 1. Its point
+answer is the expected score, the probability-weighted mean of the levels,
+which can fall between two of them. That is the answer a score vendor returns
+and the one a caller would act on, so it is read as given, never replaced by the
+most probable level. An arm that returns a single level and no distribution has
+that level as its expected score, and only the first figure below applies to it.
+
+### The three figures
+
+**Mean absolute error of the expected score, in levels.** The rank-aware
+accuracy: an answer one level off costs 1, three levels off costs 3. Lower is
+better. It is read against a permutation null: the arm's own expected scores
+shuffled across the rows, which keeps how the arm answers and breaks the link to
+what each row's level was. An arm clears the null only when its answers carry
+information about the gold level. A uniform guess would be the wrong null here,
+since an arm that always answered the middle level would beat it knowing
+nothing.
+
+**Ranked probability score.** For each threshold between two adjacent levels,
+the squared gap between the predicted probability that the answer is at or below
+it and whether it was, summed over the thresholds and divided by their number,
+then averaged over rows. It is the ordinal counterpart of the Brier score and a
+proper scoring rule: it is best in expectation when the probabilities are the
+true ones, and it charges mass by its distance from the answer, so a near miss
+costs less than a far one. Zero is perfect.
+
+**Cumulative calibration error.** What calibration means for an ordered
+distribution. A distribution is calibrated when, at every threshold, the
+predicted probability that the level is at or below it matches how often it is.
+Each row contributes one event per threshold, the predicted cumulative
+probability against whether the level was at or below the threshold, and the
+events are pooled and read exactly as ECE reads a choice column: ten equal-width
+bins and the count-weighted mean gap. The probability of the single most likely
+level is not used, because it ignores order: it cannot tell an answer spread
+over neighbouring levels from one split between the two ends.
+
+### The floors
+
+The ranked probability score and the cumulative calibration error are read
+against a calibrated-model floor built the way every floor here is built. The
+predicted distributions are held fixed and the gold level of each row is redrawn
+from its own distribution, two thousand times, so every resample is calibrated
+by construction. The spread of each figure across the resamples is the noise
+floor for this exact set of distributions at this row count. A figure above the
+floor's 95th percentile is distinguishable from sampling noise; one inside it is
+INCONCLUSIVE, with the same wording as every other figure, because nothing was
+established either way.
+
+### What is not done for scores
+
+Recalibration and the cascade are choice-question tools and are not applied to
+score rows. A temperature fitted to a distribution over ordered levels is a
+different correction, and a threshold on an expected score is a different
+decision; each would need its own design. The score block says so. Score rows
+are also left out of every choice figure, as they always were.
 
 ## A row that cannot be scored is refused, not scored
 
