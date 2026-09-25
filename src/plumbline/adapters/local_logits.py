@@ -34,12 +34,25 @@ import re
 import threading
 import time
 from collections.abc import Mapping, Sequence
-from typing import Protocol
+from typing import Literal, Protocol, get_args
 
 from plumbline.adapters.base import Adapter
 from plumbline.types import CaseRefusedError, PlumblineError, Prediction, QuestionType
 
 DEFAULT_INSTRUCTIONS = "Which label best describes this text?"
+
+#: How the options are put to the checkpoint. ``label`` reads each option's own
+#: token, so every option must be a single token. ``letter`` lists the options
+#: as A, B, C... and reads the letters, so an option can be any text.
+OptionStyle = Literal["label", "letter"]
+OPTION_STYLES: tuple[OptionStyle, ...] = get_args(OptionStyle)
+
+#: The default question when options are asked by letter.
+DEFAULT_LETTER_INSTRUCTIONS = (
+    "Which option best describes this text? Answer with the letter of the option."
+)
+
+_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 #: The one prompt shape this adapter sends. It is in ``call_params``, so editing
 #: it invalidates the cache rather than mixing two prompt shapes in one table.
@@ -98,6 +111,11 @@ class LocalLogitsAdapter(Adapter):
             cannot be reproduced from the artifact alone.
         device: Passed to the default readout. Not part of ``call_params``: it
             moves arithmetic, not the question.
+        option_style: ``label`` reads each option's own token and refuses a
+            case whose options are not single tokens. ``letter`` lists the
+            options as A, B, C... and reads the letter tokens, so options of
+            any length can be asked, at the price of asking a lettered
+            question; the style is part of ``call_params``.
 
     ``probability_semantics`` is fixed at ``"restricted_softmax"`` and is not a
     constructor argument. There is no configuration under which this arm becomes
@@ -112,12 +130,17 @@ class LocalLogitsAdapter(Adapter):
         model_requested: str,
         revision: str,
         readout: LogitReadout | None = None,
-        instructions: str = DEFAULT_INSTRUCTIONS,
+        instructions: str | None = None,
         prompt_template: str = DEFAULT_PROMPT_TEMPLATE,
         option_prefix: str = DEFAULT_OPTION_PREFIX,
         allow_unpinned_revision: bool = False,
         device: str = "cpu",
+        option_style: OptionStyle = "label",
     ) -> None:
+        if option_style not in OPTION_STYLES:
+            raise ValueError(
+                f"option_style must be one of {list(OPTION_STYLES)!r}, got {option_style!r}"
+            )
         if not revision or not revision.strip():
             raise ValueError(
                 "local_logits requires a revision. An unpinned checkpoint makes a result "
@@ -140,7 +163,10 @@ class LocalLogitsAdapter(Adapter):
         self.pinned_revision = revision.strip()
         self.revision = self.pinned_revision
         self.probability_semantics = "restricted_softmax"
-        self.instructions = instructions
+        self.option_style: OptionStyle = option_style
+        self.instructions = instructions or (
+            DEFAULT_LETTER_INSTRUCTIONS if option_style == "letter" else DEFAULT_INSTRUCTIONS
+        )
         self.prompt_template = prompt_template
         self.option_prefix = option_prefix
         self.allow_unpinned_revision = allow_unpinned_revision
@@ -173,11 +199,16 @@ class LocalLogitsAdapter(Adapter):
         The base key already covers the adapter name, the model, the revision,
         the case text, and the sorted labels. The prompt shape is added here.
         """
-        return {
+        params: dict[str, object] = {
             "instructions": self.instructions,
             "prompt_template": self.prompt_template,
             "option_prefix": self.option_prefix,
         }
+        # Added only when it differs from the original question, so every
+        # cache entry written before letters existed keeps its key.
+        if self.option_style != "label":
+            params["option_style"] = self.option_style
+        return params
 
     #: The prompt lists the options in the order given.
     label_order_matters = True
@@ -200,12 +231,18 @@ class LocalLogitsAdapter(Adapter):
         if len(labels) < 2:
             raise ValueError(f"need at least 2 labels, got {len(labels)}")
 
+        letters = self._letters(labels)
         readout = self.readout
-        token_ids = self._single_token_ids(readout, labels)
+        token_ids = self._single_token_ids(readout, letters or labels)
         self._check_revision(readout)
 
+        options = (
+            ", ".join(f"{letter}. {label}" for letter, label in zip(letters, labels, strict=True))
+            if letters
+            else ", ".join(labels)
+        )
         prompt = self.prompt_template.format(
-            instructions=self.instructions, text=text, options=", ".join(labels)
+            instructions=self.instructions, text=text, options=options
         )
 
         with self._forward_lock:
@@ -244,8 +281,21 @@ class LocalLogitsAdapter(Adapter):
                 "option_token_ids": dict(zip(labels, token_ids, strict=True)),
                 "option_logits": dict(zip(labels, logits, strict=True)),
                 "probability_semantics": self.probability_semantics,
+                "option_style": self.option_style,
+                **({"option_letters": dict(zip(labels, letters, strict=True))} if letters else {}),
             },
         )
+
+    def _letters(self, labels: list[str]) -> list[str]:
+        """The letter standing for each option, or none when options are read as themselves."""
+        if self.option_style != "letter":
+            return []
+        if len(labels) > len(_LETTERS):
+            raise CaseRefusedError(
+                f"this case has {len(labels)} options and there are {len(_LETTERS)} letters, "
+                "so it cannot be asked by letter. Ask it by label, or run it on another arm."
+            )
+        return list(_LETTERS[: len(labels)])
 
     def _single_token_ids(self, readout: LogitReadout, labels: list[str]) -> list[int]:
         """One token id per option, or a refusal naming what went wrong.
@@ -270,7 +320,9 @@ class LocalLogitsAdapter(Adapter):
                 "plumbline refuses the case rather than truncating an option to its "
                 "first token, because a softmax over truncated options answers a "
                 "different question than the one the dataset asks. Use options that are "
-                "single tokens for this checkpoint, or run this case on another arm."
+                "single tokens for this checkpoint, ask the options by letter "
+                "(option_style letter, --option-style letter), or run this case on another "
+                "arm."
             )
 
         duplicates = [

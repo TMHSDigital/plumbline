@@ -308,3 +308,73 @@ def test_the_device_reaches_the_readout_and_the_artifact(monkeypatch: pytest.Mon
 
     assert seen["device"] == "cuda"
     assert result.config["device"] == "cuda"
+
+
+# Letter labels, for options that are not single tokens
+
+
+class LetterReadout:
+    """Scores the letters A, B, C...; any other text is several tokens."""
+
+    def __init__(self, letter_scores: dict[str, float]) -> None:
+        self.letter_scores = letter_scores
+        self.resolved_revision = PINNED
+        self.prompts: list[str] = []
+        self.asked: list[str] = []
+
+    def token_ids(self, text: str) -> list[int]:
+        self.asked.append(text)
+        letter = text.strip()
+        if len(letter) == 1 and letter.isupper():
+            return [ord(letter)]
+        return [1, 2, 3]
+
+    def option_logits(self, prompt: str, token_ids: list[int]) -> list[float]:
+        self.prompts.append(prompt)
+        return [self.letter_scores[chr(token_id)] for token_id in token_ids]
+
+
+MULTI = ["pay_full_estimate", "deny_vacancy_exclusion", "not_covered"]
+
+
+def test_letters_ask_multi_token_options_by_their_letter() -> None:
+    readout = LetterReadout({"A": 0.0, "B": 2.0, "C": 1.0})
+    adapter = an_adapter(readout, option_style="letter")  # type: ignore[arg-type]
+
+    prediction = adapter.classify("the claim", MULTI)
+
+    assert prediction.label == "deny_vacancy_exclusion"
+    assert set(prediction.distribution or {}) == set(MULTI)
+    assert readout.asked == [" A", " B", " C"]
+    assert "A. pay_full_estimate, B. deny_vacancy_exclusion, C. not_covered" in readout.prompts[0]
+    assert prediction.raw["option_style"] == "letter"
+    assert prediction.raw["option_letters"] == dict(zip(MULTI, "ABC", strict=True))
+
+
+def test_letters_default_to_asking_for_the_letter() -> None:
+    readout = LetterReadout({"A": 1.0, "B": 0.0, "C": 0.0})
+    an_adapter(readout, option_style="letter").classify("t", MULTI)  # type: ignore[arg-type]
+
+    assert "letter" in readout.prompts[0].lower()
+
+
+def test_more_options_than_letters_is_refused() -> None:
+    readout = LetterReadout({chr(65 + i): 0.0 for i in range(26)})
+    labels = [f"option_{i}" for i in range(27)]
+
+    with pytest.raises(CaseRefusedError, match="27 options"):
+        an_adapter(readout, option_style="letter").classify("t", labels)  # type: ignore[arg-type]
+
+
+def test_the_style_changes_the_cache_key_and_label_mode_keys_do_not_move() -> None:
+    labelled = an_adapter()
+    lettered = an_adapter(option_style="letter")
+
+    assert "option_style" not in labelled.call_params
+    assert lettered.call_params["option_style"] == "letter"
+    assert lettered.call_params != labelled.call_params
+
+
+def test_an_unknown_style_is_refused() -> None:
+    with pytest.raises(ValueError, match="option_style"):
+        an_adapter(option_style="numbers")

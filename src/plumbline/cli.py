@@ -98,6 +98,15 @@ def run(
             "takes it. Recorded in the artifact.",
         ),
     ] = None,
+    option_style: Annotated[
+        str | None,
+        typer.Option(
+            "--option-style",
+            help="How a local checkpoint is asked its options: label reads each option's own "
+            "token and refuses options that are not one token; letter lists them as A, B, "
+            "C... and reads the letters.",
+        ),
+    ] = None,
     semantics: Annotated[
         str | None,
         typer.Option(
@@ -159,6 +168,7 @@ def run(
         base_url=base_url,
         timeout=timeout,
         device=device,
+        option_style=option_style,
         semantics=semantics,
         seed=seed,
         accuracy=accuracy,
@@ -317,6 +327,7 @@ def _build(
     base_url: str | None = None,
     timeout: float | None = None,
     device: str | None = None,
+    option_style: str | None = None,
     semantics: str | None,
     seed: int,
     accuracy: float,
@@ -333,6 +344,8 @@ def _build(
         config["timeout"] = timeout
     if device is not None:
         config["device"] = device
+    if option_style is not None:
+        config["option_style"] = option_style
     if semantics is not None:
         config["probability_semantics"] = _semantics(semantics)
 
@@ -374,6 +387,7 @@ _OPTIONS = {
     "base_url": "--base-url",
     "timeout": "--timeout",
     "device": "--device",
+    "option_style": "--option-style",
     "probability_semantics": "--semantics",
 }
 
@@ -413,6 +427,11 @@ def _plan_text(
             if timeout
             else "- Timeout: the adapter's default.",
             *([f"- Device: {device}."] if device else []),
+            *(
+                ["- Options: asked as letters, A for the first, and read from the letter tokens."]
+                if getattr(adapter, "option_style", None) == "letter"
+                else []
+            ),
             f"- Probability semantics: {semantics}.",
             f"- Cost: {cost}",
             f"- Guard: {cost_limit}, {case_limit}; the run would start.",

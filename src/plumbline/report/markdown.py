@@ -566,6 +566,13 @@ def _provenance(result: RunResult, options: ReportOptions) -> list[str]:
     if hits:
         line += f" {hits} of {len(result.records)} rows came from cache and cost nothing."
     lines = [line]
+    if result.config.get("option_style") == "letter":
+        lines.append(
+            "- **Options**: asked as letters, A for the first option and so on, and read from "
+            "the letter tokens. The softmax is over the letters, so it is still conditional on "
+            "the options supplied, and a lettered question is not the question an arm that "
+            "reads the option words is asked."
+        )
     if result.config.get("semantics_set_by") == "operator":
         lines.append(
             f"- **Probability semantics**: {_code(result.probability_semantics)}, set by the "
