@@ -252,6 +252,21 @@ class Prediction:
             if abs(total - 1.0) > DISTRIBUTION_SUM_TOLERANCE:
                 raise ValueError(f"distribution sums to {total!r}, expected approximately 1")
 
+    @property
+    def tied_for_top(self) -> tuple[str, ...]:
+        """The options sharing the highest probability, when two or more do.
+
+        On such a row the answer was chosen by the vendor's tie-break rather
+        than by a margin. Probabilities on a two-decimal grid make that
+        ordinary, and ``label`` is always the vendor's pick, never a recomputed
+        argmax. Empty when nothing tied or there is no distribution.
+        """
+        if not self.distribution:
+            return ()
+        peak = max(self.distribution.values())
+        tied = sorted(option for option, value in self.distribution.items() if value == peak)
+        return tuple(tied) if len(tied) > 1 else ()
+
 
 def docs_confidence(distribution: Mapping[str, float]) -> float:
     """Confidence as the TypeSafe docs describe it, for mocks and for comparison.

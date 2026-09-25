@@ -315,6 +315,13 @@ class RunResult:
                     "prediction": (
                         to_jsonable(record.prediction) if record.prediction is not None else None
                     ),
+                    # Written for whoever audits a close result; derived from
+                    # the distribution, so it is not read back.
+                    "tied_for_top": (
+                        list(record.prediction.tied_for_top)
+                        if record.prediction is not None
+                        else []
+                    ),
                 }
                 for record in self.records
             ],
