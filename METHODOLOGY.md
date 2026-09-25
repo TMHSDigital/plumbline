@@ -330,6 +330,43 @@ for the purpose they exist for. It means a report should not claim resolution
 its inputs do not have, and it is a fact about the measurement that a reader of
 these figures needs in order to know what a small difference is worth.
 
+So the report says it at the point of use. When every probability an arm
+returned sits on a grid of 0.001 or coarser, over at least 20 values, the arm's
+section carries a **Resolution** line naming the grid, and adds a warning when
+the bins are narrower than it.
+
+### The grid does not raise the floor
+
+The open question was whether rounding costs calibration the floor does not
+model, which would read every figure through this transport against a floor
+slightly too low. It does not, at any size this tool reports on.
+
+`scripts/quantization_floor.py` simulates a perfectly calibrated model whose
+true probabilities are continuous, sends them rounded to the grid, and reads
+ECE on the rounded values against `calibration_floor` of those same values, as
+the report does. If rounding cost calibration, the calibrated model would clear
+the floor's 95th percentile more often than 5 percent of the time. Over 200
+trials per row, so a rate within about three points of 5 percent is noise:
+
+| rows | bins | grid | mean ECE | floor mean | above p95 |
+|---|---|---|---|---|---|
+| 40 | 10 | 0.01 | 0.1141 | 0.1149 | 5.5% |
+| 105 | 10 | 0.01 | 0.0743 | 0.0728 | 6.0% |
+| 500 | 10 | 0.01 | 0.0345 | 0.0339 | 5.5% |
+| 2,000 | 10 | 0.01 | 0.0164 | 0.0171 | 5.5% |
+| 10,000 | 10 | 0.01 | 0.0074 | 0.0076 | 2.5% |
+| 105 | 10 | 0.05 | 0.0727 | 0.0714 | 6.0% |
+| 10,000 | 10 | 0.05 | 0.0080 | 0.0075 | 6.5% |
+| 105 | 20 | 0.01 | 0.1002 | 0.0994 | 7.0% |
+| 10,000 | 20 | 0.01 | 0.0106 | 0.0107 | 4.5% |
+
+The measured ECE and the floor agree to the third decimal throughout, and the
+rate stays at the nominal 5 percent, even on a grid five times coarser than the
+vendor's. The reason is that the floor is computed from the rounded values
+themselves: rounding moves each probability by at most half a step, in both
+directions, and within a bin those errors cancel rather than accumulate. What
+the grid bounds is resolution, above; it does not bias the verdict.
+
 ## The three probability_semantics classes
 
 Every adapter declares what kind of number it reports, and the report groups on

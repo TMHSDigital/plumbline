@@ -303,6 +303,29 @@ def multiclass_brier(
     return total / len(distributions)
 
 
+#: Grids a vendor might round to, coarsest first.
+_GRIDS = (0.1, 0.05, 0.01, 0.005, 0.001)
+
+#: Below this many values, landing on a grid says little about the vendor.
+MIN_GRID_VALUES = 20
+
+
+def probability_grid(values: Sequence[float]) -> float | None:
+    """The coarsest grid every value sits on, or None when there is none to see.
+
+    Hosted Jev returns probabilities as multiples of 0.01. That bounds what any
+    figure computed from them can resolve: no bin or threshold finer than the
+    grid means anything, and ties for the top option become ordinary. None when
+    the values are finer than 0.001, or too few to say.
+    """
+    if len(values) < MIN_GRID_VALUES:
+        return None
+    for step in _GRIDS:
+        if all(abs(value / step - round(value / step)) < 1e-6 for value in values):
+            return step
+    return None
+
+
 def calibration_floor(
     series: ProbabilitySeries,
     n_bins: int = DEFAULT_N_BINS,

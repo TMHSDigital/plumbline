@@ -246,6 +246,7 @@ def _arm(result: RunResult, options: ReportOptions, heading: str) -> list[str]:
             f"- **Excluded**: {excluded} rows of an unsupported question type were not scored."
         )
     lines.extend(_asked_as(scoreable))
+    lines.extend(_resolution_lines(scoreable, options))
 
     if not successes:
         # One shared reason is almost always an install or setup step (a missing
@@ -688,6 +689,33 @@ def _confidence_lines(
     except ValueError as undefined:
         return [f"- **Confidence**: not reported. {undefined}"]
     return [f"- **Confidence**: {figure.statement()}"]
+
+
+def _resolution_lines(records: Sequence[CaseRecord], options: ReportOptions) -> list[str]:
+    """The grid the probabilities arrived on, when they arrived on one."""
+    values: list[float] = []
+    for record in records:
+        prediction = record.prediction
+        if prediction is None:
+            continue
+        if prediction.distribution:
+            values.extend(prediction.distribution.values())
+        elif prediction.prob_selected is not None:
+            values.append(prediction.prob_selected)
+    step = calibration.probability_grid(values)
+    if step is None:
+        return []
+    line = (
+        f"- **Resolution**: all {len(values)} probabilities this arm returned are multiples "
+        f"of {step:g}, so no bin or threshold finer than {step:g} can mean anything, and a "
+        "tie for the top option is ordinary rather than rare."
+    )
+    if options.n_bins * step > 1:
+        line += (
+            f" At {options.n_bins} bins each bin is narrower than the grid, so the binning "
+            "measures the rounding rather than the model."
+        )
+    return [line]
 
 
 def _tie_lines(successes: Sequence[CaseRecord]) -> list[str]:
