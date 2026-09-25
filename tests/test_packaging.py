@@ -13,6 +13,8 @@ for a year. Hence a test.
 
 from __future__ import annotations
 
+import re
+import tomllib
 from pathlib import Path
 
 import plumbline
@@ -41,5 +43,8 @@ def test_the_version_is_a_release_version_not_a_placeholder() -> None:
     The release was tagged v0.1.0 while the package still called itself
     0.1.0.dev0, and the test that should have caught it asserted a substring.
     """
-    assert plumbline.__version__ == "0.1.0"
-    assert "dev" not in plumbline.__version__
+    declared = tomllib.loads(
+        (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text(encoding="utf-8")
+    )["project"]["version"]
+    assert plumbline.__version__ == declared
+    assert re.fullmatch(r"\d+\.\d+\.\d+", plumbline.__version__), plumbline.__version__

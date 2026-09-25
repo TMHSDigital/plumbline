@@ -11,6 +11,12 @@ different event from one that moved because it was wrong.
 
 ## Unreleased
 
+## v0.1.1 (2026-09-25)
+
+The review release: every issue the repository review filed is fixed, and the
+local arm has run for real. None of the v0.2 milestone's new measurement (score
+support, batching, per-label scaling) is in it; that is what v0.2 is for.
+
 ### Added
 
 - The report states the grid an arm's probabilities arrived on, when every one
@@ -359,8 +365,8 @@ different event from one that moved because it was wrong.
   precedes what it is not, and decision model, calibration, cascade, Noul,
   binning noise and the Jev wire format are each defined where they appear.
   Adds prerequisites, a bash quickstart, and a note that this is not on PyPI.
-- The adapters table gained a "Run for real" column. Two of the three
-  transports have never run outside the test suite.
+- The adapters table gained a "Run for real" column, saying which transports
+  have run outside the test suite.
 - SECURITY.md distinguishes what secret scanning covers from what it does not,
   since the closest thing to a disclosure this project has had was a vendor's
   price, which no scanner recognises.
