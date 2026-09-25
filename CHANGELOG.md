@@ -365,8 +365,8 @@ support, batching, per-label scaling) is in it; that is what v0.2 is for.
   precedes what it is not, and decision model, calibration, cascade, Noul,
   binning noise and the Jev wire format are each defined where they appear.
   Adds prerequisites, a bash quickstart, and a note that this is not on PyPI.
-- The adapters table gained a "Run for real" column. Two of the three
-  transports have never run outside the test suite.
+- The adapters table gained a "Run for real" column, saying which transports
+  have run outside the test suite.
 - SECURITY.md distinguishes what secret scanning covers from what it does not,
   since the closest thing to a disclosure this project has had was a vendor's
   price, which no scanner recognises.
