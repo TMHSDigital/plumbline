@@ -13,6 +13,14 @@ different event from one that moved because it was wrong.
 
 ### Added
 
+- The report states the grid an arm's probabilities arrived on, when every one
+  sits on a grid of 0.001 or coarser, and warns when the bins are narrower than
+  it (#9). Hosted Jev rounds to two decimals, and a reader needs that to know
+  what a small difference is worth. `scripts/quantization_floor.py` measures
+  whether the rounding raises the ECE floor: across 40 to 10,000 rows, 10 or 20
+  bins, and grids of 0.01 or 0.05, a calibrated model reported on the grid
+  clears the floor's 95th percentile at the nominal 5 percent, so it does not.
+  METHODOLOGY carries the table.
 - A row whose top probability is shared by two or more options is now recorded
   as one (#10). Each artifact record carries `tied_for_top`, and when any row
   tied the report says how many beside the accuracy figure, and on how many the
