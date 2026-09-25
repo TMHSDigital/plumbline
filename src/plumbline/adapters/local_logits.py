@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import math
 import re
+import threading
 import time
 from collections.abc import Mapping, Sequence
 from typing import Protocol
@@ -145,16 +146,24 @@ class LocalLogitsAdapter(Adapter):
         self.allow_unpinned_revision = allow_unpinned_revision
         self.device = device
         self._readout = readout
+        # The run's workers reach the first case together. Without the load
+        # lock each would load its own copy of the checkpoint, gigabytes apiece
+        # onto one device. The forward lock runs one pass at a time: passes on
+        # one device contend rather than overlap, and the latency of a pass
+        # that waited on another would be the wait, not the model.
+        self._load_lock = threading.Lock()
+        self._forward_lock = threading.Lock()
 
     @property
     def readout(self) -> LogitReadout:
-        """The loaded checkpoint, built on first use so import stays cheap."""
-        if self._readout is None:
-            self._readout = TransformersReadout(
-                model_id=self.model_requested,
-                revision=self.pinned_revision,
-                device=self.device,
-            )
+        """The loaded checkpoint, built once on first use so import stays cheap."""
+        with self._load_lock:
+            if self._readout is None:
+                self._readout = TransformersReadout(
+                    model_id=self.model_requested,
+                    revision=self.pinned_revision,
+                    device=self.device,
+                )
         return self._readout
 
     @property
@@ -199,9 +208,10 @@ class LocalLogitsAdapter(Adapter):
             instructions=self.instructions, text=text, options=", ".join(labels)
         )
 
-        started = time.perf_counter()
-        logits = list(readout.option_logits(prompt, token_ids))
-        latency_ms = (time.perf_counter() - started) * 1000.0
+        with self._forward_lock:
+            started = time.perf_counter()
+            logits = list(readout.option_logits(prompt, token_ids))
+            latency_ms = (time.perf_counter() - started) * 1000.0
 
         if len(logits) != len(labels):
             raise PlumblineError(
@@ -326,6 +336,11 @@ class TransformersReadout:
         self._model.to(device)
         self._model.eval()
         self._device = device
+        # The first pass on a device initializes its kernels, which took about a
+        # second on a GPU against a tenth of that for every pass after. That is
+        # setup, not the model, so it happens here rather than inside the first
+        # case's latency.
+        self.option_logits("warm up", [0])
         # transformers records the commit it resolved to. When it does not, the
         # requested revision is the only thing known, and the adapter's own
         # check is what catches a mismatch it can see.

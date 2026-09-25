@@ -253,3 +253,58 @@ def test_the_artifact_marks_the_arm_as_a_restricted_softmax(tmp_path: Path) -> N
     assert stored["probability_semantics"] == "restricted_softmax"
     assert stored["revision"] == PINNED
     assert {record["cost_basis"] for record in stored["records"]} == {"adapter_reports_no_tokens"}
+
+
+# Running for real
+
+
+def test_concurrent_first_cases_load_the_checkpoint_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The run's workers all reach the first case together. Each loading its own
+    copy of the checkpoint is several gigabytes per worker, onto one GPU."""
+    import threading
+    import time
+
+    from plumbline.adapters import local_logits
+
+    loads: list[int] = []
+
+    class SlowToLoad(FakeReadout):
+        def __init__(self, **_kwargs: object) -> None:
+            loads.append(1)
+            time.sleep(0.05)  # long enough for every worker to arrive meanwhile
+            super().__init__()
+
+    monkeypatch.setattr(local_logits, "TransformersReadout", SlowToLoad)
+    adapter = LocalLogitsAdapter(model_requested="tiny-model", revision=PINNED)
+    start = threading.Barrier(8)
+
+    def first_case() -> None:
+        start.wait()
+        adapter.classify("text", LABELS)
+
+    workers = [threading.Thread(target=first_case) for _ in range(8)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join()
+
+    assert len(loads) == 1
+
+
+def test_the_device_reaches_the_readout_and_the_artifact(monkeypatch: pytest.MonkeyPatch) -> None:
+    from plumbline.adapters import local_logits
+
+    seen: dict[str, object] = {}
+
+    class Recorded(FakeReadout):
+        def __init__(self, **kwargs: object) -> None:
+            seen.update(kwargs)
+            super().__init__()
+
+    monkeypatch.setattr(local_logits, "TransformersReadout", Recorded)
+    adapter = registry.create("local_logits", model_requested="m", revision=PINNED, device="cuda")
+
+    result = execute.run(adapter, make_cases(3, labels=LABELS), workers=1)
+
+    assert seen["device"] == "cuda"
+    assert result.config["device"] == "cuda"

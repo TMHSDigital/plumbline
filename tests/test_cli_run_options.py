@@ -6,6 +6,7 @@ dummy key and only ever reach the dry run, which returns before any call.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from pathlib import Path
 
@@ -228,3 +229,56 @@ def test_the_timeout_an_adapter_used_is_in_the_artifact() -> None:
     result = execute.run(Patient(gold_by_text={"t": "a"}), cases)
 
     assert result.config["timeout_seconds"] == 42.0
+
+
+def test_a_device_goes_to_the_local_arm_and_is_refused_elsewhere(tmp_path: Path) -> None:
+    dataset = a_dataset(tmp_path / "d.jsonl")
+
+    refused = invoke("run", str(dataset), "--device", "cuda", "--dry-run")
+    planned = invoke(
+        "run",
+        str(dataset),
+        "--adapter",
+        "local_logits",
+        "--model",
+        "some/checkpoint",
+        "--revision",
+        "c" * 40,
+        "--device",
+        "cuda",
+        "--dry-run",
+    )
+
+    assert refused.exit_code == 1 and "does not take --device" in refused.stderr
+    assert planned.exit_code == 0, planned.stderr
+    assert "Device: cuda" in planned.stdout
+
+
+class RefusesSome(MockAdapter):
+    """Refuses every case whose text ends in an odd digit, as a local arm refuses
+    options it cannot tokenize, and reports no confidence."""
+
+    def classify(self, text: str, labels: list[str], **kwargs: object):  # type: ignore[no-untyped-def]
+        from plumbline.types import CaseRefusedError
+
+        if int(text[-1]) % 2:
+            raise CaseRefusedError("cannot ask this case cleanly")
+        prediction = super().classify(text, labels, **kwargs)  # type: ignore[arg-type]
+        return dataclasses.replace(prediction, confidence=None)
+
+
+def test_refused_cases_are_not_called_cache_hits_and_no_confidence_is_not_blamed_on_yes_no() -> (
+    None
+):
+    from plumbline.report import markdown
+
+    cases = [Case(id=f"c{i}", text=f"t{i}", labels=("a", "b"), gold_label="a") for i in range(10)]
+    result = execute.run(RefusesSome(gold_by_text={case.text: "a" for case in cases}), cases)
+
+    document = markdown.render([result], options=markdown.ReportOptions(n_boot=50))
+    latency_line = next(line for line in document.splitlines() if "**Latency**" in line)
+    confidence_line = next(line for line in document.splitlines() if "**Confidence**" in line)
+
+    assert "over 5 live calls" in latency_line
+    assert "cache hits" not in latency_line
+    assert "yes/no" not in confidence_line

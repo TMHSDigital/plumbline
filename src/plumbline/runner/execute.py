@@ -631,6 +631,9 @@ def run(
         # A tight timeout turns slow answers into failures, which is part of
         # what the run measured.
         "timeout_seconds": getattr(adapter, "timeout", None),
+        # Where a local checkpoint ran. It does not change the question, but a
+        # latency figure means nothing without it.
+        "device": getattr(adapter, "device", None),
         # Whether rows carried option descriptions and whether they were sent,
         # so the report can say when the dataset's descriptions went nowhere.
         "label_descriptions": {
