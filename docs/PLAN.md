@@ -60,9 +60,11 @@ All three items are done. Kept here because the answers matter, not the list.
 
 ## v0.2
 
-- **Ordinal score questions.** The six score rows in the public fixture are
-  loaded, marked and excluded; scoring them needs rank-aware metrics, because
-  every metric here treats wrong-by-one and wrong-by-three identically.
+- **Ordinal score questions.** Landed (#6): mean absolute error against a
+  permutation null, the ranked probability score, and a cumulative calibration
+  error, each against a calibrated-model floor, in a score block of their own.
+  `typesafe_wire` asks a real Score with the row's rubric. Recalibration and the
+  cascade for scores are not designed yet.
 - **Batching.** One request per case today, so cost and latency are both
   conservative relative to batched use. The vendor's own documentation describes
   packing many questions against one shared state in a single call, which is a
@@ -105,7 +107,8 @@ Settled during the build. Reopen one only with a reason, not from scratch.
 - A yes/no row is asked as a Noul where the transport has one, and every record
   carries both what the row asks and how it was asked. A noul figure is never
   compared with a two-option-choice figure without that line between them.
-- Ordinal score rows are loaded, marked and excluded from every figure in v0.1.
+- Ordinal score rows are read by rank in a block of their own and left out of
+  every choice figure; before v0.2 they were excluded from every figure.
 - Artifacts never overwrite each other: the timestamp is only accurate to the
   second, so a repeated name gets a suffix rather than replacing user records.
 - A refused recalibration prints no number: the verdict, the split sizes, and

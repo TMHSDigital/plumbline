@@ -51,6 +51,7 @@ from plumbline.runner.cache import (
     to_prediction,
 )
 from plumbline.types import (
+    CHOICE_QUESTION_TYPES,
     ArtifactError,
     Case,
     CaseRefusedError,
@@ -244,12 +245,23 @@ class RunResult:
         return [record for record in self.records if record.ok and not record.from_cache]
 
     @property
+    def choice_successes(self) -> list[CaseRecord]:
+        """Successful choice and yes/no rows: what the choice figures read.
+
+        A score row is read by the ordinal figures instead, so it is left out of
+        every accessor below, which together are the calibratable column.
+        """
+        return [
+            record for record in self.successes if record.question_type in CHOICE_QUESTION_TYPES
+        ]
+
+    @property
     def outcomes(self) -> list[bool]:
-        return [bool(record.correct) for record in self.successes]
+        return [bool(record.correct) for record in self.choice_successes]
 
     @property
     def accuracy(self) -> float | None:
-        successes = self.successes
+        successes = self.choice_successes
         return sum(self.outcomes) / len(successes) if successes else None
 
     def probabilities(self) -> ProbabilitySeries:
@@ -257,7 +269,7 @@ class RunResult:
         return ProbabilitySeries(
             values=tuple(
                 record.prediction.prob_selected
-                for record in self.successes
+                for record in self.choice_successes
                 if record.prediction is not None
             ),
             semantics=self.probability_semantics,  # type: ignore[arg-type]
@@ -267,7 +279,7 @@ class RunResult:
         return ConfidenceSeries(
             values=tuple(
                 record.prediction.confidence
-                for record in self.successes
+                for record in self.choice_successes
                 if record.prediction is not None
             )
         )
@@ -275,12 +287,12 @@ class RunResult:
     def distributions(self) -> list[dict[str, float] | None]:
         return [
             record.prediction.distribution
-            for record in self.successes
+            for record in self.choice_successes
             if record.prediction is not None
         ]
 
     def gold_labels(self) -> list[str]:
-        return [record.gold_label for record in self.successes]
+        return [record.gold_label for record in self.choice_successes]
 
     def to_jsonable(self) -> dict[str, Any]:
         return {

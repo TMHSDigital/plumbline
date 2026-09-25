@@ -98,7 +98,7 @@ calibrated one both land there on too few rows, and the figure does not say
 which you have. Taking it as a clean bill of health inverts the conclusion, and
 it is the easiest mistake to make with this tool.
 
-On that same 105-row run, three of the four headline figures came back
+On that same run's 105 choice and yes/no rows, three of the four headline figures came back
 inconclusive and only accuracy cleared its null. A tool that printed the other
 three alone would be handing you numbers that look like findings and are not.
 That refusal is the product.
@@ -161,7 +161,7 @@ Expected output shape:
 
 ```
 111 rows read from datasets/public/jevbench-hard.jsonl, 111 loaded, 0 refused. ...
-artifact: results/20260921T222053+0000-mock-1b96dc91.json
+artifact: results/20260925T231349+0000-mock-420956a9.json
 report: results/report.md
 ```
 
@@ -343,10 +343,10 @@ groups side by side.
 
 Specific, and none of them are going to surprise you later.
 
-- **Choice and Noul only.** Ordinal Score rows load, are marked, and are excluded
-  from every figure. Flattening ordered levels into unordered options discards
-  the ordering that makes them a score, so v0.1 declines rather than
-  approximating.
+- **Score rows get three rank-aware figures and nothing else.** An ordinal level
+  is read by mean absolute error, the ranked probability score, and a cumulative
+  calibration error, each against its own null, in a block apart from the
+  choice figures. Recalibration and the cascade are not applied to them.
 - **One request per case, no batching.** Cost and latency figures are therefore
   conservative relative to batched use, where a single call carrying many
   questions against one shared state is materially cheaper and faster.

@@ -68,17 +68,21 @@ QuestionType = Literal["choice", "noul", "score"]
     calibration target in the API is the bare probability.
 
 ``score``
-    An ordinal level, such as 0 to 3. plumbline v0.1 has no ordinal support:
-    flattening levels into unordered options throws away the ordering, and
-    reporting rank-blind metrics on them would be worse than reporting nothing.
-    Such cases are loaded, marked, and excluded from scored results.
+    An ordinal level, such as 0 to 3. Its options are its levels, as integers.
+    It is answered as a distribution over the levels and read by rank-aware
+    figures of its own (``metrics/ordinal.py``), never by the rank-blind choice
+    figures, which would score wrong by one and wrong by three the same.
 """
 
 QUESTION_TYPES: tuple[QuestionType, ...] = get_args(QuestionType)
 
-#: Question types plumbline can score in v0.1. A case outside this set is loaded
-#: and carried so that nothing is silently lost, and excluded from every metric.
-SUPPORTED_QUESTION_TYPES: tuple[QuestionType, ...] = ("choice", "noul")
+#: Question types plumbline can score. A case outside this set is loaded and
+#: carried so that nothing is silently lost, and excluded from every metric.
+SUPPORTED_QUESTION_TYPES: tuple[QuestionType, ...] = ("choice", "noul", "score")
+
+#: The question types the choice figures read: accuracy, ECE, Brier, and the
+#: rest. A score row is read by the ordinal figures instead, never by these.
+CHOICE_QUESTION_TYPES: tuple[QuestionType, ...] = ("choice", "noul")
 
 #: Option names read as "yes" and as "no". A yes/no question has to be pinned to
 #: its two outcomes before a bare P(yes) can be attached to either of them.
@@ -187,7 +191,7 @@ class Case:
 
     @property
     def is_scoreable(self) -> bool:
-        """Whether v0.1 can turn this case into a number it is willing to report."""
+        """Whether plumbline can turn this case into a number it is willing to report."""
         return self.question_type in SUPPORTED_QUESTION_TYPES
 
     def __post_init__(self) -> None:

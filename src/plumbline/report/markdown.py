@@ -28,11 +28,20 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 from plumbline.datasets.loader import LoadReport, LoadSummary
-from plumbline.metrics import baseline, calibration, cascade, cost, latency, recalibration
+from plumbline.metrics import (
+    baseline,
+    calibration,
+    cascade,
+    cost,
+    latency,
+    ordinal,
+    recalibration,
+)
 from plumbline.metrics.calibration import Binning
 from plumbline.metrics.cost import DEFAULT_PRICING_MAX_AGE_DAYS
 from plumbline.runner.execute import CaseRecord, RunResult
 from plumbline.types import (
+    CHOICE_QUESTION_TYPES,
     SUPPORTED_QUESTION_TYPES,
     ConfidenceSeries,
     InsufficientDataError,
@@ -231,8 +240,10 @@ def _arm(result: RunResult, options: ReportOptions, heading: str) -> list[str]:
         record for record in result.records if record.question_type in SUPPORTED_QUESTION_TYPES
     ]
     excluded = len(result.records) - len(scoreable)
-    successes = [record for record in scoreable if record.prediction is not None]
-    failures = [record for record in scoreable if record.prediction is None]
+    # Score rows are read by rank in a block of their own, never by the choice
+    # figures, which would score wrong by one level and wrong by three the same.
+    choice_rows = [record for record in scoreable if record.question_type in CHOICE_QUESTION_TYPES]
+    score_rows = [record for record in scoreable if record.question_type == "score"]
 
     lines = ["", f"### {heading}", "", *_provenance(result, options)]
     described = result.config.get("label_descriptions") or {}
@@ -246,7 +257,21 @@ def _arm(result: RunResult, options: ReportOptions, heading: str) -> list[str]:
             f"- **Excluded**: {excluded} rows of an unsupported question type were not scored."
         )
     lines.extend(_asked_as(scoreable))
-    lines.extend(_resolution_lines(scoreable, options))
+    lines.extend(_resolution_lines(choice_rows, options))
+
+    if choice_rows:
+        lines.extend(_choice_block(result, choice_rows, options))
+    lines.extend(_score_block(result, score_rows, options, arm_wide=not choice_rows))
+    return lines
+
+
+def _choice_block(
+    result: RunResult, scoreable: Sequence[CaseRecord], options: ReportOptions
+) -> list[str]:
+    """Every figure the choice and yes/no rows get, from accuracy to diagnostics."""
+    successes = [record for record in scoreable if record.prediction is not None]
+    failures = [record for record in scoreable if record.prediction is None]
+    lines: list[str] = []
 
     if not successes:
         # One shared reason is almost always an install or setup step (a missing
@@ -289,7 +314,9 @@ def _arm(result: RunResult, options: ReportOptions, heading: str) -> list[str]:
     lines.extend(_calibration_lines(probabilities, outcomes, options))
     lines.extend(_confidence_lines(successes, outcomes, options))
     lines.extend(_distribution_caveat(result, successes))
-    lines.extend(_cost_lines(result, scoreable, options))
+    # Cost is the arm's, so it counts the score rows too: they were calls.
+    every_row = [r for r in result.records if r.question_type in SUPPORTED_QUESTION_TYPES]
+    lines.extend(_cost_lines(result, every_row, options))
     lines.extend(_latency_lines(result))
 
     fit = _fit(probabilities, successes, outcomes, options)
@@ -297,6 +324,72 @@ def _arm(result: RunResult, options: ReportOptions, heading: str) -> list[str]:
     lines.extend(_per_label_section(fit))
     lines.extend(_cascade_section(fit, successes, outcomes, options, result.probability_semantics))
     lines.extend(_diagnostics(result, probabilities, successes, outcomes, options))
+    return lines
+
+
+def _score_block(
+    result: RunResult,
+    score_rows: Sequence[CaseRecord],
+    options: ReportOptions,
+    *,
+    arm_wide: bool,
+) -> list[str]:
+    """The ordinal rows' own figures, each with its null. See metrics/ordinal.py."""
+    if not score_rows:
+        return []
+    lines = [
+        "",
+        "#### Score questions",
+        "",
+        f"- {len(score_rows)} rows ask for an ordinal level and are read by rank, by the "
+        "figures below and by none of the figures above. They are not comparable with a "
+        "choice figure.",
+    ]
+    successes = [record for record in score_rows if record.prediction is not None]
+    failures = len(score_rows) - len(successes)
+    if not successes:
+        lines.append(
+            f"- **No figures**: all {failures} score rows failed or were refused; the "
+            "reasons are in the artifact."
+        )
+        return lines
+
+    answers = []
+    for record in successes:
+        prediction = record.prediction
+        assert prediction is not None
+        expected = prediction.raw.get("expected_score")
+        answers.append(
+            ordinal.answer_from(
+                record.labels,
+                prediction.distribution,
+                prediction.label,
+                record.gold_label,
+                expected=float(expected) if isinstance(expected, int | float) else None,
+            )
+        )
+    lines.extend(
+        f"- {statement}"
+        for statement in ordinal.score_statements(
+            answers,
+            n_bins=options.n_bins,
+            binning=options.binning,
+            n_boot=options.n_boot,
+            seed=options.seed,
+        )
+    )
+    if failures:
+        lines.append(
+            f"- **Failures**: {failures} of {len(score_rows)} score rows produced no "
+            "prediction and are excluded rather than scored."
+        )
+    lines.append(
+        "- Recalibration and the cascade are not applied to score rows: each would be a "
+        "different correction or decision on an ordered answer, and neither is designed yet."
+    )
+    if arm_wide:
+        lines.extend(_cost_lines(result, score_rows, options))
+        lines.extend(_latency_lines(result))
     return lines
 
 

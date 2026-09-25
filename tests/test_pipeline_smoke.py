@@ -41,11 +41,12 @@ def smoked(smoke: ModuleType, tmp_path_factory: pytest.TempPathFactory):
 
 
 def test_every_scoreable_row_of_the_public_fixture_reaches_the_runner(smoked) -> None:
-    """All 111 rows load; the 6 ordinal ones are held back rather than scored."""
+    """All 111 rows load and all 111 run; the 6 ordinal ones are scored by rank."""
     assert smoked.load.rows_read == 111
     assert smoked.load.row_count == 111
-    assert smoked.load.unsupported_by_type == {"score": 6}
-    assert len(smoked.result.records) == 105
+    assert smoked.load.unsupported_by_type == {}
+    assert len(smoked.result.records) == 111
+    assert sum(1 for record in smoked.result.records if record.question_type == "score") == 6
     assert not smoked.result.failures
 
 
@@ -83,9 +84,9 @@ def test_the_summary_refuses_to_let_a_mock_be_read_as_a_result(smoked) -> None:
 def test_the_artifact_lands_on_disk_with_the_rows_it_covered(smoked) -> None:
     stored = json.loads(smoked.artifact.read_text(encoding="utf-8"))
 
-    assert stored["dataset_rows"] == 105
+    assert stored["dataset_rows"] == 111
     assert stored["dataset_hash"]
-    assert len(stored["records"]) == 105
+    assert len(stored["records"]) == 111
     assert stored["probability_semantics"] == "calibrated_claim"
 
 

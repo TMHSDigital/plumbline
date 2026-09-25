@@ -281,25 +281,52 @@ def test_choice_rows_stay_choices() -> None:
     assert len([case for case in report.cases if case.question_type == "choice"]) == 67
 
 
-def test_score_rows_are_loaded_and_marked_rather_than_dropped() -> None:
-    """Nothing is lost silently: the rows are there, and they are labeled."""
+def test_score_rows_are_loaded_as_scoreable_with_their_rubric() -> None:
+    """A score row is scored by rank now, and its rubric describes its levels."""
     report = loader.load_jevbench(PUBLIC_FIXTURE)
     score_cases = [case for case in report.cases if case.question_type == "score"]
 
     assert len(score_cases) == 6
     assert report.row_count == 111
-    assert all(not case.is_scoreable for case in score_cases)
+    assert all(case.is_scoreable for case in score_cases)
+    roster = next(case for case in score_cases if case.id == "hard-opus-a-temporal_numeric-12")
+    assert roster.label_descriptions == {
+        "0": "No violations",
+        "1": "Exactly one violation",
+        "2": "Exactly two violations",
+        "3": "Three or more violations",
+    }
 
 
-def test_score_rows_are_kept_out_of_the_scoreable_set_and_the_notes_say_why() -> None:
-    """Flattening ordinal levels into unordered options throws the ordering away."""
+def test_the_notes_say_score_rows_are_read_by_rank_apart_from_the_choice_figures() -> None:
     report = loader.load_jevbench(PUBLIC_FIXTURE)
 
-    assert len(report.scoreable) == 105
-    assert all(case.question_type != "score" for case in report.scoreable)
-    assert report.unsupported_by_type == {"score": 6}
+    assert len(report.scoreable) == 111
+    assert report.unsupported_by_type == {}
     note = " ".join(report.notes)
-    assert "6" in note and "ordinal" in note and "excluded" in note
+    assert "6 rows ask for an ordinal score" in note and "by rank" in note
+
+
+def test_a_score_row_whose_options_are_not_levels_is_refused(tmp_path: Path) -> None:
+    path = tmp_path / "d.jsonl"
+    path.write_text(
+        json.dumps(
+            {
+                "id": "s1",
+                "text": "rate it",
+                "labels": ["low", "high"],
+                "gold_label": "low",
+                "question_type": "score",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    report = loader.load_jsonl(path)
+
+    assert not report.cases
+    assert "levels" in str(report.refusals[0])
 
 
 def test_our_own_jsonl_can_declare_the_question_type(tmp_path: Path) -> None:
@@ -340,7 +367,7 @@ def test_the_example_in_the_dataset_docs_loads_as_documented(tmp_path) -> None:
     assert not report.refusals
     kinds = sorted(case.question_type for case in report.cases)
     assert kinds == ["choice", "choice", "choice", "noul", "score"]
-    assert len(report.scoreable) == 4  # the score row loads and is held back
+    assert len(report.scoreable) == 5  # the score row is scored by rank
 
 
 # Validation the loaders were missing (#44, #45)

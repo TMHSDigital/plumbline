@@ -26,9 +26,11 @@ Blank lines are skipped. Every other line is one case.
   `true`/`false`), because which option is the yes is a fact about your data,
   not something to guess. A transport that has a native yes/no question asks it
   as one, and gets back one probability rather than a distribution.
-- `score`: an ordinal level, such as 0 to 3. v0.1 loads these rows and excludes
-  them from every figure, because ordering is lost if levels are scored as
-  unordered options. The load summary says how many there were.
+- `score`: an ordinal level. Its `labels` are its levels, the integers 0 to
+  K minus 1 as strings, and a row whose options are not is refused. It is read
+  by rank, by three figures of its own, and never by the choice figures, which
+  would score wrong by one level and wrong by three the same. A level's
+  `label_descriptions` entry is its rubric, which a score transport sends.
 
 ## An example
 
