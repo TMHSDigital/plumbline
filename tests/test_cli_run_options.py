@@ -282,3 +282,26 @@ def test_refused_cases_are_not_called_cache_hits_and_no_confidence_is_not_blamed
     assert "over 5 live calls" in latency_line
     assert "cache hits" not in latency_line
     assert "yes/no" not in confidence_line
+
+
+def test_an_option_style_goes_to_the_local_arm_and_is_refused_elsewhere(tmp_path: Path) -> None:
+    dataset = a_dataset(tmp_path / "d.jsonl")
+
+    refused = invoke("run", str(dataset), "--option-style", "letter", "--dry-run")
+    planned = invoke(
+        "run",
+        str(dataset),
+        "--adapter",
+        "local_logits",
+        "--model",
+        "some/checkpoint",
+        "--revision",
+        "c" * 40,
+        "--option-style",
+        "letter",
+        "--dry-run",
+    )
+
+    assert refused.exit_code == 1 and "does not take --option-style" in refused.stderr
+    assert planned.exit_code == 0, planned.stderr
+    assert "Options: asked as letters" in planned.stdout

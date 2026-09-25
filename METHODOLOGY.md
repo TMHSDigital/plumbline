@@ -425,6 +425,26 @@ moves, without anything about the case having changed. It can behave like a
 calibrated probability on a given workload, and whether it does is measurable,
 which is why plumbline measures it rather than assuming either way.
 
+The local arm reads that softmax in one of two ways, and the artifact and the
+report say which. By default it reads each option's own token, which means every
+option must be a single token for the checkpoint: an option that tokenizes into
+several pieces is refused by name, because a softmax over first tokens answers a
+different question than the dataset asks. Options written as identifiers, such
+as `pay_subject_to_10000_sublimit`, are almost never one token, so on a dataset
+of them this reading scores little beyond the yes/no rows.
+
+`--option-style letter` asks the same options by letter instead: the prompt lists
+them as A, B, C, and the softmax is over the letter tokens, each of which is one
+token. That scores options of any length and is the usual way multiple-choice
+questions are put to an open model. It is a different question, though, and is
+labelled as one. The letters bring position into the answer, which is why the
+cache keys the option order for this arm, and the numbers are conditional on the
+lettered option set exactly as the plain reading is on the words. Scoring each
+option by the probability of its whole token sequence was the other candidate,
+and was not taken: longer options would lose probability for being long, and
+every way of correcting for length is a choice the result would silently depend
+on.
+
 Citations, kept separate on purpose. SemIf is an independent project and says so:
 "not affiliated with or endorsed by TypeSafe". fastjev is an independently
 maintained fork of SemIf that preserves its history and MIT license, follows its

@@ -201,10 +201,16 @@ uv run plumbline run datasets/public/jevbench-hard.jsonl --format jevbench \
 
 `--device` defaults to `cpu`, which works anywhere and is slow. On Windows the
 torch that PyPI serves is CPU only; for `--device cuda`, install a CUDA build
-of torch from the PyTorch index into the same environment. The arm scores only
-options that are a single token for the checkpoint and refuses the rest by
-name, so on the public fixture, whose choice options are mostly multi-word
-identifiers, most choice rows are refused and the yes/no rows carry the run.
+of torch from the PyTorch index into the same environment.
+
+By default the arm reads each option's own token, so it scores only options
+that are a single token for the checkpoint and refuses the rest by name. The
+public fixture's choice options are mostly multi-word identifiers, so that way
+66 of its 67 choice rows are refused. Add `--option-style letter` to ask the
+options as A, B, C and read the letters instead: every row is scored, and the
+report says the question was lettered. On the fixture that run landed at chance
+accuracy with an ECE of 0.349 against a floor of 0.087: a small model that is
+confidently wrong, which is the case a calibration figure exists to catch.
 
 ### Running a hosted vendor
 
@@ -313,7 +319,7 @@ and self-hosted servers speak it, which is why one adapter covers all of them.
 | Adapter | Transport | Semantics | Run for real | Adding one |
 |---|---|---|---|---|
 | `typesafe_wire` | Jev wire format over HTTP | `calibrated_claim` | Yes, 40 rows against a hosted vendor | `--base-url`. Anything serving the same wire format is one flag, recorded in the artifact, including self-hosted endpoints and open models behind a compatible server. |
-| `local_logits` | Option-token logits from a local checkpoint | `restricted_softmax` | Yes, 105 rows against a pinned Qwen2.5-1.5B-Instruct on a GPU; 39 scored, 66 refused as multi-token | A HuggingFace model id and a pinned revision. Needs the optional `local` extra. |
+| `local_logits` | Option-token logits from a local checkpoint | `restricted_softmax` | Yes, 105 rows against a pinned Qwen2.5-1.5B-Instruct on a GPU; 39 scored by label, all 105 by letter | A HuggingFace model id and a pinned revision. Needs the optional `local` extra. |
 | `generative` | Chat completion, parsed | `none` | **No, tests only** | A model string. |
 | `mock` | None, seeded | configurable | Yes, it is the example report | Built in. A deterministic stand-in, not a system under test. |
 

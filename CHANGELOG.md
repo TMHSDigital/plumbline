@@ -11,6 +11,18 @@ different event from one that moved because it was wrong.
 
 ## Unreleased
 
+### Added
+
+- `--option-style letter` asks a local checkpoint its options as A, B, C and
+  reads the letter tokens, so options of any length can be scored (#3). The
+  default still reads each option's own token and refuses one that is several
+  tokens. On the public fixture the default scores 39 of 105 rows; by letter,
+  all 105, at chance accuracy with an ECE of 0.349 against a floor of 0.087.
+  The style is part of the cache key only when it is `letter`, so existing
+  entries keep their keys, and the artifact and the report record it.
+  METHODOLOGY says why sequence probability was not used instead: longer
+  options would lose probability for being long.
+
 ## v0.1.1 (2026-09-25)
 
 The review release: every issue the repository review filed is fixed, and the

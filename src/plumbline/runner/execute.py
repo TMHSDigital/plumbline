@@ -641,6 +641,10 @@ def run(
         # Where a local checkpoint ran. It does not change the question, but a
         # latency figure means nothing without it.
         "device": getattr(adapter, "device", None),
+        # How a local checkpoint was asked its options: by their own tokens, or
+        # by letter. The report says so, since a lettered question is a
+        # different question.
+        "option_style": getattr(adapter, "option_style", None),
         # Whether rows carried option descriptions and whether they were sent,
         # so the report can say when the dataset's descriptions went nowhere.
         "label_descriptions": {
