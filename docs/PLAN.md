@@ -5,14 +5,24 @@ is still unknown. Kept short on purpose: a cleared context should be able to rea
 this page and pick up where the work stopped.
 
 **v0.1 is complete.** Code, docs, CI, licence and the live validation all
-landed on 2026-09-21. CI is green on Ubuntu and Windows across Python 3.12 and
-3.13. `v0.1.0` is tagged and released.
+landed on 2026-09-21, and `v0.1.0` was released that day.
+
+**`v0.1.1` is released**, 2026-09-25: the review release. A repository review
+filed 43 issues against v0.1.0 and every one is fixed in it, the local arm has
+run against a real checkpoint, and it is the first release whose wheel and
+sdist are built, checked, and attested by the release workflow. CI is green on
+Ubuntu, Windows, and macOS across Python 3.12 to 3.14, and on the oldest
+dependencies pyproject allows.
 
 The repository is public as of 2026-09-21. The "Pre-public checklist" at the
 bottom of this page is kept as the record of what was verified before that
 happened, not as outstanding work.
 
-The remaining work is the v0.2 milestone, and #3 comes first.
+The remaining work is the v0.2 milestone, and #3 comes first. Its local half
+is done; its generative half needs a paid run. Two decisions are open before
+v0.2 builds on the local arm: whether it should score multi-token options by
+sequence probability rather than refuse them (raised on #3), and whether MCE
+stays in the report at all (#7).
 
 ## Phases
 
