@@ -350,9 +350,10 @@ Specific, and none of them are going to surprise you later.
 - **One request per case, no batching.** Cost and latency figures are therefore
   conservative relative to batched use, where a single call carrying many
   questions against one shared state is materially cheaper and faster.
-- **Temperature scaling only.** Per-label and vector scaling are not fitted. When
-  the residual says temperature is the wrong correction, the tool refuses and
-  emits no temperature rather than returning one that does not fit.
+- **Temperature scaling, globally or per predicted label.** When one
+  temperature is the wrong shape, the report tries one per predicted label, and
+  refuses both rather than return a correction that does not fit. Vector and
+  matrix scaling are not fitted.
 - **Recalibration needs 200 held-out rows.** Below that it refuses. Most datasets
   people try first will not reach it.
 - **Cost requires a pricing table you supply.** plumbline ships no figures for

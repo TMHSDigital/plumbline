@@ -13,6 +13,15 @@ different event from one that moved because it was wrong.
 
 ### Added
 
+- A temperature per predicted label, tried only when the global fit is refused
+  as the wrong shape or stops short of the floor (#4). It uses the global fit's
+  split and verdict rule, leaves a label with under 100 fit rows as it came and
+  names it, prints its temperatures in a block of their own that says they are
+  not comparable with the global one, and names which correction to apply. On
+  the mock, from about 100 fit rows per label, it lands a per-label bias inside
+  the floor where one temperature leaves 1.2 to 3.3 times it; where one
+  temperature is the right shape its extra parameters cost 5 to 15 percent more
+  held-out ECE. `scripts/per_label_study.py` and METHODOLOGY carry the tables.
 - `--option-style letter` asks a local checkpoint its options as A, B, C and
   reads the letter tokens, so options of any length can be scored (#3). The
   default still reads each option's own token and refuses one that is several

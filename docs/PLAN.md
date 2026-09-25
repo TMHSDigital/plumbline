@@ -68,12 +68,13 @@ All three items are done. Kept here because the answers matter, not the list.
   packing many questions against one shared state in a single call, which is a
   materially different cost and latency profile and is the single largest
   measurement gap in v0.1.
-- **Per-label and vector scaling.** Only temperature is fitted. When the
-  residual says temperature is the wrong correction the tool refuses, which is
-  right but leaves the user with nothing to apply.
-- **Adapters do not receive `label_descriptions`**, so a dataset's per-option
-  criteria never reach the wire. A Choice takes them directly and a Noul takes
-  true/false descriptions.
+- **Per-label scaling.** Landed (#4): after a global fit refused as the wrong
+  shape or stopped short of the floor, a temperature per predicted label, on the
+  same split and verdict rule, with a 100-row gate per label. Vector and matrix
+  scaling stay out until per-label proves insufficient on real data.
+- **Option descriptions on the wire.** Landed in v0.1.1 (#39): `typesafe_wire`
+  sends a Choice's descriptions as its criteria, they join the cache key and the
+  dataset hash, and the report says when an adapter does not send them.
 
 ## Decisions
 

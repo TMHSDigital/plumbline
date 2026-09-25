@@ -294,6 +294,7 @@ def _arm(result: RunResult, options: ReportOptions, heading: str) -> list[str]:
 
     fit = _fit(probabilities, successes, outcomes, options)
     lines.extend(_recalibration_section(fit, options))
+    lines.extend(_per_label_section(fit))
     lines.extend(_cascade_section(fit, successes, outcomes, options, result.probability_semantics))
     lines.extend(_diagnostics(result, probabilities, successes, outcomes, options))
     return lines
@@ -305,6 +306,8 @@ class _Fit:
 
     result: recalibration.RecalibrationResult | None
     unavailable: str | None  # the reason, when there is no result at all
+    per_label: recalibration.PerLabelResult | None = None
+    """The fallback, tried only when the global fit was the wrong shape."""
 
 
 def _fit(
@@ -336,7 +339,30 @@ def _fit(
         )
     except (InsufficientDataError, ValueError) as refused:
         return _Fit(None, str(refused))
-    return _Fit(fitted, None)
+    if fitted.reason not in _WRONG_SHAPE:
+        return _Fit(fitted, None)
+    try:
+        per_label = recalibration.recalibrate_per_label(
+            probabilities,
+            outcomes,
+            predicted_labels=[record.prediction.label for record in successes if record.prediction],
+            distributions=distributions,
+            gold_labels=gold,
+            fit_fraction=options.fit_fraction,
+            seed=options.seed,
+            min_eval_rows=options.min_eval_rows,
+            n_bins=options.n_bins,
+            binning=options.binning,
+            n_boot_floor=options.n_boot,
+        )
+    except (InsufficientDataError, ValueError):
+        per_label = None
+    return _Fit(fitted, None, per_label)
+
+
+#: The global verdicts that say one temperature was the wrong shape, and so
+#: the ones after which a temperature per predicted label is worth trying.
+_WRONG_SHAPE = frozenset({"no_material_improvement", "residual_above_floor"})
 
 
 #: What a refusal says, with no number in it. A refused fit emits no
@@ -403,6 +429,115 @@ def _recalibration_section(fit: _Fit, options: ReportOptions) -> list[str]:
     if not result.had_distribution and result.semantics != "none":
         lines.append(f"- {recalibration.NO_DISTRIBUTION_NOTE}")
     return lines
+
+
+def _per_label_section(fit: _Fit) -> list[str]:
+    """The fallback's block: which labels were fitted, the verdict, and what to apply."""
+    result, per_label = fit.result, fit.per_label
+    if result is None or per_label is None:
+        return []
+    lines = [
+        "",
+        "#### Per-label fallback",
+        "",
+        "- One temperature did not fit, so one temperature per predicted label was fitted "
+        f"on the same split: {per_label.split_sizes}, {per_label.method} form. These are "
+        "a different correction from the global temperature, one parameter per label, and "
+        "are not comparable with it.",
+        "",
+    ]
+    refused = per_label.recommendation == "refused"
+    if refused:
+        lines += ["| label | fit rows | held-out rows |", "|---|---|---|"]
+        lines += [
+            f"| {_cell(entry.label)} | {entry.n_fit} | {entry.n_eval} |"
+            for entry in per_label.labels
+        ]
+    else:
+        lines += [
+            "| label | fit rows | held-out rows | T | 95 percent interval |",
+            "|---|---|---|---|---|",
+        ]
+        for entry in per_label.labels:
+            if entry.temperature is None or entry.temperature_ci is None:
+                lines.append(
+                    f"| {_cell(entry.label)} | {entry.n_fit} | {entry.n_eval} | not fitted, under "
+                    f"{per_label.min_label_rows} fit rows | |"
+                )
+            else:
+                low, high = entry.temperature_ci
+                lines.append(
+                    f"| {_cell(entry.label)} | {entry.n_fit} | {entry.n_eval} | "
+                    f"{entry.temperature:.3f} | [{low:.3f}, {high:.3f}] |"
+                )
+    lines.append("")
+
+    if refused:
+        # As with the global fit, a refusal carries no number anybody can lift.
+        lines.append(f"- {_PER_LABEL_REFUSALS.get(per_label.reason, _PER_LABEL_REFUSALS['none'])}")
+        if not per_label.fitted:
+            lines[-1] = (
+                f"- Refused: no label had {per_label.min_label_rows} fit rows, so no per-label "
+                "temperature was fitted. Collect more rows per label."
+            )
+    else:
+        floor = per_label.floor["ece"]
+        lines.append(
+            f"- ECE {per_label.before.ece:.4f} before, {per_label.after.ece:.4f} after, "
+            f"against a calibrated-model floor of {floor.mean:.4f} (95th percentile "
+            f"{floor.p95:.4f}) on the held-out rows."
+        )
+        lines.append(
+            "- Recommended: post-scaling ECE is inside the floor."
+            if per_label.recommendation == "recommended"
+            else f"- Partial: {per_label.after.ece:.4f} remains, "
+            f"{per_label.residual_ratio:.1f} times the floor's 95th percentile."
+        )
+
+    if not refused and (
+        result.recommendation == "refused" or per_label.after.ece < result.after.ece
+    ):
+        apply = (
+            "- Apply: the per-label temperatures, each to the rows the model predicts that "
+            "label for, leaving any label not fitted as it came. Not the global temperature."
+        )
+    elif result.recommendation != "refused":
+        apply = (
+            "- Apply: the global temperature above. The per-label fit did not leave less "
+            "miscalibration behind it."
+        )
+    else:
+        apply = "- Apply: neither. No correction here recovers this arm's calibration."
+    lines.append(apply)
+    lines.append(
+        "- The cascade below scores on the global temperature when one was emitted, "
+        "otherwise on the probabilities as they came; it does not use these."
+    )
+    return lines
+
+
+#: A per-label refusal, with no number in it.
+_PER_LABEL_REFUSALS = {
+    "already_calibrated": (
+        "Refused: calibration is already inside the floor, so there is nothing for a "
+        "per-label correction to do."
+    ),
+    "no_material_improvement": (
+        "Refused: per-label scaling changed ECE by no more than this sample size changes it "
+        "by chance, so no temperatures are emitted. The miscalibration is not a per-label "
+        "temperature either."
+    ),
+    "interval_spans_one": (
+        "Refused: every fitted label's interval spans 1.0, so this sample does not "
+        "establish that any label needs correcting."
+    ),
+    "none": "Refused: no per-label temperature recovers this arm's calibration.",
+}
+
+
+def _cell(value: str) -> str:
+    """A label as a table cell, whatever it contains."""
+    return value.replace("|", "\\|")
 
 
 def _cascade_section(
