@@ -11,6 +11,12 @@ different event from one that moved because it was wrong.
 
 ## Unreleased
 
+## v0.1.1 (2026-09-25)
+
+The review release: every issue the repository review filed is fixed, and the
+local arm has run for real. None of the v0.2 milestone's new measurement (score
+support, batching, per-label scaling) is in it; that is what v0.2 is for.
+
 ### Added
 
 - The report states the grid an arm's probabilities arrived on, when every one
