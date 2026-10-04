@@ -86,6 +86,47 @@ temperature exactly, and what remains, including the drift to 1.43x at 20,000
 rows, is the mock's own base calibration rather than anything the correction
 left behind.
 
+#### A monotone fit repairs the shape, at a price
+
+The remaining question was whether a different correction does better on a lone
+scalar. `scripts/isotonic_scalar.py` fits isotonic regression (pool adjacent
+violators) beside the binary temperature, on the same first half of the same
+mock rows and judged on the same second half, averaged over five seeds. Each
+cell is held-out ECE after the correction, with its ratio to the floor of the
+corrected probabilities:
+
+| rows | injected skew | floor | before | temperature | isotonic |
+|---|---|---|---|---|---|
+| 200 | T = 0.5 | 0.0485 | 0.1882 | 0.0724 (1.00x) | 0.1037 (1.57x) |
+| 500 | T = 0.5 | 0.0299 | 0.1792 | 0.0438 (0.97x) | 0.0566 (1.25x) |
+| 2,000 | T = 0.5 | 0.0150 | 0.1643 | 0.0266 (1.15x) | 0.0323 (1.32x) |
+| 5,000 | T = 0.5 | 0.0096 | 0.1662 | 0.0238 (1.67x) | 0.0282 (1.90x) |
+| 20,000 | T = 0.5 | 0.0048 | 0.1658 | 0.0210 (2.93x) | 0.0128 (1.65x) |
+| 200 | T = 2.0 | 0.0834 | 0.2038 | 0.1951 (1.95x) | 0.1155 (1.90x) |
+| 500 | T = 2.0 | 0.0541 | 0.2043 | 0.1815 (2.86x) | 0.0482 (1.08x) |
+| 2,000 | T = 2.0 | 0.0274 | 0.2147 | 0.1836 (5.74x) | 0.0241 (1.07x) |
+| 5,000 | T = 2.0 | 0.0174 | 0.2096 | 0.1756 (8.70x) | 0.0224 (1.53x) |
+| 20,000 | T = 2.0 | 0.0085 | 0.2100 | 0.1756 (17.44x) | 0.0130 (1.68x) |
+
+Two things follow. Where temperature is stuck, isotonic is not: on the
+underconfident case it returns ECE to within about 1.1x of the floor from 500
+rows, where the binary temperature never leaves 0.18, and its leftover error
+keeps falling as rows are added (0.0130 at 20,000) where the temperature's is
+flat. But where temperature is already close, isotonic is the worse fit at small
+sizes: on the overconfident case it is 1.6x the floor at 200 rows against 1.0x,
+and it does not overtake the temperature until about 20,000 rows. It is a step
+function fitted to the rows, so it spends rows to find the shape that
+temperature assumes.
+
+This answers the question and stops short of a feature. The mock's skew is a
+pure temperature on the multiclass log probabilities, so it tests how well each
+form handles that one distortion, not how a real vendor's top-line probability is
+distorted. A fit that chooses between the two would need its own held-out
+discipline, since selecting by held-out ECE and then reporting held-out ECE would
+count the choice twice. Until then the report fits the temperature only, and
+isotonic regression is left to the reader who has several thousand rows and a
+scalar-only column that the temperature visibly does not fix.
+
 So an adapter that reports a probability without a distribution is penalized
 twice: it loses a metric, and the correction plumbline can fit for it is weaker
 even in the easy case. This is a consequence of the API shape rather than of the
