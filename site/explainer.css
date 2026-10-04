@@ -65,6 +65,8 @@ ol.steps > li { margin-bottom: 1.25rem; }
 @media (min-width: 64rem) {
   main.explainer { max-width: 64rem; display: grid; grid-template-columns: minmax(0, 46rem) 12rem; column-gap: 3rem; justify-content: center; }
   main.explainer > * { grid-column: 1; }
+  body > footer { max-width: 64rem; display: grid; grid-template-columns: minmax(0, 46rem) 12rem; column-gap: 3rem; justify-content: center; }
+  body > footer > * { grid-column: 1; }
   main.explainer > .rail { grid-column: 2; grid-row: 1 / span 10; position: sticky; top: calc(var(--header-h) + 2.5rem); align-self: start; padding-top: 2.5rem; }
   .explainer .rail ul { display: block; margin: 0; }
   .explainer .rail .rail-label { display: block; font: 600 0.72rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 0.5rem 0.6rem; }

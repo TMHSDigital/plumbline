@@ -458,6 +458,7 @@ def site_header(root: str, current: str | None) -> str:
       </ul>
     </nav>
     <div class="tools">
+      <iframe class="sponsor-button" src="https://github.com/sponsors/TMHSDigital/button" title="Sponsor TMHSDigital" height="32" width="114" loading="lazy"></iframe>
       <button type="button" class="search-open" hidden aria-haspopup="dialog">
         Search <kbd>/</kbd>
       </button>
@@ -636,7 +637,6 @@ PAGE = """<!doctype html>
 <p>Every page here is rendered from the repository at deploy time; none is edited by hand.
 <a href="https://github.com/{repo}">Source on GitHub</a>, Apache-2.0 licensed.
 No analytics, no trackers. The only external request is GitHub's sponsor embed.</p>
-<iframe class="sponsor-button" src="https://github.com/sponsors/TMHSDigital/button" title="Sponsor TMHSDigital" height="32" width="114" loading="lazy"></iframe>
 </footer>
 <script src="{root}search.js" defer></script>
 <script src="{root}site.js" defer></script>
