@@ -458,7 +458,7 @@ def site_header(root: str, current: str | None) -> str:
       </ul>
     </nav>
     <div class="tools">
-      <iframe class="sponsor-button" src="https://github.com/sponsors/TMHSDigital/button" title="Sponsor TMHSDigital" height="32" width="114" loading="lazy"></iframe>
+      {SPONSOR_BUTTON}
       <button type="button" class="search-open" hidden aria-haspopup="dialog">
         Search <kbd>/</kbd>
       </button>
@@ -597,13 +597,21 @@ def social_meta(title: str, description: str, url: str) -> str:
     )
 
 
+#: GitHub's sponsor button, the one third-party frame the site loads. The CSP's
+#: ``frame-src`` names this URL and the link check allows only it.
+SPONSOR_BUTTON = (
+    '<iframe class="sponsor-button" src="https://github.com/sponsors/TMHSDigital/button" '
+    'title="Sponsor TMHSDigital" height="32" width="114" loading="lazy"></iframe>'
+)
+
 #: The Content Security Policy every page carries. Everything the site loads is
 #: its own: no inline script or style, no other origin, and data: only for the
 #: inline favicon. ``site/index.html`` carries the same tag, which the build
 #: requires, and ``scripts/check_site_links.mjs`` checks every page for it.
 CSP = (
     "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
-    "font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src https://github.com/sponsors/TMHSDigital/button; "
+    "font-src 'self'; connect-src 'self'; worker-src 'self'; "
+    "frame-src https://github.com/sponsors/TMHSDigital/button; "
     "object-src 'none'; base-uri 'none'; form-action 'none'"
 )
 CSP_META = f'<meta http-equiv="Content-Security-Policy" content="{CSP}">'
