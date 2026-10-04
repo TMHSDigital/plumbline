@@ -428,16 +428,30 @@ a tied option the vendor did not choose: those rows count as wrong by a
 tie-break, which is a fact about the measurement's precision rather than about
 the model's preference.
 
-Whether a vendor's tie-break is deterministic is not known. If it is not, the
-same tied row can resolve differently between calls, and a cached answer and a
-live one can disagree on it for a reason that is nobody's fault. The flag is
-what lets that be checked.
+Whether a vendor's tie-break is deterministic could not be settled, because the
+answers themselves are not. On 2026-10-04 the row that tied on the first live
+run (`hard-opus-c-temporal_numeric-04`) was asked ten times, each from an empty
+cache, against `jev-1.13.0`. Every call returned the same selected label, and
+none tied. But the probabilities moved between calls: the selected option's
+probability ranged from 0.37 to 0.43 and the runner-up's from 0.31 to 0.36, so
+the distribution is a draw rather than a fixed property of the row. A tie is
+therefore a draw too, and a tie-break cannot be tested apart from the draw it
+breaks. Two consequences hold regardless. A cached answer and a live one can
+disagree on a close row, by ordinary sampling variation as well as by
+tie-break, which is why a cache hit is recorded as one and why a close result
+should be rerun rather than trusted from one call. And `tied_for_top` stays
+the right instrument: it marks the rows where the question can arise, and
+rerunning those rows is the only way to see it.
 
 ## Probabilities arrive quantized, which bounds the resolution of any figure here
 
 Hosted Jev returns probabilities on a two-decimal grid. All 165 probability
 values across the 40-row live run landed exactly on a multiple of 0.01, as did
-all 40 confidence values. Nothing here treats that as a defect. A vendor is
+all 40 confidence values. A second 40-row run on 2026-10-04 found the same
+(124 of 124 probabilities and 28 of 28 reported confidences, across yes/no,
+choice and score rows, so across option counts from two to five), and ten more
+calls on one row did too. Both runs were `jev-1.13.0`, so whether the grid
+varies by model is still untested. Nothing here treats that as a defect. A vendor is
 entitled to round what it puts on the wire, and two decimals is a reasonable
 place to round for a decision API whose output is meant to be thresholded.
 
