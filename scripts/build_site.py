@@ -603,7 +603,7 @@ def social_meta(title: str, description: str, url: str) -> str:
 #: requires, and ``scripts/check_site_links.mjs`` checks every page for it.
 CSP = (
     "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
-    "font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src https://github.com/sponsors/TMHSDigital/; "
+    "font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src https://github.com/sponsors/TMHSDigital/button; "
     "object-src 'none'; base-uri 'none'; form-action 'none'"
 )
 CSP_META = f'<meta http-equiv="Content-Security-Policy" content="{CSP}">'
@@ -636,7 +636,7 @@ PAGE = """<!doctype html>
 <footer>
 <p>Every page here is rendered from the repository at deploy time; none is edited by hand.
 <a href="https://github.com/{repo}">Source on GitHub</a>, Apache-2.0 licensed.
-No analytics, no trackers. The only external request is GitHub's sponsor embed.</p>
+No analytics, no trackers. The only external request is GitHub's sponsor button.</p>
 </footer>
 <script src="{root}search.js" defer></script>
 <script src="{root}site.js" defer></script>

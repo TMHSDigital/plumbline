@@ -82,7 +82,8 @@ blockquote { margin: 0 0 1rem; padding: 0.75rem 1rem; border-left: 3px solid var
 blockquote p:last-child { margin: 0; }
 footer { padding-bottom: 3rem; border-top: 1px solid var(--line); padding-top: 1.5rem; margin-top: 2rem; font-size: 0.9rem; color: var(--muted); }
 .sponsor-button { display: block; border: 0; border-radius: 6px; }
-.sponsor-card { display: block; margin: 1.25rem 0 0; border: 1px solid var(--line); border-radius: 6px; max-width: 100%; }
+footer .sponsor-button { margin: 1rem auto 0; }
+footer { text-align: center; }
 .skip { position: absolute; left: -999px; }
 .skip:focus { left: 1rem; top: 1rem; background: var(--bg); padding: 0.5rem; z-index: 30; }
 .offscreen { position: fixed; left: -9999px; top: 0; }
