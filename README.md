@@ -1,24 +1,55 @@
-# plumbline
+<!-- github-only:start -->
+<div align="center">
 
-[![CI](https://github.com/TMHSDigital/plumbline/actions/workflows/ci.yml/badge.svg)](https://github.com/TMHSDigital/plumbline/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/TMHSDigital/plumbline)](https://github.com/TMHSDigital/plumbline/releases)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](#quickstart)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
-[![Sponsor](https://img.shields.io/badge/Sponsor-TMHSDigital-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/TMHSDigital)
+# plumbline
 
 **Measure whether a decision model's probabilities are trustworthy on your own
 labeled data, and decide what to do about it.**
 
+[![CI](https://github.com/TMHSDigital/plumbline/actions/workflows/ci.yml/badge.svg)](https://github.com/TMHSDigital/plumbline/actions/workflows/ci.yml)
+[![Site](https://github.com/TMHSDigital/plumbline/actions/workflows/site.yml/badge.svg)](https://github.com/TMHSDigital/plumbline/actions/workflows/site.yml)
+[![Release](https://img.shields.io/github/v/release/TMHSDigital/plumbline)](https://github.com/TMHSDigital/plumbline/releases)
+[![Last commit](https://img.shields.io/github/last-commit/TMHSDigital/plumbline)](https://github.com/TMHSDigital/plumbline/commits/main)
+
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](#quickstart)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Sponsor](https://img.shields.io/badge/Sponsor-TMHSDigital-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/TMHSDigital)
+
+[**Live calculator**](https://tmhsdigital.github.io/plumbline/) ·
+[Quickstart](#quickstart) ·
+[Example report](#example-report) ·
+[Methodology](METHODOLOGY.md) ·
+[Limitations](#limitations) ·
+[Contributing](CONTRIBUTING.md)
+
+</div>
+<!-- github-only:end -->
+<!-- site-only
+# plumbline
+
+**Measure whether a decision model's probabilities are trustworthy on your own
+labeled data, and decide what to do about it.**
+site-only -->
+
 Check where your own ECE sits against its floor, in the browser, with nothing
 installed: **[tmhsdigital.github.io/plumbline](https://tmhsdigital.github.io/plumbline/)**.
 
+> [!NOTE]
 > **v0.1.1, one maintainer.** The measurement behaviour is settled; the Python
 > API and the CLI flags are not, and will change in v0.2. Pin a version if you
 > build on it.
 
-[What it is](#what-it-is) · [The argument](#the-argument) · [Quickstart](#quickstart) ·
-[Example report](#example-report) · [Adapters](#adapters-and-probability-semantics) ·
-[Limitations](#limitations) · [Documentation](#documentation)
+| I want to | Go to |
+|---|---|
+| Check my ECE against its floor, with nothing installed | [The live calculator](https://tmhsdigital.github.io/plumbline/) |
+| Understand why a low ECE can still mean nothing | [The argument](#the-argument) |
+| Run it on my own rows | [Quickstart](#quickstart) |
+| See what comes out | [Example report](#example-report) |
+| Know how each number is computed | [METHODOLOGY.md](METHODOLOGY.md) |
+| Know what it cannot do | [Limitations](#limitations) |
+| Add a vendor | [Contributing](#contributing) |
 
 ```
 your labeled rows          plumbline run             what comes back
@@ -53,6 +84,8 @@ more models over them, and tells you three things:
 
 It is a measuring instrument. It has no opinion about which model you should
 pick, and it will refuse to answer a question your data cannot support.
+
+[Back to top](#plumbline)
 
 ## What this is not
 
@@ -124,17 +157,20 @@ figure against it. Here is a real line from the example report:
 > nothing was established either way. Collect more rows to make the question
 > answerable.
 
-**Read "inconclusive" as an absence of a result, not a pass.** It means your
-rows cannot tell your model apart from a perfect one, so nothing was
-established in either direction. A genuinely well calibrated model and a badly
-calibrated one both land there on too few rows, and the figure does not say
-which you have. Taking it as a clean bill of health inverts the conclusion, and
-it is the easiest mistake to make with this tool.
+> [!IMPORTANT]
+> **Read "inconclusive" as an absence of a result, not a pass.** It means your
+> rows cannot tell your model apart from a perfect one, so nothing was
+> established in either direction. A genuinely well calibrated model and a badly
+> calibrated one both land there on too few rows, and the figure does not say
+> which you have. Taking it as a clean bill of health inverts the conclusion, and
+> it is the easiest mistake to make with this tool.
 
 On that same run's 105 choice and yes/no rows, three of the four headline figures came back
 inconclusive and only accuracy cleared its null. A tool that printed the other
 three alone would be handing you numbers that look like findings and are not.
 That refusal is the product.
+
+[Back to top](#plumbline)
 
 ## Quickstart
 
@@ -142,11 +178,13 @@ That refusal is the product.
 An older Python gives a resolver error rather than a clear message, so check
 with `python --version` first.
 
-**plumbline is not on PyPI, and `pip install plumbline` installs something
-else.** The name on PyPI belongs to an unrelated project, so that command
-succeeds and gives you the wrong tool. Clone the repository, which is the
-intended install path for v0.1. If you use pip rather than uv, install from the
-repository itself:
+> [!WARNING]
+> **plumbline is not on PyPI, and `pip install plumbline` installs something
+> else.** The name on PyPI belongs to an unrelated project, so that command
+> succeeds and gives you the wrong tool.
+
+Clone the repository, which is the intended install path for v0.1. If you use
+pip rather than uv, install from the repository itself:
 
 ```
 pip install "plumbline @ git+https://github.com/TMHSDigital/plumbline"
@@ -304,6 +342,8 @@ only path on which the recalibration numbers mean anything.
 and the commands to run next: a local checkpoint, the cascade's two costs, and
 `plumbline report` for runs that already happened.
 
+[Back to top](#plumbline)
+
 ## Example report
 
 [docs/example-report.md](docs/example-report.md) is the output of one seeded mock
@@ -332,6 +372,8 @@ across the difference.
 The arm in that report is the seeded mock, labeled as such at the top of the
 page, so anyone can reproduce it with one command and no key. Its numbers are
 properties of plumbline's harness, not a measurement of any vendor.
+
+[Back to top](#plumbline)
 
 ## Adapters and probability semantics
 
@@ -372,6 +414,8 @@ The semantics classes are the whole reason the report refuses some comparisons:
 The report groups arms by this field and will not place figures from different
 groups side by side.
 
+[Back to top](#plumbline)
+
 ## Limitations
 
 Specific, and none of them are going to surprise you later.
@@ -409,6 +453,8 @@ Specific, and none of them are going to surprise you later.
   local arm has, against a pinned open checkpoint; see the adapters table
   above and [issue #3](https://github.com/TMHSDigital/plumbline/issues/3).
 
+[Back to top](#plumbline)
+
 ## Related work
 
 - **[JevBench](https://github.com/fstandhartinger/jevbench)** and
@@ -440,6 +486,8 @@ Specific, and none of them are going to surprise you later.
 
 The pattern across the last three: they are models, and plumbline is the
 instrument you point at them. It has no opinion about which one you should pick.
+
+[Back to top](#plumbline)
 
 ## Documentation
 

@@ -216,3 +216,25 @@ def test_out_accepts_new_empty_or_previously_built_directories(
     (built / site.MARKER).write_text("", encoding="utf-8")
     (built / "index.html").write_text("<p>old</p>", encoding="utf-8")
     assert site.refusal_to_clear(built) is None
+
+
+def test_for_site_drops_github_blocks_and_unwraps_site_blocks(site: ModuleType) -> None:
+    source = (
+        '<!-- github-only:start -->\n<div align="center">\n\n# gh title\n\n'
+        "[![CI](https://example.invalid/b.svg)](x)\n\n</div>\n<!-- github-only:end -->\n"
+        "<!-- site-only\n# site title\nsite-only -->\n\n"
+        "> [!NOTE]\n> a note\n\n[Back to top](#site-title)\n\nbody\n"
+    )
+    out = site._for_site(source)
+    assert "gh title" not in out and "<div" not in out and "[![" not in out
+    assert out.startswith("# site title\n")
+    assert "> **Note.**\n> a note" in out
+    assert "Back to top" not in out and out.endswith("body\n")
+
+
+def test_the_committed_readme_survives_the_site_filter(site: ModuleType) -> None:
+    readme = (SCRIPT.parent.parent / "README.md").read_text(encoding="utf-8")
+    out = site._for_site(readme)
+    assert out.startswith("# plumbline\n")
+    for left_over in ("github-only", "site-only", "[!NOTE]", "[!WARNING]", "<div"):
+        assert left_over not in out

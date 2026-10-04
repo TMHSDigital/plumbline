@@ -380,14 +380,22 @@ def provenance() -> Provenance:
 
 
 def _for_site(markdown: str) -> str:
-    """Drop what is only for GitHub's page: the badge row and the contents row.
+    """Drop what is only for GitHub's page, and unwrap what is only for the site.
 
-    The renderer shows a remote image as its alt text, so a badge becomes a bare
-    link reading "CI" or "Release", and the site already carries an "On this
-    page" list in place of the contents row.
+    ``github-only`` blocks (the centered header and its badges) are removed: the
+    renderer shows a remote image as its alt text, so a badge becomes a bare link
+    reading "CI", and the site has its own header and "On this page" list.
+    ``site-only`` blocks sit inside an HTML comment, which GitHub hides, and are
+    unwrapped here. A GitHub alert (``> [!NOTE]``) becomes a bold lead-in, and the
+    back-to-top links go, since the sidebar does that job.
     """
-    skipped = ("[![", "[What it is](#what-it-is)")
-    kept = [line for line in markdown.splitlines() if not line.startswith(skipped)]
+    text = re.sub(
+        r"<!-- github-only:start -->.*?<!-- github-only:end -->\n?", "", markdown, flags=re.S
+    )
+    text = re.sub(r"<!-- site-only\n(.*?)site-only -->\n?", r"\1", text, flags=re.S)
+    text = re.sub(r"^> \[!(\w+)\]$", lambda m: f"> **{m[1].title()}.**", text, flags=re.M)
+    skipped = ("[![", "[Back to top](")
+    kept = [line for line in text.splitlines() if not line.startswith(skipped)]
     return "\n".join(kept) + "\n"
 
 
