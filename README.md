@@ -4,6 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/TMHSDigital/plumbline)](https://github.com/TMHSDigital/plumbline/releases)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](#quickstart)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![Sponsor](https://img.shields.io/badge/Sponsor-TMHSDigital-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/TMHSDigital)
 
 **Measure whether a decision model's probabilities are trustworthy on your own
 labeled data, and decide what to do about it.**
@@ -456,6 +457,10 @@ instrument you point at them. It has no opinion about which one you should pick.
 
 New vendors are config entries, not new adapter modules. See
 [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Support
+
+If plumbline is useful to you, you can [sponsor its maintainer](https://github.com/sponsors/TMHSDigital).
 
 ## License
 
