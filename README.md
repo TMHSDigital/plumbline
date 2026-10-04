@@ -1,16 +1,31 @@
 # plumbline
 
 [![CI](https://github.com/TMHSDigital/plumbline/actions/workflows/ci.yml/badge.svg)](https://github.com/TMHSDigital/plumbline/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/TMHSDigital/plumbline)](https://github.com/TMHSDigital/plumbline/releases)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](#quickstart)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-Measure whether a decision model's probabilities are trustworthy on your own
-labeled data, and decide what to do about it.
+**Measure whether a decision model's probabilities are trustworthy on your own
+labeled data, and decide what to do about it.**
 
 Check where your own ECE sits against its floor, in the browser, with nothing
 installed: **[tmhsdigital.github.io/plumbline](https://tmhsdigital.github.io/plumbline/)**.
 
-> **v0.1.0, one maintainer.** The measurement behaviour is settled; the Python
+> **v0.1.1, one maintainer.** The measurement behaviour is settled; the Python
 > API and the CLI flags are not, and will change in v0.2. Pin a version if you
 > build on it.
+
+[What it is](#what-it-is) · [The argument](#the-argument) · [Quickstart](#quickstart) ·
+[Example report](#example-report) · [Adapters](#adapters-and-probability-semantics) ·
+[Limitations](#limitations) · [Documentation](#documentation)
+
+```
+your labeled rows          plumbline run             what comes back
+-----------------   -->   ---------------   -->   ------------------------------
+question, options,         one or more models        every figure beside its floor,
+right answer               answer each row           a threshold, a cascade's price,
+                                                     or a stated refusal
+```
 
 ## What it is
 
@@ -80,6 +95,23 @@ own number.**
 
 This is not a rounding concern. On a few hundred rows, a calibration claim is
 frequently not measurable at all.
+
+How big is the floor? Here it is for a model that is exactly calibrated and right
+80% of the time, scored with ten equal width bins. These are plumbline's own
+figures, the ones the [browser calculator](https://tmhsdigital.github.io/plumbline/)
+is held to:
+
+| Rows | Floor (mean ECE of a perfect model) | 95th percentile |
+|---:|---:|---:|
+| 105 | 0.0720 | 0.1120 |
+| 500 | 0.0356 | 0.0531 |
+| 2,000 | 0.0175 | 0.0260 |
+| 10,000 | 0.0077 | 0.0118 |
+
+Read the first row as: on 105 rows, a model with no calibration error at all
+would score 0.07 on average and worse than 0.11 one time in twenty. An
+ECE of 0.07 on 105 rows is not evidence of a problem, and an ECE of 0.03 is not
+evidence of health. It takes thousands of rows before a small ECE means anything.
 
 So plumbline computes that floor by simulation and prints every inferential
 figure against it. Here is a real line from the example report:
