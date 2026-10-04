@@ -238,3 +238,12 @@ def test_the_committed_readme_survives_the_site_filter(site: ModuleType) -> None
     assert out.startswith("# plumbline\n")
     for left_over in ("github-only", "site-only", "[!NOTE]", "[!WARNING]", "<div"):
         assert left_over not in out
+
+
+def test_the_readme_has_no_blank_line_inside_a_site_only_comment() -> None:
+    # GitHub's renderer drops everything after a hidden comment that contains a
+    # blank line beside the centered header, so the page below it vanishes.
+    readme = (SCRIPT.parent.parent / "README.md").read_text(encoding="utf-8")
+    start = readme.index("<!-- site-only\n")
+    block = readme[start : readme.index("site-only -->", start)]
+    assert "\n\n" not in block

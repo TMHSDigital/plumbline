@@ -28,7 +28,6 @@ labeled data, and decide what to do about it.**
 <!-- github-only:end -->
 <!-- site-only
 # plumbline
-
 **Measure whether a decision model's probabilities are trustworthy on your own
 labeled data, and decide what to do about it.**
 site-only -->
