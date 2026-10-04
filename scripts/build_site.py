@@ -379,6 +379,18 @@ def provenance() -> Provenance:
     return Provenance(sha, built, modified)
 
 
+def _for_site(markdown: str) -> str:
+    """Drop what is only for GitHub's page: the badge row and the contents row.
+
+    The renderer shows a remote image as its alt text, so a badge becomes a bare
+    link reading "CI" or "Release", and the site already carries an "On this
+    page" list in place of the contents row.
+    """
+    skipped = ("[![", "[What it is](#what-it-is)")
+    kept = [line for line in markdown.splitlines() if not line.startswith(skipped)]
+    return "\n".join(kept) + "\n"
+
+
 def render_docs(prov: Provenance) -> dict[str, Rendered]:
     """Markdown to HTML fragments, by the vendored renderer under the runner's Node."""
     job = {
@@ -389,7 +401,7 @@ def render_docs(prov: Provenance) -> dict[str, Rendered]:
             {
                 "source": doc.source,
                 "slug": doc.slug,
-                "markdown": (ROOT / doc.source).read_text(encoding="utf-8"),
+                "markdown": _for_site((ROOT / doc.source).read_text(encoding="utf-8")),
             }
             for doc in DOCS
         ],
