@@ -11,6 +11,7 @@
 // - an internal link, stylesheet, script, or image does not resolve,
 // - a #fragment names no id on the page it points to,
 // - a page loads anything (script, stylesheet, image, frame) from another origin,
+//   except GitHub's two sponsor embeds, which the CSP's frame-src names,
 // - a page lacks its canonical, Open Graph, or Twitter card tags, or its
 //   canonical and og:url do not name the page itself,
 // - a page does not carry exactly the site's Content-Security-Policy tag, or
@@ -30,8 +31,14 @@ const SITE_PATH = new URL(SITE_URL).pathname; // "/plumbline/"
 // is a change to what this check requires.
 const CSP =
   "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; " +
-  "font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src 'none'; " +
+  "font-src 'self'; connect-src 'self'; worker-src 'self'; frame-src https://github.com/sponsors/TMHSDigital/; " +
   "object-src 'none'; base-uri 'none'; form-action 'none'";
+
+// The only third-party frames: the same two URLs the CSP's frame-src covers.
+const SPONSOR_EMBEDS = new Set([
+  "https://github.com/sponsors/TMHSDigital/button",
+  "https://github.com/sponsors/TMHSDigital/card",
+]);
 
 const target = process.argv[2];
 if (!target) {
@@ -164,7 +171,7 @@ async function crawl(sitePath, { social = true, servedAs = sitePath } = {}) {
       continue;
     }
     if (resolved.external) {
-      if (loads) problems.push(`${where}: loads from another origin`);
+      if (loads && !(tag === "iframe" && SPONSOR_EMBEDS.has(value))) problems.push(`${where}: loads from another origin`);
       continue;
     }
     const { sitePath: to, fragment } = resolved;
@@ -212,4 +219,4 @@ if (problems.length) {
   console.error(`${problems.length} problem(s) on ${live ? base : target}:\n  ${problems.join("\n  ")}`);
   process.exit(1);
 }
-console.log(`${htmlPages} pages checked on ${live ? base : target}: every link, anchor, and meta tag resolves; nothing loads from another origin; every page carries the CSP.`);
+console.log(`${htmlPages} pages checked on ${live ? base : target}: every link, anchor, and meta tag resolves; nothing loads from another origin but GitHub's sponsor embeds; every page carries the CSP.`);
