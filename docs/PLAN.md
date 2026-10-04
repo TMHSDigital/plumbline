@@ -78,6 +78,94 @@ All three items are done. Kept here because the answers matter, not the list.
   sends a Choice's descriptions as its criteria, they join the cache key and the
   dataset hash, and the report says when an adapter does not send them.
 
+## v0.2 designs
+
+Proposals, not code. Each says what would be built, what it refuses, and what is
+still undecided, so the build can be judged against something written first.
+
+### Batching as a measurement dimension (#5)
+
+Blocked on #3: the generative half of the local arm has not run live, and
+nothing here should be built on an arm that has only met fakes.
+
+**What a run would report.** The same rows, measured twice: once one request per
+case (today's behaviour) and once batched. Cost and latency are reported for
+each, so the saving is measured on the user's data and never quoted from a
+vendor page. How much state the rows share changes the saving a great deal, so
+no single "N times cheaper" figure is ever printed.
+
+**Who decides the batches: the caller.** Batch composition is an input, given
+as a file mapping each batch to its case ids, the same way escalation cost and
+error cost are never defaulted. A documented helper can write that file by
+grouping rows on a shared field the user names, but the grouping is a choice
+the user can read and edit, not a heuristic that moves the result unseen.
+Automatic grouping is deliberately not offered. The cost is friendliness; the
+gain is that two runs of the same file mean the same measurement.
+
+**What the artifact records.** Each case record gains a `batch_id`, and the
+artifact gains the batch table (batch id, case ids in request order, a hash of
+the whole request). Which cases shared a request changes the result, so it sits
+beside `prompt_hash`, and it joins the cache key: the same case asked alone and
+asked in a batch are different measurements and never share a cache entry.
+
+**Latency is two quantities, in two columns.** An unbatched case has a
+per-case wall-clock time. A batch has one wall-clock time covering its cases.
+The report shows per-case latency for the unbatched pass and per-batch latency
+for the batched pass. It never divides a batch's time by its size and presents
+the result as a per-case figure, because that is a different quantity.
+
+**What is refused.** A batch whose answer cannot be attributed to its case with
+certainty is refused whole, by name, and none of its cases are scored. That
+covers a response with the wrong number of answers, an answer that does not
+echo its case id, and a duplicated id. Cases in one batch never contribute to
+each other's score, and a refused batch counts toward the refusal tally like any
+other refusal.
+
+**What it needs from an adapter.** A new capability flag beside the existing
+cost one, so an adapter that cannot batch says so and the batched pass is skipped
+with a stated reason instead of silently falling back to one request per case.
+Only `typesafe_wire` is a candidate, and only if the wire format's batch call
+returns one attributable answer per question.
+
+**Undecided.** Whether the batched pass may use a different retry policy (one
+failed case would cost a whole batch a retry). Whether to report the saving
+as a ratio at all, or only the two absolute figures. When this lands, the README
+Limitations entry on conservative cost and latency is replaced with what was
+measured.
+
+### Choosing between temperature and isotonic (#8)
+
+The question in the issue is answered in METHODOLOGY: on a scalar-only column
+isotonic regression escapes the shape temperature cannot fix, and loses to it
+at small sizes where temperature already fits. What is left is whether the
+report should choose between them, and that is a design problem before it is a
+coding one.
+
+**The trap.** Picking the correction with the lower held-out ECE and then
+reporting that held-out ECE counts the choice twice, so the reported figure is
+optimistic by an amount nobody has measured.
+
+**Proposed shape.** Three disjoint parts of the rows, never two. The first fits
+both candidates. The second chooses between them. The third is judged once, for
+the chosen correction only, and that is the figure reported. The third part is
+never used to choose.
+
+**Rows it needs.** Isotonic spends rows finding a shape, and the existing table
+shows it does not beat temperature until thousands of rows even where it should.
+So the gate is higher than the 200-row gate for temperature alone: isotonic is
+considered only when each of the three parts clears a stated floor, and below
+that the report fits temperature only, as it does today, and says why isotonic
+was not tried.
+
+**Refusal stays.** If neither correction reaches the floor on the third part,
+the report refuses to recommend either, as it does now. A fit that chooses
+between two corrections is not allowed to turn a refusal into an answer.
+
+**Undecided.** The row floor per part, which needs the same kind of sweep the
+existing table came from. Whether the choice rule is lowest ECE on the second
+part or lowest ECE as a multiple of the floor, since the table shows the two
+disagree across sizes. Neither should be settled without that sweep.
+
 ## Decisions
 
 Settled during the build. Reopen one only with a reason, not from scratch.
